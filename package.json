@@ -1,0 +1,57 @@
+{
+	"name": "@poli-page/sdk",
+	"version": "0.0.1",
+	"description": "Poli Page SDK for Node.js — render PDFs from HTML templates via the Poli Page API",
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
+	"engines": {
+		"node": ">=22.13.0"
+	},
+	"scripts": {
+		"build": "tsc",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"prepublishOnly": "pnpm run build"
+	},
+	"keywords": [
+		"pdf",
+		"sdk",
+		"poli-page",
+		"pdf-generation",
+		"html-to-pdf",
+		"document",
+		"templates",
+		"reporting"
+	],
+	"author": "Poli Page",
+	"license": "MIT",
+	"homepage": "https://poli.page",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/poli-page/sdk-node.git"
+	},
+	"bugs": {
+		"url": "https://github.com/poli-page/sdk-node/issues"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"devDependencies": {
+		"@types/node": "^22.19.17",
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.5"
+	}
+}
