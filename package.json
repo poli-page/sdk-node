@@ -1,6 +1,6 @@
 {
 	"name": "@poli-page/sdk",
-	"version": "0.0.1",
+	"version": "0.1.0",
 	"description": "Poli Page SDK for Node.js — render PDFs from HTML templates via the Poli Page API",
 	"type": "module",
 	"main": "dist/index.js",

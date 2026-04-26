@@ -2,9 +2,16 @@
  * Poli Page SDK for Node.js — public surface.
  *
  * The behavioural contract (options, defaults, errors, retry policy, HTTP rules)
- * is shared across every official Poli Page SDK and lives in
- * `docs/onboarding/micka/sdk-specification.md` of the platform monorepo.
+ * is shared across every official Poli Page SDK.
  */
+
+import { writeFile, mkdir } from 'node:fs/promises';
+import { dirname } from 'node:path';
+
+const DEFAULT_BASE_URL = 'https://api.poli.page';
+const DEFAULT_MAX_RETRIES = 2;
+const DEFAULT_RETRY_DELAY = 500;
+const DEFAULT_TIMEOUT = 60_000;
 
 export interface PoliPageOptions {
 	/** A `pp_test_*` or `pp_live_*` API key. Required. */
@@ -19,7 +26,24 @@ export interface PoliPageOptions {
 	timeout?: number;
 }
 
-export type PageFormat = 'A3' | 'A4' | 'A5' | 'Letter';
+/**
+ * Canonical Poli Page page formats. The full list is documented in the
+ * platform spec (`docs/spec/page-formats.md`) and must match every other SDK.
+ */
+export type PageFormat =
+	| 'A3'
+	| 'A4'
+	| 'A5'
+	| 'A6'
+	| 'B4'
+	| 'B5'
+	| 'Letter'
+	| 'Legal'
+	| 'Tabloid'
+	| 'Executive'
+	| 'Statement'
+	| 'Folio';
+
 export type Orientation = 'portrait' | 'landscape';
 
 export interface RenderInput {
@@ -107,29 +131,96 @@ export class PoliPage {
 			throw new PoliPageError('apiKey is required', 'invalid_api_key');
 		}
 		this.#apiKey = options.apiKey;
-		this.#baseUrl = options.baseUrl ?? 'https://api.poli.page';
-		this.#maxRetries = options.maxRetries ?? 2;
-		this.#retryDelay = options.retryDelay ?? 500;
-		this.#timeout = options.timeout ?? 60000;
+		this.#baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
+		this.#maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
+		this.#retryDelay = options.retryDelay ?? DEFAULT_RETRY_DELAY;
+		this.#timeout = options.timeout ?? DEFAULT_TIMEOUT;
 	}
 
 	/** Render a PDF and return its raw bytes. Calls `POST /v1/render/pdf`. */
-	render(_input: RenderInput): Promise<Buffer> {
-		throw new PoliPageError('render() is not yet implemented', 'not_implemented');
+	async render(input: RenderInput): Promise<Buffer> {
+		const response = await this.#request('/v1/render/pdf', input);
+		const arrayBuffer = await response.arrayBuffer();
+		return Buffer.from(arrayBuffer);
 	}
 
 	/** Render a PDF and write it to disk. Creates parent directories. */
-	renderToFile(_input: RenderInput, _outputPath: string): Promise<void> {
-		throw new PoliPageError('renderToFile() is not yet implemented', 'not_implemented');
+	async renderToFile(input: RenderInput, outputPath: string): Promise<void> {
+		const buffer = await this.render(input);
+		await mkdir(dirname(outputPath), { recursive: true });
+		await writeFile(outputPath, buffer);
 	}
 
 	/** Generate paginated HTML output. Calls `POST /v1/render/preview`. */
-	preview(_input: RenderInput): Promise<PreviewResult> {
-		throw new PoliPageError('preview() is not yet implemented', 'not_implemented');
+	async preview(input: RenderInput): Promise<PreviewResult> {
+		const response = await this.#request('/v1/render/preview', input);
+		return response.json() as Promise<PreviewResult>;
 	}
 
 	/** Generate page thumbnails as base64-encoded images. */
-	thumbnails(_input: RenderInput, _options: ThumbnailOptions): Promise<Thumbnail[]> {
-		throw new PoliPageError('thumbnails() is not yet implemented', 'not_implemented');
+	async thumbnails(input: RenderInput, options: ThumbnailOptions): Promise<Thumbnail[]> {
+		const body = { ...input, thumbnails: options };
+		const response = await this.#request('/v1/render/thumbnails', body);
+		const result = (await response.json()) as { thumbnails: Thumbnail[] };
+		return result.thumbnails;
+	}
+
+	async #request(path: string, body: object): Promise<Response> {
+		let lastError: PoliPageError | undefined;
+
+		for (let attempt = 0; attempt <= this.#maxRetries; attempt++) {
+			if (attempt > 0) {
+				const delay = this.#retryDelay * Math.pow(2, attempt - 1);
+				await new Promise((resolve) => setTimeout(resolve, delay));
+			}
+
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), this.#timeout);
+
+			let response: Response;
+			try {
+				response = await fetch(`${this.#baseUrl}${path}`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						Authorization: `Bearer ${this.#apiKey}`,
+					},
+					body: JSON.stringify(body),
+					signal: controller.signal,
+				});
+			} catch (err) {
+				clearTimeout(timeoutId);
+				const aborted = err instanceof Error && err.name === 'AbortError';
+				lastError = new PoliPageError(
+					aborted ? `Request timed out after ${this.#timeout}ms` : (err as Error).message,
+					aborted ? 'timeout' : 'network_error',
+				);
+				if (attempt < this.#maxRetries) continue;
+				throw lastError;
+			}
+			clearTimeout(timeoutId);
+
+			if (response.ok) return response;
+
+			const requestId = response.headers.get('x-request-id') ?? undefined;
+			const errorBody = await response.text();
+			let code: string;
+			let message: string;
+			try {
+				const json = JSON.parse(errorBody);
+				code = json.code ?? json.message ?? json.error ?? 'unknown_error';
+				message = json.message ?? `API error (${response.status}): ${code}`;
+			} catch {
+				code = errorBody || 'unknown_error';
+				message = `API error (${response.status}): ${code}`;
+			}
+
+			lastError = new PoliPageError(message, code, response.status, requestId);
+
+			// Only retry on server errors (5xx)
+			if (response.status < 500) throw lastError;
+		}
+
+		throw lastError!;
 	}
 }
