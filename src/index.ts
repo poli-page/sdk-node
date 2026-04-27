@@ -75,7 +75,8 @@ export class PoliPage {
 
 	/** Render a PDF and return its raw bytes. Calls `POST /v1/render/pdf`. */
 	async render(input: RenderInput): Promise<Uint8Array> {
-		const response = await this.#request('/v1/render/pdf', input);
+		const { signal, ...wireBody } = input;
+		const response = await this.#request('/v1/render/pdf', wireBody, signal);
 		const contentType = response.headers.get('content-type') ?? '';
 		if (!contentType.includes('application/pdf')) {
 			const requestId = response.headers.get('x-request-id') ?? undefined;
@@ -99,14 +100,16 @@ export class PoliPage {
 
 	/** Generate paginated HTML output. Calls `POST /v1/render/preview`. */
 	async preview(input: RenderInput): Promise<PreviewResult> {
-		const response = await this.#request('/v1/render/preview', input);
+		const { signal, ...wireBody } = input;
+		const response = await this.#request('/v1/render/preview', wireBody, signal);
 		return response.json() as Promise<PreviewResult>;
 	}
 
 	/** Generate page thumbnails as base64-encoded images. */
 	async thumbnails(input: RenderInput, options: ThumbnailOptions): Promise<Thumbnail[]> {
-		const body = { ...input, thumbnails: options };
-		const response = await this.#request('/v1/render/thumbnails', body);
+		const { signal, ...inputBody } = input;
+		const body = { ...inputBody, thumbnails: options };
+		const response = await this.#request('/v1/render/thumbnails', body, signal);
 		const result = (await response.json()) as { thumbnails: Thumbnail[] };
 		return result.thumbnails;
 	}
@@ -121,7 +124,11 @@ export class PoliPage {
 		};
 	}
 
-	async #request(path: string, body: object): Promise<Response> {
+	async #request(path: string, body: object, signal?: AbortSignal): Promise<Response> {
+		if (signal?.aborted) {
+			throw new PoliPageError('Request was aborted', 'aborted');
+		}
+
 		let lastError: PoliPageError | undefined;
 		let nextRetryAfterMs: number | undefined;
 
@@ -135,12 +142,15 @@ export class PoliPage {
 					const jitterFactor = 0.5 + Math.random(); // [0.5, 1.5)
 					delay = Math.round(exp * jitterFactor);
 				}
-				await new Promise((resolve) => setTimeout(resolve, delay));
+				await this.#sleep(delay, signal);
 				nextRetryAfterMs = undefined;
 			}
 
-			const controller = new AbortController();
-			const timeoutId = setTimeout(() => controller.abort(), this.#timeout);
+			const timeoutController = new AbortController();
+			const timeoutId = setTimeout(() => timeoutController.abort(), this.#timeout);
+			const composed = signal
+				? AbortSignal.any([signal, timeoutController.signal])
+				: timeoutController.signal;
 
 			let response: Response;
 			try {
@@ -148,10 +158,13 @@ export class PoliPage {
 					method: 'POST',
 					headers: this.#headers(path),
 					body: JSON.stringify(body),
-					signal: controller.signal,
+					signal: composed,
 				});
 			} catch (err) {
 				clearTimeout(timeoutId);
+				if (signal?.aborted) {
+					throw new PoliPageError('Request was aborted', 'aborted');
+				}
 				const aborted = err instanceof Error && err.name === 'AbortError';
 				lastError = new PoliPageError(
 					aborted ? `Request timed out after ${this.#timeout}ms` : (err as Error).message,
@@ -190,5 +203,22 @@ export class PoliPage {
 		}
 
 		throw lastError!;
+	}
+
+	#sleep(ms: number, signal?: AbortSignal): Promise<void> {
+		return new Promise((resolve, reject) => {
+			const timer = setTimeout(resolve, ms);
+			if (signal) {
+				const onAbort = () => {
+					clearTimeout(timer);
+					reject(new PoliPageError('Request was aborted', 'aborted'));
+				};
+				if (signal.aborted) {
+					onAbort();
+				} else {
+					signal.addEventListener('abort', onAbort, { once: true });
+				}
+			}
+		});
 	}
 }
