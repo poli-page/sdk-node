@@ -26,29 +26,12 @@ import type { RenderInput, PreviewResult, Thumbnail, ThumbnailOptions, PoliPageO
 
 export { PoliPageError, type PoliPageErrorCode } from './error.js';
 import { PoliPageError } from './error.js';
+import { parseRetryAfter, computeBackoff, parseErrorBody, buildHeaders } from './internal/http.js';
 
 const DEFAULT_BASE_URL = 'https://api.poli.page';
 const DEFAULT_MAX_RETRIES = 2;
 const DEFAULT_RETRY_DELAY = 500;
 const DEFAULT_TIMEOUT = 60_000;
-
-const RETRY_AFTER_CAP_MS = 30_000;
-
-function parseRetryAfter(headerValue: string | null): number | undefined {
-	if (!headerValue) return undefined;
-	// Try integer seconds
-	const seconds = Number(headerValue);
-	if (Number.isFinite(seconds)) {
-		return Math.min(Math.max(seconds * 1000, 0), RETRY_AFTER_CAP_MS);
-	}
-	// Try HTTP-date
-	const dateMs = Date.parse(headerValue);
-	if (Number.isFinite(dateMs)) {
-		const delta = dateMs - Date.now();
-		return Math.min(Math.max(delta, 0), RETRY_AFTER_CAP_MS);
-	}
-	return undefined;
-}
 
 /**
  * Poli Page client. Single entry point for rendering PDFs, previewing
@@ -146,17 +129,6 @@ export class PoliPage {
 		}
 	}
 
-	#headers(path: string, idempotencyKey: string): Record<string, string> {
-		const accept = path === '/v1/render/pdf' ? 'application/pdf' : 'application/json';
-		return {
-			'Content-Type': 'application/json',
-			Accept: accept,
-			Authorization: `Bearer ${this.#apiKey}`,
-			'User-Agent': `poli-page-sdk-node/${__SDK_VERSION__}`,
-			'Idempotency-Key': idempotencyKey,
-		};
-	}
-
 	async #request(
 		path: string,
 		body: object,
@@ -176,14 +148,7 @@ export class PoliPage {
 
 		for (let attempt = 0; attempt <= this.#maxRetries; attempt++) {
 			if (attempt > 0) {
-				let delay: number;
-				if (nextRetryAfterMs !== undefined) {
-					delay = nextRetryAfterMs; // server-explicit, no jitter
-				} else {
-					const exp = this.#retryDelay * Math.pow(2, attempt - 1);
-					const jitterFactor = 0.5 + Math.random(); // [0.5, 1.5)
-					delay = Math.round(exp * jitterFactor);
-				}
+				const delay = computeBackoff(attempt, this.#retryDelay, nextRetryAfterMs);
 				this.#fireHook(this.#onRetry, { attempt: attempt + 1, delayMs: delay, reason: lastError! });
 				await this.#sleep(delay, signal);
 				nextRetryAfterMs = undefined;
@@ -206,7 +171,12 @@ export class PoliPage {
 			try {
 				response = await fetch(`${this.#baseUrl}${path}`, {
 					method: 'POST',
-					headers: this.#headers(path, idempotencyKey),
+					headers: buildHeaders(
+						path,
+						this.#apiKey,
+						idempotencyKey,
+						`poli-page-sdk-node/${__SDK_VERSION__}`,
+					),
 					body: JSON.stringify(body),
 					signal: composed,
 				});
@@ -246,16 +216,7 @@ export class PoliPage {
 			}
 
 			const errorBody = await response.text();
-			let code: string;
-			let message: string;
-			try {
-				const json = JSON.parse(errorBody) as { code?: string; message?: string; error?: string };
-				code = json.code ?? json.message ?? json.error ?? 'unknown_error';
-				message = json.message ?? `API error (${response.status}): ${code}`;
-			} catch {
-				code = 'INTERNAL_ERROR';
-				message = `API error ${response.status}: response body was not valid JSON`;
-			}
+			const { code, message } = parseErrorBody(errorBody, response.status);
 
 			lastError = new PoliPageError(message, code, response.status, requestId);
 
