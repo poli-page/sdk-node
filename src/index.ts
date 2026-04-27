@@ -13,6 +13,24 @@ const DEFAULT_MAX_RETRIES = 2;
 const DEFAULT_RETRY_DELAY = 500;
 const DEFAULT_TIMEOUT = 60_000;
 
+const RETRY_AFTER_CAP_MS = 30_000;
+
+export function parseRetryAfter(headerValue: string | null): number | undefined {
+	if (!headerValue) return undefined;
+	// Try integer seconds
+	const seconds = Number(headerValue);
+	if (Number.isFinite(seconds)) {
+		return Math.min(Math.max(seconds * 1000, 0), RETRY_AFTER_CAP_MS);
+	}
+	// Try HTTP-date
+	const dateMs = Date.parse(headerValue);
+	if (Number.isFinite(dateMs)) {
+		const delta = dateMs - Date.now();
+		return Math.min(Math.max(delta, 0), RETRY_AFTER_CAP_MS);
+	}
+	return undefined;
+}
+
 export interface PoliPageOptions {
 	/** A `pp_test_*` or `pp_live_*` API key. Required. */
 	apiKey: string;
@@ -187,11 +205,16 @@ export class PoliPage {
 
 	async #request(path: string, body: object): Promise<Response> {
 		let lastError: PoliPageError | undefined;
+		let nextRetryAfterMs: number | undefined;
 
 		for (let attempt = 0; attempt <= this.#maxRetries; attempt++) {
 			if (attempt > 0) {
-				const delay = this.#retryDelay * Math.pow(2, attempt - 1);
+				const delay =
+					nextRetryAfterMs !== undefined
+						? nextRetryAfterMs
+						: this.#retryDelay * Math.pow(2, attempt - 1);
 				await new Promise((resolve) => setTimeout(resolve, delay));
+				nextRetryAfterMs = undefined;
 			}
 
 			const controller = new AbortController();
@@ -220,6 +243,12 @@ export class PoliPage {
 			if (response.ok) return response;
 
 			const requestId = response.headers.get('x-request-id') ?? undefined;
+
+			// Only retry on server errors (5xx); capture Retry-After before reading body
+			if (response.status >= 500) {
+				nextRetryAfterMs = parseRetryAfter(response.headers.get('retry-after'));
+			}
+
 			const errorBody = await response.text();
 			let code: string;
 			let message: string;
