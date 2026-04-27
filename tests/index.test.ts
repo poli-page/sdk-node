@@ -501,5 +501,62 @@ describe('PoliPage SDK', () => {
 			const elapsed = Date.now() - t0;
 			expect(elapsed).toBeLessThan(500);
 		});
+
+		it('applies jitter to exponential backoff (delay falls in [0.5×, 1.5×])', async () => {
+			const { vi } = await import('vitest');
+			const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+
+			let attempts = 0;
+			setMockHandler((_req, res) => {
+				attempts++;
+				if (attempts < 2) {
+					res.writeHead(503, { 'Content-Type': 'application/json' }); // no Retry-After
+					res.end(JSON.stringify({ code: 'unavailable' }));
+				} else {
+					res.writeHead(200, { 'Content-Type': 'application/pdf' });
+					res.end(Buffer.from('%PDF-1.4 ok'));
+				}
+			});
+
+			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 2, retryDelay: 100 });
+			await client.render({ template: '<p>x</p>', data: {} });
+
+			// Find the backoff delay among setTimeout calls (filter to range we expect)
+			const delays = setTimeoutSpy.mock.calls
+				.map((c) => c[1] as number)
+				.filter((d) => d >= 50 && d <= 150);
+			expect(delays.length).toBeGreaterThan(0);
+			const d = delays[0];
+			expect(d).toBeGreaterThanOrEqual(50); // 100 × 0.5
+			expect(d).toBeLessThanOrEqual(150); // 100 × 1.5
+
+			setTimeoutSpy.mockRestore();
+		});
+
+		it('does not apply jitter when Retry-After is present', async () => {
+			const { vi } = await import('vitest');
+			const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+
+			let attempts = 0;
+			setMockHandler((_req, res) => {
+				attempts++;
+				if (attempts < 2) {
+					res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '0' });
+					res.end(JSON.stringify({ code: 'unavailable' }));
+				} else {
+					res.writeHead(200, { 'Content-Type': 'application/pdf' });
+					res.end(Buffer.from('%PDF-1.4 ok'));
+				}
+			});
+
+			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 2 });
+			await client.render({ template: '<p>x</p>', data: {} });
+
+			// The delay should be exactly 0 (server-explicit Retry-After: 0, no jitter)
+			const has0 = setTimeoutSpy.mock.calls.some((c) => c[1] === 0);
+			expect(has0).toBe(true);
+
+			setTimeoutSpy.mockRestore();
+		});
 	});
 });

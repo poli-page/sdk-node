@@ -209,10 +209,14 @@ export class PoliPage {
 
 		for (let attempt = 0; attempt <= this.#maxRetries; attempt++) {
 			if (attempt > 0) {
-				const delay =
-					nextRetryAfterMs !== undefined
-						? nextRetryAfterMs
-						: this.#retryDelay * Math.pow(2, attempt - 1);
+				let delay: number;
+				if (nextRetryAfterMs !== undefined) {
+					delay = nextRetryAfterMs; // server-explicit, no jitter
+				} else {
+					const exp = this.#retryDelay * Math.pow(2, attempt - 1);
+					const jitterFactor = 0.5 + Math.random(); // [0.5, 1.5)
+					delay = Math.round(exp * jitterFactor);
+				}
 				await new Promise((resolve) => setTimeout(resolve, delay));
 				nextRetryAfterMs = undefined;
 			}
