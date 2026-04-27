@@ -25,6 +25,9 @@ export type {
 
 import type { RenderInput, PreviewResult, Thumbnail, ThumbnailOptions, PoliPageOptions } from './types.js';
 
+export { PoliPageError, type PoliPageErrorCode } from './error.js';
+import { PoliPageError } from './error.js';
+
 const DEFAULT_BASE_URL = 'https://api.poli.page';
 const DEFAULT_MAX_RETRIES = 2;
 const DEFAULT_RETRY_DELAY = 500;
@@ -46,25 +49,6 @@ function parseRetryAfter(headerValue: string | null): number | undefined {
 		return Math.min(Math.max(delta, 0), RETRY_AFTER_CAP_MS);
 	}
 	return undefined;
-}
-
-/**
- * Typed error raised by the SDK for any non-2xx API response, network failure,
- * or input validation error. Concrete `code` values follow the spec
- * (`invalid_api_key`, `template_not_found`, `rate_limited`, ...).
- */
-export class PoliPageError extends Error {
-	readonly code: string;
-	readonly status?: number;
-	readonly requestId?: string;
-
-	constructor(message: string, code: string, status?: number, requestId?: string) {
-		super(message);
-		this.name = 'PoliPageError';
-		this.code = code;
-		this.status = status;
-		this.requestId = requestId;
-	}
 }
 
 /**
