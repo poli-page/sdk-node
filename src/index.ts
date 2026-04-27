@@ -82,8 +82,8 @@ export class PoliPage {
 		this.#onError = options.onError;
 	}
 
-	/** Render a PDF and return its raw bytes. Calls `POST /v1/render/pdf`. */
-	async render(input: RenderInput): Promise<Uint8Array> {
+	/** Render a PDF and return a ReadableStream of its bytes. Calls `POST /v1/render/pdf`. */
+	async renderStream(input: RenderInput): Promise<ReadableStream<Uint8Array>> {
 		const { signal, idempotencyKey, ...wireBody } = input;
 		const response = await this.#request('/v1/render/pdf', wireBody, signal, idempotencyKey);
 		const contentType = response.headers.get('content-type') ?? '';
@@ -96,8 +96,31 @@ export class PoliPage {
 				requestId,
 			);
 		}
-		const arrayBuffer = await response.arrayBuffer();
-		return new Uint8Array(arrayBuffer);
+		if (!response.body) {
+			throw new PoliPageError('Response has no body', 'INTERNAL_ERROR', response.status);
+		}
+		return response.body as ReadableStream<Uint8Array>;
+	}
+
+	/** Render a PDF and return its raw bytes. Calls `POST /v1/render/pdf`. */
+	async render(input: RenderInput): Promise<Uint8Array> {
+		const stream = await this.renderStream(input);
+		const reader = stream.getReader();
+		const chunks: Uint8Array[] = [];
+		let total = 0;
+		while (true) {
+			const { value, done } = await reader.read();
+			if (done) break;
+			chunks.push(value);
+			total += value.length;
+		}
+		const out = new Uint8Array(total);
+		let offset = 0;
+		for (const chunk of chunks) {
+			out.set(chunk, offset);
+			offset += chunk.length;
+		}
+		return out;
 	}
 
 	/** Render a PDF and write it to disk. Creates parent directories. */
