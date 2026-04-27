@@ -5,8 +5,6 @@
  * is shared across every official Poli Page SDK.
  */
 
-import { writeFile, mkdir } from 'node:fs/promises';
-import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
 export type {
@@ -121,13 +119,6 @@ export class PoliPage {
 			offset += chunk.length;
 		}
 		return out;
-	}
-
-	/** Render a PDF and write it to disk. Creates parent directories. */
-	async renderToFile(input: RenderInput, outputPath: string): Promise<void> {
-		const bytes = await this.render(input);
-		await mkdir(dirname(outputPath), { recursive: true });
-		await writeFile(outputPath, bytes);
 	}
 
 	/** Generate paginated HTML output. Calls `POST /v1/render/preview`. */

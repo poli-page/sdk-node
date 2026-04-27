@@ -179,25 +179,6 @@ describe('PoliPage SDK', () => {
 		});
 	});
 
-	describe('renderToFile()', () => {
-		it('writes the PDF to disk', async () => {
-			const { mkdtemp, readFile, rm } = await import('node:fs/promises');
-			const { tmpdir } = await import('node:os');
-			const { join } = await import('node:path');
-
-			const tempDir = await mkdtemp(join(tmpdir(), 'poli-sdk-'));
-			const outputPath = join(tempDir, 'test.pdf');
-
-			const client = new PoliPage({ apiKey: 'pp_test_abc', baseUrl });
-			await client.renderToFile({ template: '<p>hi</p>', data: {} }, outputPath);
-
-			const content = await readFile(outputPath);
-			expect(new TextDecoder().decode(content.subarray(0, 4))).toBe('%PDF');
-
-			await rm(tempDir, { recursive: true, force: true });
-		});
-	});
-
 	describe('preview()', () => {
 		it('returns html and totalPages', async () => {
 			setMockHandler((_req, res) => {
