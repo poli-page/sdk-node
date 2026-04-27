@@ -165,6 +165,16 @@ export class PoliPage {
 		return result.thumbnails;
 	}
 
+	#headers(path: string): Record<string, string> {
+		const accept = path === '/v1/render/pdf' ? 'application/pdf' : 'application/json';
+		return {
+			'Content-Type': 'application/json',
+			Accept: accept,
+			Authorization: `Bearer ${this.#apiKey}`,
+			'User-Agent': `poli-page-sdk-node/${__SDK_VERSION__}`,
+		};
+	}
+
 	async #request(path: string, body: object): Promise<Response> {
 		let lastError: PoliPageError | undefined;
 
@@ -181,10 +191,7 @@ export class PoliPage {
 			try {
 				response = await fetch(`${this.#baseUrl}${path}`, {
 					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						Authorization: `Bearer ${this.#apiKey}`,
-					},
+					headers: this.#headers(path),
 					body: JSON.stringify(body),
 					signal: controller.signal,
 				});
