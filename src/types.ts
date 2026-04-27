@@ -1,4 +1,4 @@
-import type { PoliPageError } from './index.js';
+import type { PoliPageError } from './error.js';
 
 /**
  * Canonical Poli Page page formats. The full list is documented in the
