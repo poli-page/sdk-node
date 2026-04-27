@@ -3,14 +3,17 @@
 	"version": "0.1.0",
 	"description": "Poli Page SDK for Node.js — render PDFs from HTML templates via the Poli Page API",
 	"type": "module",
-	"main": "dist/index.js",
-	"types": "dist/index.d.ts",
+	"main": "./dist/index.cjs",
+	"module": "./dist/index.js",
+	"types": "./dist/index.d.ts",
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js"
+			"import": "./dist/index.js",
+			"require": "./dist/index.cjs"
 		}
 	},
+	"sideEffects": false,
 	"files": [
 		"dist",
 		"README.md",
@@ -20,7 +23,7 @@
 		"node": ">=20.18.0"
 	},
 	"scripts": {
-		"build": "tsc",
+		"build": "tsup",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest",
@@ -55,6 +58,7 @@
 		"@eslint/js": "^10.0.1",
 		"@types/node": "^20.19.0",
 		"eslint": "^10.2.1",
+		"tsup": "^8.5.1",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.59.0",
 		"vitest": "^4.1.5"
