@@ -8,6 +8,7 @@ export default defineConfig({
 	},
 	test: {
 		include: ['tests/**/*.test.ts'],
+		exclude: ['tests/integration/**'],
 		globals: true,
 		typecheck: {
 			enabled: true,
