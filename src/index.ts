@@ -24,7 +24,7 @@ export type {
 	RetryEvent,
 } from './types.js';
 
-import type { RenderInput, PreviewResult, Thumbnail, ThumbnailOptions, PoliPageOptions } from './types.js';
+import type { RenderInput, PreviewResult, Thumbnail, ThumbnailOptions, PoliPageOptions, RequestEvent, ResponseEvent, RetryEvent } from './types.js';
 
 export { PoliPageError, type PoliPageErrorCode } from './error.js';
 import { PoliPageError } from './error.js';
@@ -62,6 +62,10 @@ export class PoliPage {
 	readonly #maxRetries: number;
 	readonly #retryDelay: number;
 	readonly #timeout: number;
+	readonly #onRequest?: (e: RequestEvent) => void;
+	readonly #onResponse?: (e: ResponseEvent) => void;
+	readonly #onRetry?: (e: RetryEvent) => void;
+	readonly #onError?: (err: PoliPageError) => void;
 
 	constructor(options: PoliPageOptions) {
 		if (!options.apiKey) {
@@ -72,6 +76,10 @@ export class PoliPage {
 		this.#maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
 		this.#retryDelay = options.retryDelay ?? DEFAULT_RETRY_DELAY;
 		this.#timeout = options.timeout ?? DEFAULT_TIMEOUT;
+		this.#onRequest = options.onRequest;
+		this.#onResponse = options.onResponse;
+		this.#onRetry = options.onRetry;
+		this.#onError = options.onError;
 	}
 
 	/** Render a PDF and return its raw bytes. Calls `POST /v1/render/pdf`. */
@@ -115,6 +123,15 @@ export class PoliPage {
 		return result.thumbnails;
 	}
 
+	#fireHook<T>(hook: ((e: T) => void) | undefined, event: T): void {
+		if (!hook) return;
+		try {
+			hook(event);
+		} catch {
+			// Hooks must not break the request.
+		}
+	}
+
 	#headers(path: string, idempotencyKey: string): Record<string, string> {
 		const accept = path === '/v1/render/pdf' ? 'application/pdf' : 'application/json';
 		return {
@@ -133,7 +150,9 @@ export class PoliPage {
 		callerIdempotencyKey?: string,
 	): Promise<Response> {
 		if (signal?.aborted) {
-			throw new PoliPageError('Request was aborted', 'aborted');
+			const abortedError = new PoliPageError('Request was aborted', 'aborted');
+			this.#fireHook(this.#onError, abortedError);
+			throw abortedError;
 		}
 
 		const idempotencyKey = callerIdempotencyKey ?? randomUUID();
@@ -151,9 +170,16 @@ export class PoliPage {
 					const jitterFactor = 0.5 + Math.random(); // [0.5, 1.5)
 					delay = Math.round(exp * jitterFactor);
 				}
+				this.#fireHook(this.#onRetry, { attempt: attempt + 1, delayMs: delay, reason: lastError! });
 				await this.#sleep(delay, signal);
 				nextRetryAfterMs = undefined;
 			}
+
+			this.#fireHook(this.#onRequest, {
+				method: 'POST',
+				url: `${this.#baseUrl}${path}`,
+				attempt: attempt + 1,
+			});
 
 			const timeoutController = new AbortController();
 			const timeoutId = setTimeout(() => timeoutController.abort(), this.#timeout);
@@ -161,6 +187,7 @@ export class PoliPage {
 				? AbortSignal.any([signal, timeoutController.signal])
 				: timeoutController.signal;
 
+			const t0 = Date.now();
 			let response: Response;
 			try {
 				response = await fetch(`${this.#baseUrl}${path}`, {
@@ -172,7 +199,9 @@ export class PoliPage {
 			} catch (err) {
 				clearTimeout(timeoutId);
 				if (signal?.aborted) {
-					throw new PoliPageError('Request was aborted', 'aborted');
+					const abortedError = new PoliPageError('Request was aborted', 'aborted');
+					this.#fireHook(this.#onError, abortedError);
+					throw abortedError;
 				}
 				const aborted = err instanceof Error && err.name === 'AbortError';
 				lastError = new PoliPageError(
@@ -180,11 +209,19 @@ export class PoliPage {
 					aborted ? 'timeout' : 'network_error',
 				);
 				if (attempt < this.#maxRetries) continue;
+				this.#fireHook(this.#onError, lastError);
 				throw lastError;
 			}
 			clearTimeout(timeoutId);
 
-			if (response.ok) return response;
+			if (response.ok) {
+				this.#fireHook(this.#onResponse, {
+					status: response.status,
+					requestId: response.headers.get('x-request-id') ?? undefined,
+					durationMs: Date.now() - t0,
+				});
+				return response;
+			}
 
 			const requestId = response.headers.get('x-request-id') ?? undefined;
 
@@ -208,9 +245,13 @@ export class PoliPage {
 
 			lastError = new PoliPageError(message, code, response.status, requestId);
 
-			if (!isRetryable) throw lastError;
+			if (!isRetryable) {
+				this.#fireHook(this.#onError, lastError);
+				throw lastError;
+			}
 		}
 
+		this.#fireHook(this.#onError, lastError!);
 		throw lastError!;
 	}
 
