@@ -63,14 +63,14 @@ describe('PoliPage SDK', () => {
 	});
 
 	describe('render()', () => {
-		it('returns a PDF buffer', async () => {
+		it('returns a PDF Uint8Array', async () => {
 			const client = new PoliPage({ apiKey: 'pp_test_abc', baseUrl });
 			const pdf = await client.render({
 				template: '<div>{{ name }}</div>',
 				data: { name: 'Test' },
 			});
-			expect(Buffer.isBuffer(pdf)).toBe(true);
-			expect(pdf.toString().startsWith('%PDF')).toBe(true);
+			expect(pdf).toBeInstanceOf(Uint8Array);
+			expect(new TextDecoder().decode(pdf.subarray(0, 4))).toBe('%PDF');
 		});
 
 		it('sends Authorization header with Bearer token', async () => {
@@ -192,7 +192,7 @@ describe('PoliPage SDK', () => {
 			await client.renderToFile({ template: '<p>hi</p>', data: {} }, outputPath);
 
 			const content = await readFile(outputPath);
-			expect(content.toString().startsWith('%PDF')).toBe(true);
+			expect(new TextDecoder().decode(content.subarray(0, 4))).toBe('%PDF');
 
 			await rm(tempDir, { recursive: true, force: true });
 		});
@@ -354,7 +354,7 @@ describe('PoliPage SDK', () => {
 			});
 			const pdf = await client.render({ template: '<p>x</p>', data: {} });
 			expect(attempts).toBe(3);
-			expect(Buffer.isBuffer(pdf)).toBe(true);
+			expect(pdf).toBeInstanceOf(Uint8Array);
 		});
 
 		it('does not retry on 4xx errors', async () => {
@@ -476,7 +476,7 @@ describe('PoliPage SDK', () => {
 			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 2, retryDelay: 10 });
 			const pdf = await client.render({ template: '<p>x</p>', data: {} });
 			expect(attempts).toBe(2);
-			expect(Buffer.isBuffer(pdf)).toBe(true);
+			expect(pdf).toBeInstanceOf(Uint8Array);
 		});
 
 		it('treats past-dated Retry-After as immediate retry', async () => {
