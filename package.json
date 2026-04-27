@@ -63,7 +63,7 @@
 		"access": "public"
 	},
 	"simple-git-hooks": {
-		"pre-push": "pnpm test"
+		"pre-push": "pnpm lint && pnpm typecheck && pnpm test && sh -c '[ -n \"$SKIP_INTEGRATION\" ] || pnpm test:integration'"
 	},
 	"pnpm": {
 		"onlyBuiltDependencies": [
