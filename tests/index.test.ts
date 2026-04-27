@@ -561,4 +561,39 @@ describe('PoliPage SDK', () => {
 			setTimeoutSpy.mockRestore();
 		});
 	});
+
+	describe('cancellation (signal option)', () => {
+		it('aborts in-flight request when caller signal is aborted', async () => {
+			setMockHandler((_req, res) => {
+				// Hang the response so we can abort mid-flight
+				setTimeout(() => res.end(Buffer.from('%PDF-1.4 ok')), 5_000);
+			});
+			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 0 });
+			const controller = new AbortController();
+			const promise = client.render({ template: '<p>x</p>', data: {}, signal: controller.signal });
+			setTimeout(() => controller.abort(), 50);
+			await expect(promise).rejects.toMatchObject({ name: 'PoliPageError', code: 'aborted' });
+		});
+
+		it('rejects immediately if signal is already aborted before call', async () => {
+			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 0 });
+			const controller = new AbortController();
+			controller.abort();
+			await expect(
+				client.render({ template: '<p>x</p>', data: {}, signal: controller.signal }),
+			).rejects.toMatchObject({ name: 'PoliPageError', code: 'aborted' });
+		});
+
+		it('aborted error has no status (transport-level)', async () => {
+			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 0 });
+			const controller = new AbortController();
+			controller.abort();
+			try {
+				await client.render({ template: '<p>x</p>', data: {}, signal: controller.signal });
+				expect.fail('Should have thrown');
+			} catch (err) {
+				expect((err as PoliPageError).status).toBeUndefined();
+			}
+		});
+	});
 });
