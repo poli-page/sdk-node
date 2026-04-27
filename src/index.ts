@@ -8,6 +8,23 @@
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
+export type {
+	PageFormat,
+	Orientation,
+	ProjectModeInput,
+	InlineModeInput,
+	RenderInput,
+	PreviewResult,
+	Thumbnail,
+	ThumbnailOptions,
+	PoliPageOptions,
+	RequestEvent,
+	ResponseEvent,
+	RetryEvent,
+} from './types.js';
+
+import type { RenderInput, PreviewResult, Thumbnail, ThumbnailOptions, PoliPageOptions } from './types.js';
+
 const DEFAULT_BASE_URL = 'https://api.poli.page';
 const DEFAULT_MAX_RETRIES = 2;
 const DEFAULT_RETRY_DELAY = 500;
@@ -29,89 +46,6 @@ function parseRetryAfter(headerValue: string | null): number | undefined {
 		return Math.min(Math.max(delta, 0), RETRY_AFTER_CAP_MS);
 	}
 	return undefined;
-}
-
-export interface PoliPageOptions {
-	/** A `pp_test_*` or `pp_live_*` API key. Required. */
-	apiKey: string;
-	/** API base URL. Defaults to `https://api.poli.page`. */
-	baseUrl?: string;
-	/** Maximum retry attempts on retryable errors. Defaults to 2. */
-	maxRetries?: number;
-	/** Base delay (ms) before the first retry. Defaults to 500. */
-	retryDelay?: number;
-	/** Per-request timeout (ms). Defaults to 60000 (60s). */
-	timeout?: number;
-}
-
-/**
- * Canonical Poli Page page formats. The full list is documented in the
- * platform spec (`docs/spec/page-formats.md`) and must match every other SDK.
- */
-export type PageFormat =
-	| 'A3'
-	| 'A4'
-	| 'A5'
-	| 'A6'
-	| 'B4'
-	| 'B5'
-	| 'Letter'
-	| 'Legal'
-	| 'Tabloid'
-	| 'Executive'
-	| 'Statement'
-	| 'Folio';
-
-export type Orientation = 'portrait' | 'landscape';
-
-export interface RenderInput {
-	/** Template data (variables, locale hints, etc.). Required. */
-	data: Record<string, unknown>;
-	/** Project slug (project mode). */
-	project?: string;
-	/** Template slug (project mode) or raw HTML (inline mode). Required. */
-	template: string;
-	/** Semver (e.g. `"1.0.0"`) or `"latest"`. Project mode only. Omit for draft. */
-	version?: string;
-	/** Page format override. */
-	format?: PageFormat;
-	/** Page orientation override. */
-	orientation?: Orientation;
-	/** BCP 47 locale (e.g. `en-US`, `fr-FR`) for page numbers and formatting. */
-	locale?: string;
-}
-
-export interface PreviewResult {
-	/** Paginated HTML. */
-	html: string;
-	/** Number of pages in the document. */
-	totalPages: number;
-}
-
-export interface ThumbnailOptions {
-	/** Thumbnail width in pixels. Required. */
-	width: number;
-	/** Image format. Defaults to `png`. */
-	format?: 'png' | 'jpeg';
-	/** JPEG quality 1–100 (jpeg only). */
-	quality?: number;
-	/** Generate only this page (1-based). */
-	page?: number;
-	/** Generate only these pages. */
-	pages?: number[];
-}
-
-export interface Thumbnail {
-	/** 1-based page number. */
-	page: number;
-	/** Image width in pixels. */
-	width: number;
-	/** Image height in pixels. */
-	height: number;
-	/** MIME type, e.g. `image/png`. */
-	contentType: string;
-	/** Base64-encoded image bytes. */
-	data: string;
 }
 
 /**

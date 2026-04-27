@@ -26,6 +26,7 @@
 		"build": "tsup",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
+		"test:types": "vitest run --typecheck",
 		"test:watch": "vitest",
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",
