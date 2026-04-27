@@ -228,8 +228,8 @@ export class PoliPage {
 				code = json.code ?? json.message ?? json.error ?? 'unknown_error';
 				message = json.message ?? `API error (${response.status}): ${code}`;
 			} catch {
-				code = errorBody || 'unknown_error';
-				message = `API error (${response.status}): ${code}`;
+				code = 'INTERNAL_ERROR';
+				message = `API error ${response.status}: response body was not valid JSON`;
 			}
 
 			lastError = new PoliPageError(message, code, response.status, requestId);

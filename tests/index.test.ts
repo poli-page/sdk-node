@@ -151,6 +151,19 @@ describe('PoliPage SDK', () => {
 			}
 		});
 
+		it('maps non-2xx HTML body to PoliPageError with code INTERNAL_ERROR and HTTP status', async () => {
+			setMockHandler((_req, res) => {
+				res.writeHead(502, { 'Content-Type': 'text/html' });
+				res.end('<html>upstream gone</html>');
+			});
+			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 0 });
+			await expect(client.render({ template: '<p>x</p>', data: {} })).rejects.toMatchObject({
+				name: 'PoliPageError',
+				code: 'INTERNAL_ERROR',
+				status: 502,
+			});
+		});
+
 		it('rejects 2xx render response if Content-Type is not application/pdf', async () => {
 			setMockHandler((_req, res) => {
 				res.writeHead(200, { 'Content-Type': 'text/html' });
