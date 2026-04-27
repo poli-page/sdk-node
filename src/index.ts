@@ -140,6 +140,16 @@ export class PoliPage {
 	/** Render a PDF and return its raw bytes. Calls `POST /v1/render/pdf`. */
 	async render(input: RenderInput): Promise<Buffer> {
 		const response = await this.#request('/v1/render/pdf', input);
+		const contentType = response.headers.get('content-type') ?? '';
+		if (!contentType.includes('application/pdf')) {
+			const requestId = response.headers.get('x-request-id') ?? undefined;
+			throw new PoliPageError(
+				`Expected application/pdf response, got ${contentType || 'no content-type'}`,
+				'INTERNAL_ERROR',
+				response.status,
+				requestId,
+			);
+		}
 		const arrayBuffer = await response.arrayBuffer();
 		return Buffer.from(arrayBuffer);
 	}
