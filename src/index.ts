@@ -156,7 +156,7 @@ export class PoliPage {
 	}
 
 	/** Render a PDF and return its raw bytes. Calls `POST /v1/render/pdf`. */
-	async render(input: RenderInput): Promise<Buffer> {
+	async render(input: RenderInput): Promise<Uint8Array> {
 		const response = await this.#request('/v1/render/pdf', input);
 		const contentType = response.headers.get('content-type') ?? '';
 		if (!contentType.includes('application/pdf')) {
@@ -169,14 +169,14 @@ export class PoliPage {
 			);
 		}
 		const arrayBuffer = await response.arrayBuffer();
-		return Buffer.from(arrayBuffer);
+		return new Uint8Array(arrayBuffer);
 	}
 
 	/** Render a PDF and write it to disk. Creates parent directories. */
 	async renderToFile(input: RenderInput, outputPath: string): Promise<void> {
-		const buffer = await this.render(input);
+		const bytes = await this.render(input);
 		await mkdir(dirname(outputPath), { recursive: true });
-		await writeFile(outputPath, buffer);
+		await writeFile(outputPath, bytes);
 	}
 
 	/** Generate paginated HTML output. Calls `POST /v1/render/preview`. */
