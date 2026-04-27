@@ -207,7 +207,7 @@ export class PoliPage {
 			let code: string;
 			let message: string;
 			try {
-				const json = JSON.parse(errorBody);
+				const json = JSON.parse(errorBody) as { code?: string; message?: string; error?: string };
 				code = json.code ?? json.message ?? json.error ?? 'unknown_error';
 				message = json.message ?? `API error (${response.status}): ${code}`;
 			} catch {

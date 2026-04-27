@@ -24,6 +24,8 @@
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest",
+		"lint": "eslint .",
+		"lint:fix": "eslint . --fix",
 		"prepublishOnly": "pnpm run build"
 	},
 	"keywords": [
@@ -50,8 +52,11 @@
 		"access": "public"
 	},
 	"devDependencies": {
+		"@eslint/js": "^10.0.1",
 		"@types/node": "^20.19.0",
+		"eslint": "^10.2.1",
 		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.59.0",
 		"vitest": "^4.1.5"
 	}
 }
