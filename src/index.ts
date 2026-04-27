@@ -28,6 +28,10 @@ export { PoliPageError, type PoliPageErrorCode } from './error.js';
 import { PoliPageError } from './error.js';
 import { parseRetryAfter, computeBackoff, parseErrorBody, buildHeaders } from './internal/http.js';
 
+type SendOnceResult =
+	| { ok: true; response: Response }
+	| { ok: false; error: PoliPageError; retryAfterMs: number | undefined; retryable: boolean };
+
 const DEFAULT_BASE_URL = 'https://api.poli.page';
 const DEFAULT_MAX_RETRIES = 2;
 const DEFAULT_RETRY_DELAY = 500;
@@ -135,13 +139,21 @@ export class PoliPage {
 		signal?: AbortSignal,
 		callerIdempotencyKey?: string,
 	): Promise<Response> {
+		const idempotencyKey = callerIdempotencyKey ?? randomUUID();
+		return this.#runWithRetry(path, body, idempotencyKey, signal);
+	}
+
+	async #runWithRetry(
+		path: string,
+		body: object,
+		idempotencyKey: string,
+		signal: AbortSignal | undefined,
+	): Promise<Response> {
 		if (signal?.aborted) {
 			const abortedError = new PoliPageError('Request was aborted', 'aborted');
 			this.#fireHook(this.#onError, abortedError);
 			throw abortedError;
 		}
-
-		const idempotencyKey = callerIdempotencyKey ?? randomUUID();
 
 		let lastError: PoliPageError | undefined;
 		let nextRetryAfterMs: number | undefined;
@@ -149,78 +161,22 @@ export class PoliPage {
 		for (let attempt = 0; attempt <= this.#maxRetries; attempt++) {
 			if (attempt > 0) {
 				const delay = computeBackoff(attempt, this.#retryDelay, nextRetryAfterMs);
-				this.#fireHook(this.#onRetry, { attempt: attempt + 1, delayMs: delay, reason: lastError! });
+				this.#fireHook(this.#onRetry, {
+					attempt: attempt + 1,
+					delayMs: delay,
+					reason: lastError!,
+				});
 				await this.#sleep(delay, signal);
-				nextRetryAfterMs = undefined;
 			}
 
-			this.#fireHook(this.#onRequest, {
-				method: 'POST',
-				url: `${this.#baseUrl}${path}`,
-				attempt: attempt + 1,
-			});
+			const result = await this.#sendOnce(path, body, idempotencyKey, attempt + 1, signal);
 
-			const timeoutController = new AbortController();
-			const timeoutId = setTimeout(() => timeoutController.abort(), this.#timeout);
-			const composed = signal
-				? AbortSignal.any([signal, timeoutController.signal])
-				: timeoutController.signal;
+			if (result.ok) return result.response;
 
-			const t0 = Date.now();
-			let response: Response;
-			try {
-				response = await fetch(`${this.#baseUrl}${path}`, {
-					method: 'POST',
-					headers: buildHeaders(
-						path,
-						this.#apiKey,
-						idempotencyKey,
-						`poli-page-sdk-node/${__SDK_VERSION__}`,
-					),
-					body: JSON.stringify(body),
-					signal: composed,
-				});
-			} catch (err) {
-				clearTimeout(timeoutId);
-				if (signal?.aborted) {
-					const abortedError = new PoliPageError('Request was aborted', 'aborted');
-					this.#fireHook(this.#onError, abortedError);
-					throw abortedError;
-				}
-				const aborted = err instanceof Error && err.name === 'AbortError';
-				lastError = new PoliPageError(
-					aborted ? `Request timed out after ${this.#timeout}ms` : (err as Error).message,
-					aborted ? 'timeout' : 'network_error',
-				);
-				if (attempt < this.#maxRetries) continue;
-				this.#fireHook(this.#onError, lastError);
-				throw lastError;
-			}
-			clearTimeout(timeoutId);
+			lastError = result.error;
+			nextRetryAfterMs = result.retryAfterMs;
 
-			if (response.ok) {
-				this.#fireHook(this.#onResponse, {
-					status: response.status,
-					requestId: response.headers.get('x-request-id') ?? undefined,
-					durationMs: Date.now() - t0,
-				});
-				return response;
-			}
-
-			const requestId = response.headers.get('x-request-id') ?? undefined;
-
-			// Retry on 5xx and 429; 4xx (except 429) is never retried.
-			const isRetryable = response.status >= 500 || response.status === 429;
-			if (isRetryable) {
-				nextRetryAfterMs = parseRetryAfter(response.headers.get('retry-after'));
-			}
-
-			const errorBody = await response.text();
-			const { code, message } = parseErrorBody(errorBody, response.status);
-
-			lastError = new PoliPageError(message, code, response.status, requestId);
-
-			if (!isRetryable) {
+			if (!result.retryable) {
 				this.#fireHook(this.#onError, lastError);
 				throw lastError;
 			}
@@ -228,6 +184,77 @@ export class PoliPage {
 
 		this.#fireHook(this.#onError, lastError!);
 		throw lastError!;
+	}
+
+	async #sendOnce(
+		path: string,
+		body: object,
+		idempotencyKey: string,
+		attempt: number,
+		signal: AbortSignal | undefined,
+	): Promise<SendOnceResult> {
+		const timeoutController = new AbortController();
+		const timeoutId = setTimeout(() => timeoutController.abort(), this.#timeout);
+		const composed = signal
+			? AbortSignal.any([signal, timeoutController.signal])
+			: timeoutController.signal;
+
+		this.#fireHook(this.#onRequest, {
+			method: 'POST',
+			url: `${this.#baseUrl}${path}`,
+			attempt,
+		});
+
+		const t0 = Date.now();
+		let response: Response;
+		try {
+			response = await fetch(`${this.#baseUrl}${path}`, {
+				method: 'POST',
+				headers: buildHeaders(
+					path,
+					this.#apiKey,
+					idempotencyKey,
+					`poli-page-sdk-node/${__SDK_VERSION__}`,
+				),
+				body: JSON.stringify(body),
+				signal: composed,
+			});
+		} catch (err) {
+			clearTimeout(timeoutId);
+			if (signal?.aborted) {
+				const abortedError = new PoliPageError('Request was aborted', 'aborted');
+				this.#fireHook(this.#onError, abortedError);
+				throw abortedError;
+			}
+			const aborted = err instanceof Error && err.name === 'AbortError';
+			const error = new PoliPageError(
+				aborted ? `Request timed out after ${this.#timeout}ms` : (err as Error).message,
+				aborted ? 'timeout' : 'network_error',
+			);
+			return { ok: false, error, retryAfterMs: undefined, retryable: true };
+		}
+		clearTimeout(timeoutId);
+
+		if (response.ok) {
+			this.#fireHook(this.#onResponse, {
+				status: response.status,
+				requestId: response.headers.get('x-request-id') ?? undefined,
+				durationMs: Date.now() - t0,
+			});
+			return { ok: true, response };
+		}
+
+		const requestId = response.headers.get('x-request-id') ?? undefined;
+		const retryable = response.status >= 500 || response.status === 429;
+		const retryAfterMs = retryable
+			? parseRetryAfter(response.headers.get('retry-after'))
+			: undefined;
+
+		const errorBody = await response.text();
+		const { code, message } = parseErrorBody(errorBody, response.status);
+		const error = new PoliPageError(message, code, response.status, requestId);
+
+		return { ok: false, error, retryAfterMs, retryable };
 	}
 
 	#sleep(ms: number, signal?: AbortSignal): Promise<void> {
