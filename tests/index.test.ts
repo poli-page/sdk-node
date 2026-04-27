@@ -562,6 +562,48 @@ describe('PoliPage SDK', () => {
 		});
 	});
 
+	describe('Idempotency-Key', () => {
+		it('auto-generates an Idempotency-Key header in UUID v4 format', async () => {
+			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
+			await client.render({ template: '<p>x</p>', data: {} });
+			const key = lastRequest.headers['idempotency-key'];
+			expect(key).toMatch(
+				/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+			);
+		});
+
+		it('reuses the same Idempotency-Key across retry attempts of one call', async () => {
+			const keys: string[] = [];
+			let attempts = 0;
+			setMockHandler((req, res) => {
+				keys.push(req.headers['idempotency-key'] as string);
+				attempts++;
+				if (attempts < 3) {
+					res.writeHead(503, { 'Content-Type': 'application/json' });
+					res.end(JSON.stringify({ code: 'unavailable' }));
+				} else {
+					res.writeHead(200, { 'Content-Type': 'application/pdf' });
+					res.end(Buffer.from('%PDF-1.4 ok'));
+				}
+			});
+			const client = new PoliPage({
+				apiKey: 'pp_test_x',
+				baseUrl,
+				maxRetries: 3,
+				retryDelay: 10,
+			});
+			await client.render({ template: '<p>x</p>', data: {} });
+			expect(keys).toHaveLength(3);
+			expect(new Set(keys).size).toBe(1);
+		});
+
+		it('uses caller-provided idempotencyKey when set', async () => {
+			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
+			await client.render({ template: '<p>x</p>', data: {}, idempotencyKey: 'caller-key-123' });
+			expect(lastRequest.headers['idempotency-key']).toBe('caller-key-123');
+		});
+	});
+
 	describe('cancellation (signal option)', () => {
 		it('aborts in-flight request when caller signal is aborted', async () => {
 			setMockHandler((_req, res) => {
