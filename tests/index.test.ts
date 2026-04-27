@@ -459,6 +459,24 @@ describe('PoliPage SDK', () => {
 			expect(attempts).toBe(2);
 		});
 
+		it('retries on 429 with Retry-After delay', async () => {
+			let attempts = 0;
+			setMockHandler((_req, res) => {
+				attempts++;
+				if (attempts < 2) {
+					res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '0' });
+					res.end(JSON.stringify({ code: 'rate_limited' }));
+				} else {
+					res.writeHead(200, { 'Content-Type': 'application/pdf' });
+					res.end(Buffer.from('%PDF-1.4 ok'));
+				}
+			});
+			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 2, retryDelay: 10 });
+			const pdf = await client.render({ template: '<p>x</p>', data: {} });
+			expect(attempts).toBe(2);
+			expect(Buffer.isBuffer(pdf)).toBe(true);
+		});
+
 		it('treats past-dated Retry-After as immediate retry', async () => {
 			const pastDate = new Date(Date.now() - 60_000).toUTCString();
 			let attempts = 0;
