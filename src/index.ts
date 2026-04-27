@@ -7,6 +7,7 @@
 
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 export type {
 	PageFormat,
@@ -75,8 +76,8 @@ export class PoliPage {
 
 	/** Render a PDF and return its raw bytes. Calls `POST /v1/render/pdf`. */
 	async render(input: RenderInput): Promise<Uint8Array> {
-		const { signal, ...wireBody } = input;
-		const response = await this.#request('/v1/render/pdf', wireBody, signal);
+		const { signal, idempotencyKey, ...wireBody } = input;
+		const response = await this.#request('/v1/render/pdf', wireBody, signal, idempotencyKey);
 		const contentType = response.headers.get('content-type') ?? '';
 		if (!contentType.includes('application/pdf')) {
 			const requestId = response.headers.get('x-request-id') ?? undefined;
@@ -100,34 +101,42 @@ export class PoliPage {
 
 	/** Generate paginated HTML output. Calls `POST /v1/render/preview`. */
 	async preview(input: RenderInput): Promise<PreviewResult> {
-		const { signal, ...wireBody } = input;
-		const response = await this.#request('/v1/render/preview', wireBody, signal);
+		const { signal, idempotencyKey, ...wireBody } = input;
+		const response = await this.#request('/v1/render/preview', wireBody, signal, idempotencyKey);
 		return response.json() as Promise<PreviewResult>;
 	}
 
 	/** Generate page thumbnails as base64-encoded images. */
 	async thumbnails(input: RenderInput, options: ThumbnailOptions): Promise<Thumbnail[]> {
-		const { signal, ...inputBody } = input;
+		const { signal, idempotencyKey, ...inputBody } = input;
 		const body = { ...inputBody, thumbnails: options };
-		const response = await this.#request('/v1/render/thumbnails', body, signal);
+		const response = await this.#request('/v1/render/thumbnails', body, signal, idempotencyKey);
 		const result = (await response.json()) as { thumbnails: Thumbnail[] };
 		return result.thumbnails;
 	}
 
-	#headers(path: string): Record<string, string> {
+	#headers(path: string, idempotencyKey: string): Record<string, string> {
 		const accept = path === '/v1/render/pdf' ? 'application/pdf' : 'application/json';
 		return {
 			'Content-Type': 'application/json',
 			Accept: accept,
 			Authorization: `Bearer ${this.#apiKey}`,
 			'User-Agent': `poli-page-sdk-node/${__SDK_VERSION__}`,
+			'Idempotency-Key': idempotencyKey,
 		};
 	}
 
-	async #request(path: string, body: object, signal?: AbortSignal): Promise<Response> {
+	async #request(
+		path: string,
+		body: object,
+		signal?: AbortSignal,
+		callerIdempotencyKey?: string,
+	): Promise<Response> {
 		if (signal?.aborted) {
 			throw new PoliPageError('Request was aborted', 'aborted');
 		}
+
+		const idempotencyKey = callerIdempotencyKey ?? randomUUID();
 
 		let lastError: PoliPageError | undefined;
 		let nextRetryAfterMs: number | undefined;
@@ -156,7 +165,7 @@ export class PoliPage {
 			try {
 				response = await fetch(`${this.#baseUrl}${path}`, {
 					method: 'POST',
-					headers: this.#headers(path),
+					headers: this.#headers(path, idempotencyKey),
 					body: JSON.stringify(body),
 					signal: composed,
 				});
