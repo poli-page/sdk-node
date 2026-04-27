@@ -29,7 +29,8 @@
 		"test:watch": "vitest",
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",
-		"prepublishOnly": "pnpm run build"
+		"prepublishOnly": "pnpm run build",
+		"prepare": "simple-git-hooks"
 	},
 	"keywords": [
 		"pdf",
@@ -54,10 +55,20 @@
 	"publishConfig": {
 		"access": "public"
 	},
+	"simple-git-hooks": {
+		"pre-push": "pnpm test"
+	},
+	"pnpm": {
+		"onlyBuiltDependencies": [
+			"esbuild",
+			"simple-git-hooks"
+		]
+	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
 		"@types/node": "^20.19.0",
 		"eslint": "^10.2.1",
+		"simple-git-hooks": "^2.13.1",
 		"tsup": "^8.5.1",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.59.0",
