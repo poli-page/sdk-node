@@ -15,7 +15,7 @@ const DEFAULT_TIMEOUT = 60_000;
 
 const RETRY_AFTER_CAP_MS = 30_000;
 
-export function parseRetryAfter(headerValue: string | null): number | undefined {
+function parseRetryAfter(headerValue: string | null): number | undefined {
 	if (!headerValue) return undefined;
 	// Try integer seconds
 	const seconds = Number(headerValue);

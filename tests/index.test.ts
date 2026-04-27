@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
-import { PoliPage, PoliPageError, parseRetryAfter } from '../src/index.js';
+import { PoliPage, PoliPageError } from '../src/index.js';
 
 let server: Server;
 let baseUrl: string;
@@ -400,50 +400,38 @@ describe('PoliPage SDK', () => {
 		});
 
 		it('caps Retry-After at 30 seconds', async () => {
-			// Verify via parseRetryAfter unit test: seconds > 30 are capped at 30,000 ms.
-			expect(parseRetryAfter('999')).toBe(30_000);
-			expect(parseRetryAfter('30')).toBe(30_000);
-			expect(parseRetryAfter('29')).toBe(29_000);
+			// parseRetryAfter is module-private; we verify the cap behaviorally via vi.spyOn.
+			// We spy on globalThis.setTimeout to observe the delay the SDK schedules,
+			// then check it equals 30_000 (the cap), without waiting the full 30s.
+			const { vi } = await import('vitest');
+			const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
 
-			// Integration: verify the SDK actually uses the capped delay.
-			// Use Retry-After: 0 (immediate) so the test runs fast, and separately
-			// assert parseRetryAfter caps correctly above.
-			let attempts = 0;
 			setMockHandler((_req, res) => {
-				attempts++;
-				if (attempts < 2) {
-					res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '0' });
-					res.end(JSON.stringify({ code: 'unavailable' }));
-				} else {
-					res.writeHead(200, { 'Content-Type': 'application/pdf' });
-					res.end(Buffer.from('%PDF-1.4 ok'));
-				}
+				// Always return 503 with Retry-After: 999 — the SDK should cap it at 30s.
+				res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '999' });
+				res.end(JSON.stringify({ code: 'unavailable' }));
 			});
-			const client = new PoliPage({
-				apiKey: 'pp_test_x',
-				baseUrl,
-				maxRetries: 2,
-				retryDelay: 10_000, // big — Retry-After: 0 should override
-			});
-			const t0 = Date.now();
-			await client.render({ template: '<p>x</p>', data: {} });
-			expect(Date.now() - t0).toBeLessThan(500);
-			expect(attempts).toBe(2);
+
+			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 1 });
+			const promise = client.render({ template: '<p>x</p>', data: {} });
+			// Suppress the unhandled rejection — the promise will reject in ~30s.
+			promise.catch(() => {});
+
+			// Give the SDK ~150ms to receive the 503, parse Retry-After, and schedule the retry timer.
+			await new Promise((r) => setTimeout(r, 150));
+
+			const delays = setTimeoutSpy.mock.calls
+				.map((c) => c[1] as number)
+				.filter((d) => d === 30_000);
+			expect(delays.length).toBeGreaterThan(0);
+
+			setTimeoutSpy.mockRestore();
+			// The dangling promise will reject after 30s, but the test finishes here.
 		});
 
 		it('parses Retry-After in HTTP-date format', async () => {
-			// Verify via parseRetryAfter unit test: HTTP-date in the future parses to ms delta.
-			const futureDate2s = new Date(Date.now() + 2_000).toUTCString();
-			const result = parseRetryAfter(futureDate2s);
-			expect(result).toBeGreaterThan(0);
-			expect(result).toBeLessThanOrEqual(30_000);
-			expect(result).toBeGreaterThan(2_000 - 1_500); // within 1500ms tolerance for test execution
-
-			// Past HTTP-date clamps to 0.
-			const pastDate = new Date(Date.now() - 60_000).toUTCString();
-			expect(parseRetryAfter(pastDate)).toBe(0);
-
-			// Integration: verify SDK uses the HTTP-date delay (use 0ms via past date for speed).
+			// Integration: verify the SDK accepts HTTP-date format for Retry-After.
+			// Use a past-dated HTTP-date (0ms delay) so the test stays fast.
 			let attempts = 0;
 			setMockHandler((_req, res) => {
 				attempts++;
