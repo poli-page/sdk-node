@@ -638,4 +638,94 @@ describe('PoliPage SDK', () => {
 			}
 		});
 	});
+
+	describe('observability hooks', () => {
+		it('calls onRequest with method, url, attempt', async () => {
+			const events: { method: string; url: string; attempt: number }[] = [];
+			const client = new PoliPage({
+				apiKey: 'pp_test_x',
+				baseUrl,
+				onRequest: (e) => events.push(e),
+			});
+			await client.render({ template: '<p>x</p>', data: {} });
+			expect(events).toHaveLength(1);
+			expect(events[0]).toMatchObject({ method: 'POST', attempt: 1 });
+			expect(events[0].url).toContain('/v1/render/pdf');
+		});
+
+		it('calls onResponse with status, requestId, durationMs', async () => {
+			setMockHandler((_req, res) => {
+				res.writeHead(200, { 'Content-Type': 'application/pdf', 'x-request-id': 'req_xyz' });
+				res.end(Buffer.from('%PDF-1.4 ok'));
+			});
+			const events: { status: number; requestId?: string; durationMs: number }[] = [];
+			const client = new PoliPage({
+				apiKey: 'pp_test_x',
+				baseUrl,
+				onResponse: (e) => events.push(e),
+			});
+			await client.render({ template: '<p>x</p>', data: {} });
+			expect(events).toHaveLength(1);
+			expect(events[0].status).toBe(200);
+			expect(events[0].requestId).toBe('req_xyz');
+			expect(events[0].durationMs).toBeGreaterThanOrEqual(0);
+		});
+
+		it('calls onRetry with attempt, delayMs, reason on retried failures', async () => {
+			const events: { attempt: number; delayMs: number; reason: PoliPageError }[] = [];
+			let attempts = 0;
+			setMockHandler((_req, res) => {
+				attempts++;
+				if (attempts < 2) {
+					res.writeHead(500, { 'Content-Type': 'application/json' });
+					res.end(JSON.stringify({ code: 'oops' }));
+				} else {
+					res.writeHead(200, { 'Content-Type': 'application/pdf' });
+					res.end(Buffer.from('%PDF-1.4 ok'));
+				}
+			});
+			const client = new PoliPage({
+				apiKey: 'pp_test_x',
+				baseUrl,
+				maxRetries: 2,
+				retryDelay: 5,
+				onRetry: (e) => events.push(e),
+			});
+			await client.render({ template: '<p>x</p>', data: {} });
+			expect(events).toHaveLength(1);
+			expect(events[0].attempt).toBe(2);
+			expect(events[0].reason).toBeInstanceOf(PoliPageError);
+		});
+
+		it('calls onError with the thrown PoliPageError when call fails terminally', async () => {
+			setMockHandler((_req, res) => {
+				res.writeHead(400, { 'Content-Type': 'application/json' });
+				res.end(JSON.stringify({ code: 'VALIDATION_ERROR' }));
+			});
+			const errors: PoliPageError[] = [];
+			const client = new PoliPage({
+				apiKey: 'pp_test_x',
+				baseUrl,
+				onError: (err) => errors.push(err),
+			});
+			await expect(client.render({ template: '<p>x</p>', data: {} })).rejects.toBeInstanceOf(PoliPageError);
+			expect(errors).toHaveLength(1);
+			expect(errors[0].code).toBe('VALIDATION_ERROR');
+		});
+
+		it('hook errors do not break the request', async () => {
+			const client = new PoliPage({
+				apiKey: 'pp_test_x',
+				baseUrl,
+				onRequest: () => {
+					throw new Error('hook blew up');
+				},
+				onResponse: () => {
+					throw new Error('hook blew up');
+				},
+			});
+			const pdf = await client.render({ template: '<p>x</p>', data: {} });
+			expect(pdf).toBeInstanceOf(Uint8Array);
+		});
+	});
 });
