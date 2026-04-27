@@ -146,7 +146,7 @@ export class PoliPage {
 
 	constructor(options: PoliPageOptions) {
 		if (!options.apiKey) {
-			throw new PoliPageError('apiKey is required', 'invalid_api_key');
+			throw new PoliPageError('apiKey is required', 'invalid_options');
 		}
 		this.#apiKey = options.apiKey;
 		this.#baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;

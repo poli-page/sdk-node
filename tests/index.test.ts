@@ -50,8 +50,10 @@ afterAll(async () => {
 
 describe('PoliPage SDK', () => {
 	describe('constructor', () => {
-		it('throws when apiKey is missing', () => {
-			expect(() => new PoliPage({ apiKey: '' })).toThrow(PoliPageError);
+		it('throws PoliPageError with code "invalid_options" when apiKey is missing', () => {
+			expect(() => new PoliPage({ apiKey: '' })).toThrowError(
+				expect.objectContaining({ name: 'PoliPageError', code: 'invalid_options' }),
+			);
 		});
 
 		it('accepts a custom baseUrl', () => {
