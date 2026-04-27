@@ -639,6 +639,54 @@ describe('PoliPage SDK', () => {
 		});
 	});
 
+	describe('renderStream()', () => {
+		it('returns a ReadableStream', async () => {
+			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
+			const stream = await client.renderStream({ template: '<p>x</p>', data: {} });
+			expect(stream).toBeInstanceOf(ReadableStream);
+		});
+
+		it('emits the same bytes as render()', async () => {
+			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
+			const bytes = await client.render({ template: '<p>x</p>', data: {} });
+
+			const stream = await client.renderStream({ template: '<p>x</p>', data: {} });
+			const chunks: Uint8Array[] = [];
+			for await (const chunk of stream as unknown as AsyncIterable<Uint8Array>) {
+				chunks.push(chunk);
+			}
+			const total = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+			let offset = 0;
+			for (const c of chunks) {
+				total.set(c, offset);
+				offset += c.length;
+			}
+			expect(total).toEqual(bytes);
+		});
+
+		it('propagates upstream errors as PoliPageError', async () => {
+			setMockHandler((_req, res) => {
+				res.writeHead(400, { 'Content-Type': 'application/json' });
+				res.end(JSON.stringify({ code: 'VALIDATION_ERROR' }));
+			});
+			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 0 });
+			await expect(
+				client.renderStream({ template: '<p>x</p>', data: {} }),
+			).rejects.toMatchObject({ name: 'PoliPageError', code: 'VALIDATION_ERROR' });
+		});
+
+		it('rejects 2xx renderStream response if Content-Type is not application/pdf', async () => {
+			setMockHandler((_req, res) => {
+				res.writeHead(200, { 'Content-Type': 'text/html' });
+				res.end('<html>oops</html>');
+			});
+			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 0 });
+			await expect(
+				client.renderStream({ template: '<p>x</p>', data: {} }),
+			).rejects.toMatchObject({ name: 'PoliPageError', code: 'INTERNAL_ERROR' });
+		});
+	});
+
 	describe('observability hooks', () => {
 		it('calls onRequest with method, url, attempt', async () => {
 			const events: { method: string; url: string; attempt: number }[] = [];
