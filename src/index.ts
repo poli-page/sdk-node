@@ -244,8 +244,9 @@ export class PoliPage {
 
 			const requestId = response.headers.get('x-request-id') ?? undefined;
 
-			// Only retry on server errors (5xx); capture Retry-After before reading body
-			if (response.status >= 500) {
+			// Retry on 5xx and 429; 4xx (except 429) is never retried.
+			const isRetryable = response.status >= 500 || response.status === 429;
+			if (isRetryable) {
 				nextRetryAfterMs = parseRetryAfter(response.headers.get('retry-after'));
 			}
 
@@ -263,8 +264,7 @@ export class PoliPage {
 
 			lastError = new PoliPageError(message, code, response.status, requestId);
 
-			// Only retry on server errors (5xx)
-			if (response.status < 500) throw lastError;
+			if (!isRetryable) throw lastError;
 		}
 
 		throw lastError!;
