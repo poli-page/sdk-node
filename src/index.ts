@@ -5,8 +5,6 @@
  * is shared across every official Poli Page SDK.
  */
 
-import { randomUUID } from 'node:crypto';
-
 export type {
 	PageFormat,
 	Orientation,
@@ -139,7 +137,7 @@ export class PoliPage {
 		signal?: AbortSignal,
 		callerIdempotencyKey?: string,
 	): Promise<Response> {
-		const idempotencyKey = callerIdempotencyKey ?? randomUUID();
+		const idempotencyKey = callerIdempotencyKey ?? globalThis.crypto.randomUUID();
 		return this.#runWithRetry(path, body, idempotencyKey, signal);
 	}
 

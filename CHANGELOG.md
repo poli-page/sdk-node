@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Non-2xx response bodies that are not JSON now produce `PoliPageError` with `code: 'INTERNAL_ERROR'` and the HTTP status, instead of stuffing the raw body into the `code` field.
 - 2xx PDF responses with a non-`application/pdf` Content-Type now throw `PoliPageError` instead of returning whatever bytes the server sent.
+- Main entry no longer imports from `node:crypto`. Idempotency-key generation now uses `globalThis.crypto.randomUUID()`, making the main entry truly isomorphic (Cloudflare Workers, Vercel Edge, Deno, Bun all supported).
 
 ## [0.1.0] - 2026-04-26
 
