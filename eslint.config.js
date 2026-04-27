@@ -28,6 +28,7 @@ export default tseslint.config(
 			'@typescript-eslint/no-unsafe-assignment': 'off',
 			'@typescript-eslint/no-unsafe-member-access': 'off',
 			'@typescript-eslint/no-unsafe-call': 'off',
+			// vitest's vi.spyOn() / matcher patterns extract methods; false positives without this.
 			'@typescript-eslint/unbound-method': 'off',
 		},
 	},
