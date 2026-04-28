@@ -1,0 +1,14 @@
+{
+  "name": "poli-page-sdk-node-demo",
+  "version": "0.0.0",
+  "description": "Runnable Node.js demos for @poli-page/sdk (ESM and CommonJS).",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "demo:esm": "node esm-demo.mjs",
+    "demo:cjs": "node cjs-demo.cjs"
+  },
+  "dependencies": {
+    "@poli-page/sdk": "file:../.."
+  }
+}
