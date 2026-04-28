@@ -40,10 +40,17 @@ SKIP_INTEGRATION=1 git push
 
 ## Releasing
 
+Releases are **manual**. There is no CI workflow that auto-publishes — by design. The only supported publishing path is `scripts/publish.sh` (also available as `pnpm release`).
+
 1. Bump version in `package.json`.
 2. Move `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md`.
 3. Commit `chore(release): X.Y.Z`.
-4. Tag `vX.Y.Z` and push the tag — CI publishes to npm.
+4. From a clean main branch, run:
+   ```bash
+   pnpm release           # full release
+   pnpm release:dry-run   # everything except the actual `pnpm publish`
+   ```
+   The script runs pre-flight checks (clean tree, on main, tag doesn't exist), lint/typecheck/tests, builds, packs, shows the tarball contents, and asks you to confirm before publishing. On success, it creates a local `vX.Y.Z` tag.
+5. Push the tag manually when you're ready: `git push origin vX.Y.Z`.
 
-The repo must have an `NPM_TOKEN` secret configured in GitHub settings for
-the publish workflow to succeed.
+You must be logged in to npm (`pnpm whoami` should print your user). The script does not touch npm tokens, secrets, or CI — it's a local-machine release.
