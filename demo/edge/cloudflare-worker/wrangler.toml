@@ -1,0 +1,10 @@
+# Cloudflare Workers config for the @poli-page/sdk edge demo.
+#
+# Note: there are deliberately NO `compatibility_flags = ["nodejs_compat"]`
+# entries. The point of this demo is that @poli-page/sdk's main entry runs on
+# Cloudflare Workers without needing the Node.js compatibility layer — it uses
+# only Web Platform APIs (fetch, ReadableStream, AbortSignal, globalThis.crypto).
+
+name = "poli-page-sdk-edge-demo"
+main = "worker.mjs"
+compatibility_date = "2025-07-18"

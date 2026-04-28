@@ -36,6 +36,10 @@
 		"test:watch": "vitest",
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",
+		"demo": "pnpm run demo:esm",
+		"demo:esm": "pnpm run build && pnpm --dir demo/node install && pnpm --dir demo/node run demo:esm",
+		"demo:cjs": "pnpm run build && pnpm --dir demo/node install && pnpm --dir demo/node run demo:cjs",
+		"demo:edge": "pnpm run build && pnpm --dir demo/edge/cloudflare-worker install && pnpm --dir demo/edge/cloudflare-worker run dev",
 		"prepublishOnly": "pnpm run build",
 		"prepare": "simple-git-hooks"
 	},
