@@ -38,6 +38,19 @@ const DEFAULT_TIMEOUT = 60_000;
 /**
  * Poli Page client. Single entry point for rendering PDFs, previewing
  * paginated HTML, and generating page thumbnails.
+ *
+ * @example
+ * ```ts
+ * import { PoliPage } from '@poli-page/sdk';
+ *
+ * const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });
+ *
+ * const pdf = await client.render({
+ *   project: 'billing',
+ *   template: 'invoice',
+ *   data: { invoiceNumber: 'INV-001', total: 1280 },
+ * });
+ * ```
  */
 export class PoliPage {
 	readonly #apiKey: string;
@@ -65,7 +78,24 @@ export class PoliPage {
 		this.#onError = options.onError;
 	}
 
-	/** Render a PDF and return a ReadableStream of its bytes. Calls `POST /v1/render/pdf`. */
+	/**
+	 * Render a PDF and return a `ReadableStream` of its bytes. Calls `POST /v1/render/pdf`.
+	 *
+	 * Use this when you want to pipe the response straight to a destination
+	 * (HTTP response, S3 upload, file) without buffering the full PDF in memory.
+	 *
+	 * @example
+	 * ```ts
+	 * const stream = await client.renderStream({
+	 *   project: 'billing',
+	 *   template: 'invoice',
+	 *   data: { invoiceNumber: 'INV-001' },
+	 * });
+	 *
+	 * // In an HTTP handler, pipe directly to the response:
+	 * return new Response(stream, { headers: { 'content-type': 'application/pdf' } });
+	 * ```
+	 */
 	async renderStream(input: RenderInput): Promise<ReadableStream<Uint8Array>> {
 		const { signal, idempotencyKey, ...wireBody } = input;
 		const response = await this.#request('/v1/render/pdf', wireBody, signal, idempotencyKey);
@@ -85,7 +115,30 @@ export class PoliPage {
 		return response.body as ReadableStream<Uint8Array>;
 	}
 
-	/** Render a PDF and return its raw bytes. Calls `POST /v1/render/pdf`. */
+	/**
+	 * Render a PDF and return its raw bytes. Calls `POST /v1/render/pdf`.
+	 *
+	 * For large PDFs or when streaming is preferable (e.g. piping to S3 or an
+	 * HTTP response), use {@link PoliPage.renderStream} instead.
+	 *
+	 * @example
+	 * ```ts
+	 * const pdf = await client.render({
+	 *   project: 'billing',
+	 *   template: 'invoice',
+	 *   data: { invoiceNumber: 'INV-001', total: 1280 },
+	 * });
+	 * // pdf is a Uint8Array
+	 * ```
+	 *
+	 * @example Inline HTML mode
+	 * ```ts
+	 * const pdf = await client.render({
+	 *   template: '<h1>Hello {{ name }}</h1>',
+	 *   data: { name: 'World' },
+	 * });
+	 * ```
+	 */
 	async render(input: RenderInput): Promise<Uint8Array> {
 		const stream = await this.renderStream(input);
 		const reader = stream.getReader();
@@ -106,14 +159,43 @@ export class PoliPage {
 		return out;
 	}
 
-	/** Generate paginated HTML output. Calls `POST /v1/render/preview`. */
+	/**
+	 * Generate paginated HTML output. Calls `POST /v1/render/preview`.
+	 *
+	 * Useful for live preview in editor UIs or for asserting layout in tests
+	 * without producing a PDF.
+	 *
+	 * @example
+	 * ```ts
+	 * const { html, totalPages } = await client.preview({
+	 *   project: 'billing',
+	 *   template: 'invoice',
+	 *   data: { invoiceNumber: 'INV-001' },
+	 * });
+	 * console.log(`Rendered ${totalPages} page(s)`);
+	 * ```
+	 */
 	async preview(input: RenderInput): Promise<PreviewResult> {
 		const { signal, idempotencyKey, ...wireBody } = input;
 		const response = await this.#request('/v1/render/preview', wireBody, signal, idempotencyKey);
 		return response.json() as Promise<PreviewResult>;
 	}
 
-	/** Generate page thumbnails as base64-encoded images. */
+	/**
+	 * Generate page thumbnails as base64-encoded images.
+	 * Calls `POST /v1/render/thumbnails`.
+	 *
+	 * @example
+	 * ```ts
+	 * const thumbs = await client.thumbnails(
+	 *   { project: 'billing', template: 'invoice', data: { invoiceNumber: 'INV-001' } },
+	 *   { width: 320, format: 'png' },
+	 * );
+	 * for (const t of thumbs) {
+	 *   console.log(`page ${t.page}: ${t.width}x${t.height} ${t.contentType}`);
+	 * }
+	 * ```
+	 */
 	async thumbnails(input: RenderInput, options: ThumbnailOptions): Promise<Thumbnail[]> {
 		const { signal, idempotencyKey, ...inputBody } = input;
 		const body = { ...inputBody, thumbnails: options };

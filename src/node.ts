@@ -11,6 +11,19 @@ import type { RenderInput } from './types.js';
  *
  * Node-only — uses `node:fs/promises` and `node:fs`. Import from
  * `@poli-page/sdk/node` rather than the main entry.
+ *
+ * @example
+ * ```ts
+ * import { PoliPage } from '@poli-page/sdk';
+ * import { renderToFile } from '@poli-page/sdk/node';
+ *
+ * const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });
+ * await renderToFile(
+ *   client,
+ *   { project: 'billing', template: 'invoice', data: { invoiceNumber: 'INV-001' } },
+ *   './invoices/INV-001.pdf',
+ * );
+ * ```
  */
 export async function renderToFile(
 	client: PoliPage,
