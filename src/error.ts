@@ -1,5 +1,7 @@
+/** @internal */
 type SdkInternalCode = 'invalid_options' | 'network_error' | 'timeout' | 'aborted';
 
+/** @internal */
 type ApiCode =
 	| 'INVALID_API_KEY'
 	| 'MISSING_API_KEY'
@@ -23,6 +25,22 @@ export type PoliPageErrorCode = SdkInternalCode | ApiCode | (string & {});
  * Single error type for everything raised by the SDK: API errors,
  * network failures, timeouts, caller cancellation, and constructor
  * validation failures.
+ *
+ * @example
+ * ```ts
+ * import { PoliPage, PoliPageError } from '@poli-page/sdk';
+ *
+ * try {
+ *   await client.render({ project: 'billing', template: 'invoice', data: { ... } });
+ * } catch (err) {
+ *   if (err instanceof PoliPageError) {
+ *     if (err.isAuthError())      return refreshCredentials();
+ *     if (err.isRateLimitError()) return queueForLater();
+ *     console.error(err.code, err.status, err.requestId);
+ *   }
+ *   throw err;
+ * }
+ * ```
  */
 export class PoliPageError extends Error {
 	readonly code: PoliPageErrorCode;
@@ -37,22 +55,81 @@ export class PoliPageError extends Error {
 		this.requestId = requestId;
 	}
 
+	/**
+	 * `true` for HTTP 401 / 403 — invalid, missing, or unauthorized API key.
+	 *
+	 * @example
+	 * ```ts
+	 * if (err.isAuthError()) {
+	 *   await refreshCredentials();
+	 * }
+	 * ```
+	 */
 	isAuthError(): boolean {
 		return this.status === 401 || this.status === 403;
 	}
 
+	/**
+	 * `true` for HTTP 429 — too many requests. The SDK has already retried up
+	 * to `maxRetries` times before surfacing this; back off further at the
+	 * caller level if you see it.
+	 *
+	 * @example
+	 * ```ts
+	 * if (err.isRateLimitError()) {
+	 *   await sleep(60_000);
+	 * }
+	 * ```
+	 */
 	isRateLimitError(): boolean {
 		return this.status === 429;
 	}
 
+	/**
+	 * `true` for HTTP 400 — request payload failed validation
+	 * (missing data, missing project/template, bad version, etc.).
+	 *
+	 * @example
+	 * ```ts
+	 * if (err.isValidationError()) {
+	 *   console.error('Bad input:', err.code, err.message);
+	 * }
+	 * ```
+	 */
 	isValidationError(): boolean {
 		return this.status === 400;
 	}
 
+	/**
+	 * `true` for transport-level failures: DNS errors, connection refused,
+	 * TLS failures (`code: 'network_error'`) or per-request timeouts
+	 * (`code: 'timeout'`). No `status` is set in these cases.
+	 *
+	 * @example
+	 * ```ts
+	 * if (err.isNetworkError()) {
+	 *   metrics.increment('poli.network_error');
+	 * }
+	 * ```
+	 */
 	isNetworkError(): boolean {
 		return this.code === 'network_error' || this.code === 'timeout';
 	}
 
+	/**
+	 * `true` if the SDK considers this error retryable (5xx, 429, network,
+	 * timeout). Caller-aborted requests (`code: 'aborted'`) are never retryable.
+	 *
+	 * The SDK already retries internally up to `maxRetries`; this predicate is
+	 * mostly useful when an outer queue / scheduler decides whether to re-enqueue.
+	 *
+	 * @example
+	 * ```ts
+	 * if (err.isRetryable()) {
+	 *   queue.requeue(job);
+	 * }
+	 * ```
+	 */
 	isRetryable(): boolean {
 		if (this.code === 'aborted') return false;
 		if (this.isNetworkError()) return true;
