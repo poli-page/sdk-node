@@ -7,7 +7,7 @@
 
 Official Node.js SDK for [Poli Page](https://poli.page) — render polished PDFs from HTML templates via the Poli Page API.
 
-→ Full SDK reference: **https://docs-develop.poli.page/reference/sdk**
+→ API reference (auto-generated from source): **https://docs.poli.page/reference/sdk/node/**
 
 ## Install
 
@@ -136,7 +136,7 @@ try {
 }
 ```
 
-→ Full error reference: https://docs-develop.poli.page/reference/sdk#errors
+→ Full error reference: https://docs.poli.page/reference/sdk/node/classes/index.PoliPageError.html
 
 ## Cancellation
 
@@ -169,11 +169,29 @@ const client = new PoliPage({
 
 The SDK retries on **5xx**, **429**, **network errors**, and **timeouts**. Backoff is exponential (`retryDelay × 2^N`) with jitter, capped by `Retry-After` when the server provides it. Every call sends an auto-generated `Idempotency-Key` (UUID v4); pass `idempotencyKey` in the input to override.
 
-→ Full retry semantics: https://docs-develop.poli.page/reference/sdk#retries
+→ Full retry semantics: https://docs.poli.page/reference/sdk/node/classes/index.PoliPage.html#render
 
 ## TypeScript
 
 Full type definitions ship with the package. `RenderInput` is a discriminated union — invalid combos (e.g. `project` without `template`) fail at compile time.
+
+## Runtime support
+
+Server-side only. The SDK runs on any modern JavaScript server runtime:
+
+- **Node.js** 20.18 or later
+- **Cloudflare Workers**
+- **Vercel Edge Runtime**
+- **Deno**
+- **Bun**
+
+**Browsers are not supported.** API keys (`pp_test_*`, `pp_live_*`) are
+secrets and must never be shipped to a browser. Call the SDK from your
+backend and proxy the result to the client.
+
+The main entry is fully isomorphic (no `node:*` imports). The Node-only
+filesystem helper `renderToFile` lives at `@poli-page/sdk/node` and is
+imported separately when needed.
 
 ## Requirements
 
@@ -181,8 +199,8 @@ Node.js 20.18 or later.
 
 ## Documentation & support
 
-- API reference: [docs.poli.page](https://docs.poli.page)
-- SDK reference (develop): [docs-develop.poli.page/reference/sdk](https://docs-develop.poli.page/reference/sdk)
+- Platform docs: [docs.poli.page](https://docs.poli.page)
+- SDK API reference: [docs.poli.page/reference/sdk/node](https://docs.poli.page/reference/sdk/node/)
 - Sign up & generate API keys: [app.poli.page](https://app.poli.page)
 - Issues: [github.com/poli-page/sdk-node/issues](https://github.com/poli-page/sdk-node/issues)
 - Security: see [SECURITY.md](SECURITY.md)
