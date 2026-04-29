@@ -48,6 +48,7 @@
 		"lint:fix": "eslint . --fix",
 		"lint:pack": "attw --pack . --profile node16 && publint --strict",
 		"size": "size-limit",
+		"docs": "typedoc",
 		"demo": "pnpm run demo:esm",
 		"demo:esm": "pnpm run build && pnpm --dir demo/node install && pnpm --dir demo/node run demo:esm",
 		"demo:cjs": "pnpm run build && pnpm --dir demo/node install && pnpm --dir demo/node run demo:cjs",
@@ -111,6 +112,7 @@
 		"simple-git-hooks": "^2.13.1",
 		"size-limit": "^12.1.0",
 		"tsup": "^8.5.1",
+		"typedoc": "^0.28.19",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.59.0",
 		"vitest": "^4.1.5"
