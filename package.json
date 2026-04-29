@@ -46,13 +46,15 @@
 		"test:watch": "vitest",
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",
+		"lint:pack": "attw --pack . --profile node16 && publint --strict",
+		"size": "size-limit",
 		"demo": "pnpm run demo:esm",
 		"demo:esm": "pnpm run build && pnpm --dir demo/node install && pnpm --dir demo/node run demo:esm",
 		"demo:cjs": "pnpm run build && pnpm --dir demo/node install && pnpm --dir demo/node run demo:cjs",
 		"demo:edge": "pnpm run build && pnpm --dir demo/edge/cloudflare-worker install && pnpm --dir demo/edge/cloudflare-worker run dev",
 		"release": "./scripts/publish.sh",
 		"release:dry-run": "./scripts/publish.sh --dry-run",
-		"prepublishOnly": "pnpm run build",
+		"prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
 		"prepare": "simple-git-hooks"
 	},
 	"keywords": [
@@ -87,11 +89,27 @@
 			"simple-git-hooks"
 		]
 	},
+	"size-limit": [
+		{
+			"name": "ESM main entry",
+			"path": "dist/index.js",
+			"limit": "50 KB"
+		},
+		{
+			"name": "CJS main entry",
+			"path": "dist/index.cjs",
+			"limit": "50 KB"
+		}
+	],
 	"devDependencies": {
+		"@arethetypeswrong/cli": "^0.18.2",
 		"@eslint/js": "^10.0.1",
+		"@size-limit/preset-small-lib": "^12.1.0",
 		"@types/node": "^20.19.0",
 		"eslint": "^10.2.1",
+		"publint": "^0.3.18",
 		"simple-git-hooks": "^2.13.1",
+		"size-limit": "^12.1.0",
 		"tsup": "^8.5.1",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.59.0",
