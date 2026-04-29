@@ -14,9 +14,10 @@
  *     that Node's interop heuristics sometimes get wrong.
  */
 
-import { resolve } from 'node:path';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import * as readline from 'node:readline/promises';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ANSI colors (no dependency)
@@ -49,22 +50,78 @@ export const step = (n, total, name) =>
 export const fileLink = (relPath) => c.cyan(pathToFileURL(resolve(relPath)).href);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// API key prompt
+// API key resolution
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Single canonical location — `.env` at the repo root, one level above
+// this file. Every demo (Node ESM, Node CJS, Cloudflare Worker) reads
+// from here, and the prompt persists pasted keys here too.
+const __dirname = dirname(fileURLToPath(import.meta.url));
+export const ENV_FILE = resolve(__dirname, '..', '.env');
+
 /**
- * Read POLI_PAGE_API_KEY from the environment, or prompt the user with
- * detailed instructions on where to find/create one. Returns the key as
- * a string. Exits the process with a friendly error if the user pastes
- * something that doesn't start with `pp_test_`.
+ * Parse a `KEY=value` env-style file. Skips blank lines and `# comments`,
+ * trims whitespace, and strips surrounding single or double quotes. Last
+ * occurrence of a key wins. Dependency-free.
  */
-export async function getApiKey() {
+function readEnvFile(path) {
+	if (!existsSync(path)) return {};
+	const result = {};
+	for (const rawLine of readFileSync(path, 'utf-8').split(/\r?\n/)) {
+		const line = rawLine.trim();
+		if (!line || line.startsWith('#')) continue;
+		const eq = line.indexOf('=');
+		if (eq === -1) continue;
+		const key = line.slice(0, eq).trim();
+		let value = line.slice(eq + 1).trim();
+		if (
+			(value.startsWith('"') && value.endsWith('"')) ||
+			(value.startsWith("'") && value.endsWith("'"))
+		) {
+			value = value.slice(1, -1);
+		}
+		result[key] = value;
+	}
+	return result;
+}
+
+/**
+ * Append `KEY=value` to a file, creating the file if it doesn't exist and
+ * adding a leading newline if the existing content doesn't end with one.
+ * Naive — does not de-duplicate. If the file already had `KEY=`, both
+ * lines remain; the parser's last-wins rule means the appended one takes
+ * precedence on subsequent reads.
+ */
+function appendToEnvFile(path, key, value) {
+	const existing = existsSync(path) ? readFileSync(path, 'utf-8') : '';
+	const needsLeadingNewline = existing.length > 0 && !existing.endsWith('\n');
+	writeFileSync(path, (needsLeadingNewline ? '\n' : '') + `${key}=${value}\n`, { flag: 'a' });
+}
+
+/**
+ * Make sure we have a POLI_PAGE_API_KEY for the demo. Resolution order:
+ *
+ *   1. `process.env.POLI_PAGE_API_KEY` (host shell — wins for CI).
+ *   2. `demo/.env` (the canonical project file — survives across runs).
+ *   3. Interactive prompt; on a successful paste, the key is appended to
+ *      `demo/.env` so future runs skip this step.
+ *
+ * Exits the process with a friendly error if the user pastes something
+ * that doesn't start with `pp_test_`.
+ */
+export async function ensureApiKey() {
 	if (process.env.POLI_PAGE_API_KEY) return process.env.POLI_PAGE_API_KEY;
+
+	const fromFile = readEnvFile(ENV_FILE).POLI_PAGE_API_KEY;
+	if (fromFile) {
+		console.log(c.dim(`  using POLI_PAGE_API_KEY from ${ENV_FILE}`));
+		return fromFile;
+	}
 
 	const rule = c.dim('  ─────────────────────────────────────────────────────────────────────');
 	console.log('');
 	console.log(rule);
-	console.log(c.bold(c.yellow('   No POLI_PAGE_API_KEY found in your environment.')));
+	console.log(c.bold(c.yellow('   No POLI_PAGE_API_KEY found.')));
 	console.log(rule);
 	console.log('');
 	console.log('   This demo needs a develop-environment test key (' + c.cyan('pp_test_*') + ') to');
@@ -80,10 +137,9 @@ export async function getApiKey() {
 	console.log('     3. Click "Create key", choose the ' + c.bold('develop') + ' environment, copy');
 	console.log('        the value (starts with ' + c.cyan('pp_test_') + ').');
 	console.log('');
-	console.log('   You can paste it below to run the demo just this once, or set');
-	console.log('   it as an env var so future runs pick it up automatically:');
-	console.log('');
-	console.log(c.dim('     export POLI_PAGE_API_KEY=pp_test_...'));
+	console.log('   Paste it below — we\'ll save it to ' + c.cyan('.env') + ' (repo root) so');
+	console.log('   future runs pick it up automatically. (You can also set');
+	console.log('   ' + c.dim('POLI_PAGE_API_KEY') + ' in your shell — that wins over the file.)');
 	console.log('');
 
 	const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -94,6 +150,8 @@ export async function getApiKey() {
 		console.error('\n  ' + c.red('✗') + ' Expected a key starting with `pp_test_`. Aborting.\n');
 		process.exit(1);
 	}
-	console.log('');
+
+	appendToEnvFile(ENV_FILE, 'POLI_PAGE_API_KEY', key);
+	console.log(`  ${c.green('✔')} saved to ${c.cyan(ENV_FILE)}\n`);
 	return key;
 }
