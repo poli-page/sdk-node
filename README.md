@@ -61,6 +61,18 @@ await renderToFile(
 
 `renderToFile` streams response bytes directly to disk (bounded memory).
 
+### Try it locally — runnable demos
+
+The repo ships three end-to-end demos that exercise every public method against the real API:
+
+```bash
+pnpm demo        # Node ESM — start here
+pnpm demo:cjs    # Node CommonJS (verifies the dual exports map)
+pnpm demo:edge   # Cloudflare Worker (proof of edge-runtime support)
+```
+
+First run prompts for a `pp_test_*` key and saves it to `.env`. Subsequent runs are silent. Pick by target runtime — see [`demo/README.md`](demo/README.md#which-demo-for-which-use-case) for the full decision guide and what each demo proves.
+
 ### Stream — for large PDFs or piping to S3 / HTTP responses
 
 ```ts

@@ -14,6 +14,24 @@ pnpm demo:edge          # boots the Cloudflare Worker demo with `wrangler dev`
 
 The first invocation builds the SDK, installs the demo's deps, then runs. Subsequent runs skip what's already cached.
 
+## Which demo for which use case?
+
+Pick the demo that matches **your target runtime**, not just the runtime you're typing in right now. All three hit the same API and exercise the same five public methods — the difference is *how the SDK is loaded and run*, which is what determines whether your integration will work end-to-end.
+
+| Your situation | Run | What it proves |
+|---|---|---|
+| Modern Node.js service (`"type": "module"`, `.mjs`, ESM `import`) | `pnpm demo:esm` | The default ESM resolution path — same one you get from `import { PoliPage } from '@poli-page/sdk'`. **Start here if you're unsure.** |
+| Node.js codebase using CommonJS (`require`, `.cjs`, older bundlers, ts-node default) | `pnpm demo:cjs` | The CJS resolution path through the dual exports map, including `require('@poli-page/sdk/node')` for `renderToFile`. |
+| Edge runtime — Cloudflare Workers, Vercel Edge, Deno Deploy, or Bun | `pnpm demo:edge` | Boots inside `wrangler dev` with **no `nodejs_compat` flag**, confirming the main entry uses only Web Platform APIs (`fetch`, `ReadableStream`, `AbortSignal`, `globalThis.crypto`). |
+| Validating an SDK upgrade before rolling out | All three | Catches regressions across every resolution path the package ships. |
+| Porting the SDK to another language (Python, PHP, Go, …) | `pnpm demo:esm` | Canonical reference. Walks the public methods in the order other-language demos should mirror. See *Notes for SDK porters* below. |
+
+Notes:
+
+- **You don't need all three.** If you only ship to Node ESM, `demo:esm` is enough.
+- **The two Node demos write to sibling folders** (`demo/node/output-esm/` and `demo/node/output-cjs/`), so you can `diff` them to confirm both module systems return byte-equivalent results.
+- **The edge demo is the only one that renders an HTML report in the browser.** Node demos write artifacts to disk; the worker shows them inline at `localhost:8787`.
+
 ## Step 1 — Get an API key (you'll need this every time)
 
 Every demo talks to the Poli Page API, which requires an API key. **You only need a `pp_test_*` key** — test keys hit the develop environment, never bill, and never send real documents.
