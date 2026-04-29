@@ -54,3 +54,40 @@ Releases are **manual**. There is no CI workflow that auto-publishes — by desi
 5. Push the tag manually when you're ready: `git push origin vX.Y.Z`.
 
 You must be logged in to npm (`pnpm whoami` should print your user). The script does not touch npm tokens, secrets, or CI — it's a local-machine release.
+
+### Stable vs. prerelease channels
+
+Two npm dist-tags are used:
+
+- **`latest`** — the default. `npm install @poli-page/sdk` resolves here. Only stable releases (`1.2.3`, no prerelease suffix) ship to `latest`.
+- **`next`** — opt-in prereleases (`1.2.3-rc.1`, `2.0.0-beta.0`, `1.3.0-alpha.2`). Used to validate breaking changes or large features before promoting them to `latest`.
+
+#### Cutting a prerelease
+
+The version string in `package.json` carries the prerelease suffix. A prerelease for the upcoming 2.0:
+
+1. Bump version in `package.json` to e.g. `2.0.0-rc.1`.
+2. Move `[Unreleased]` → `[2.0.0-rc.1] - YYYY-MM-DD` in `CHANGELOG.md`.
+3. Commit, then publish to the `next` tag:
+   ```bash
+   pnpm publish --tag next --access public
+   ```
+   `scripts/publish.sh` always publishes to `latest`; for prereleases run `pnpm publish` directly with `--tag next` (or extend the script with a `--tag` flag if it becomes a frequent path).
+4. Tag the commit locally: `git tag v2.0.0-rc.1 && git push origin v2.0.0-rc.1`.
+
+Users opt in by version range or dist-tag:
+
+```bash
+npm install @poli-page/sdk@next        # latest prerelease
+npm install @poli-page/sdk@2.0.0-rc.1  # specific prerelease
+```
+
+#### Promoting a prerelease to stable
+
+When the prerelease is ready, cut a stable release at the same semver minus the suffix:
+
+1. Bump `package.json` to `2.0.0` (drop the suffix).
+2. Move the prerelease entries in `CHANGELOG.md` under `[2.0.0] - YYYY-MM-DD`.
+3. Run `pnpm release` (publishes to `latest` via `scripts/publish.sh`).
+
+`latest` and `next` should never point at the same version — once `next` is promoted, the next prerelease starts a new pre-suffix sequence (e.g. `2.1.0-beta.0`).
