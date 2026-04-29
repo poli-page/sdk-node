@@ -3,57 +3,48 @@
  * Single entry point for the Cloudflare Workers demo.
  *
  * One script does everything frictionless-demos need:
- *   1. Make sure `.dev.vars` has POLI_PAGE_API_KEY (prompt if missing).
- *   2. Spawn `wrangler dev` (output piped through to the user's terminal).
- *   3. Wait for the worker port to come up, then auto-open the report URL
+ *   1. Resolve POLI_PAGE_API_KEY from process.env, then `demo/.env` —
+ *      prompts the user (and saves to `demo/.env`) if neither has it.
+ *      All of that logic lives in `demo/_shared.mjs` so it stays in sync
+ *      with the Node demos.
+ *   2. Spawn `wrangler dev`, passing the key as a CLI binding
+ *      (`--var POLI_PAGE_API_KEY:$key`) so the Worker sees it as
+ *      `env.POLI_PAGE_API_KEY` without us having to drop a `.dev.vars`
+ *      file alongside the Worker.
+ *   3. Wait for the Worker port to come up, then auto-open the report URL
  *      in the user's default browser.
  *   4. Forward Ctrl-C to wrangler so quitting cleans up properly.
  *
- * Replaces the old predev/dev split. The user runs `pnpm run dev` (or
- * `pnpm demo:edge` from the SDK root) and the demo is open in their
- * browser within seconds — no `.dev.vars` to remember, no second curl
- * step, no separate "open this URL" instruction.
+ * Trade-off worth knowing: passing the key via `--var` means the value
+ * is visible in `ps` while wrangler runs. Acceptable for `pp_test_*`
+ * keys against develop; never use this approach for `pp_live_*` keys.
+ * Production deploys use `wrangler secret put POLI_PAGE_API_KEY`.
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { connect } from 'node:net';
 import { platform } from 'node:os';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
-import { c, getApiKey } from '../../_shared.mjs';
+import { c, ensureApiKey } from '../../_shared.mjs';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const DEV_VARS = resolve(__dirname, '.dev.vars');
 const PORT = 8787;
 const URL = `http://localhost:${PORT}`;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. Ensure .dev.vars has the API key
+// 1. Resolve the API key (env → demo/.env → prompt-and-persist)
 // ─────────────────────────────────────────────────────────────────────────────
-const existing = existsSync(DEV_VARS) ? readFileSync(DEV_VARS, 'utf-8') : '';
-const alreadyHasKey = /^\s*POLI_PAGE_API_KEY\s*=\s*\S+/m.test(existing);
-
-if (!alreadyHasKey) {
-	// Prefer the shell env if the user already has it set; otherwise prompt.
-	const key = process.env.POLI_PAGE_API_KEY ?? (await getApiKey());
-	const needsLeadingNewline = existing.length > 0 && !existing.endsWith('\n');
-	writeFileSync(DEV_VARS, (needsLeadingNewline ? '\n' : '') + `POLI_PAGE_API_KEY=${key}\n`, {
-		flag: 'a',
-	});
-	console.log(`  ${c.green('✔')} wrote ${c.cyan('.dev.vars')}.`);
-}
+const apiKey = await ensureApiKey();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. Spawn wrangler dev (inherit stdio so the user sees wrangler's output)
+// 2. Spawn `wrangler dev` with the key passed as a CLI binding
 // ─────────────────────────────────────────────────────────────────────────────
 console.log(c.dim('  starting wrangler...\n'));
 
-const wrangler = spawn('wrangler', ['dev', '--port', String(PORT)], {
-	stdio: 'inherit',
-	shell: platform() === 'win32',
-});
+const wrangler = spawn(
+	'wrangler',
+	['dev', '--port', String(PORT), '--var', `POLI_PAGE_API_KEY:${apiKey}`],
+	{ stdio: 'inherit', shell: platform() === 'win32' },
+);
 
 wrangler.on('error', (err) => {
 	console.error(`\n  ${c.red('✗')} failed to start wrangler: ${err.message}\n`);

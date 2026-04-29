@@ -51,8 +51,11 @@ const input = {
 // CJS can't statically `require` ESM, but it can `await import()` from inside
 // an async function.
 (async () => {
-	const { c, step, getApiKey, fileLink } = await import('../_shared.mjs');
-	const apiKey = await getApiKey();
+	const { c, step, ensureApiKey, fileLink } = await import('../_shared.mjs');
+
+	// Resolve the API key — process.env wins, then `demo/.env`, then prompt.
+	// On a fresh prompt the pasted key is saved to `demo/.env` automatically.
+	const apiKey = await ensureApiKey();
 
 	const client = new PoliPage({
 		apiKey,

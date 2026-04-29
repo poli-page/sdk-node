@@ -1,3 +1,6 @@
 node_modules/
 output-esm/
 output-cjs/
+.env
+.env.*
+!.env.example

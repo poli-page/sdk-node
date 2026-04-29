@@ -28,17 +28,24 @@ Every demo talks to the Poli Page API, which requires an API key. **You only nee
    Replace `{YOUR_ORG}` with your **organization slug** — you can see it in the URL whenever you're inside your dashboard. For example, if your dashboard URL is `https://app-develop.poli.page/orgs/acme/dashboard`, your slug is `acme` and the keys page is at `https://app-develop.poli.page/orgs/acme/keys`.
 3. Click **Create key**, choose the **develop** environment, and copy the value (starts with `pp_test_`).
 
-### Two ways to give the key to the demos
+### One canonical place for the key — `.env` at the SDK repo root
 
-**Option A — Set it once, forget about it (recommended).** Add this to your shell or a `.envrc` file:
+Every demo (Node ESM, Node CJS, Cloudflare Worker) resolves `POLI_PAGE_API_KEY` from these sources, in order:
+
+1. **`process.env`** — wins if set in your shell. Best for CI.
+2. **`.env` at the SDK repo root** — the canonical project file, survives across runs. Gitignored.
+3. **Interactive prompt** — if neither of the above has the key, the demo prints full instructions on where to create one, accepts it on stdin, **and appends it to `.env`** at the repo root so future runs skip the prompt.
+
+The "first run prompts, subsequent runs are silent" experience is the design goal. After answering the prompt once, every demo (incl. the Worker) finds the key automatically.
+
+**Optional setup before the first run** — if you'd rather not paste the key interactively:
 
 ```bash
-export POLI_PAGE_API_KEY=pp_test_...
+cp .env.example .env
+# then edit .env and replace `pp_test_replace_me` with your real key
 ```
 
-**Option B — Paste it on demand.** If `POLI_PAGE_API_KEY` isn't set when you run a Node demo, the script prompts you, prints the link to the keys page, and accepts the key on stdin. This is fine for one-off runs.
-
-The Cloudflare Worker demo (which can't prompt — it's a server) reads the key from `.dev.vars` locally and from `wrangler secret` in production. See `demo/edge/cloudflare-worker/README.md`.
+The Cloudflare Worker demo passes the resolved key to `wrangler dev` via `--var POLI_PAGE_API_KEY:…` at boot — there is no `.dev.vars` file in this project. In production you use `wrangler secret put POLI_PAGE_API_KEY` instead. See `demo/edge/cloudflare-worker/README.md`.
 
 ## Step 2 — Run a demo
 

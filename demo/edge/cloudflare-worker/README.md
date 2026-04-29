@@ -24,8 +24,8 @@ pnpm run dev
 ```
 
 That single command:
-1. Prompts for an API key if `.dev.vars` doesn't have one (with full instructions on where to get one).
-2. Starts `wrangler dev` on `localhost:8787`.
+1. Resolves `POLI_PAGE_API_KEY` from `process.env` or `.env` at the SDK repo root. Prompts on first run and saves the answer to `.env` so the next run is silent.
+2. Starts `wrangler dev` on `localhost:8787`, passing the key as a CLI binding (`--var POLI_PAGE_API_KEY:…`). There's no `.dev.vars` file in this project — the key resolution lives in `demo/_shared.mjs`, shared with the Node demos.
 3. Auto-opens the report page in your default browser as soon as the worker is ready.
 
 You'll see the report page with all six steps inline. The fact that `wrangler dev` boots without a `nodejs_compat` warning is the proof that the SDK is genuinely isomorphic.

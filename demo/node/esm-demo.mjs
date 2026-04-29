@@ -18,7 +18,7 @@ import { renderToFile } from '@poli-page/sdk/node';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { c, step, getApiKey, fileLink } from '../_shared.mjs';
+import { c, step, ensureApiKey, fileLink } from '../_shared.mjs';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Setup
@@ -28,7 +28,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = 'output-esm';
 mkdirSync(OUT_DIR, { recursive: true });
 
-const apiKey = await getApiKey();
+// Resolve the API key — process.env wins, then `demo/.env`, then prompt.
+// On a fresh prompt the pasted key is saved to `demo/.env` automatically.
+const apiKey = await ensureApiKey();
 
 // One realistic template, used by every method below.
 //
