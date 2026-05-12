@@ -127,8 +127,9 @@ The mode is determined by the API key prefix:
 
 - `pp_test_…` → sandbox mode (not billed, generous rate limits)
 - `pp_live_…` → live mode (billed, production rate limits)
+- `pp_sa_…` → service-account keys; environment matches the SA's configuration (sandbox or live)
 
-Both prefixes hit the same endpoint (`https://api.poli.page`).
+All prefixes hit the same endpoint (`https://api.poli.page`). The SDK passes the key through as a Bearer token and never inspects the prefix — pick whichever fits your deploy model.
 
 For the develop environment:
 ```ts
