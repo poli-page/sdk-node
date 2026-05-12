@@ -20,6 +20,16 @@ export type PageFormat =
 
 export type Orientation = 'portrait' | 'landscape';
 
+/**
+ * Free-form caller metadata. Forwarded to the API as-is and echoed back
+ * on responses that support it. Not interpreted, indexed, or validated
+ * by the SDK.
+ *
+ * Values are limited to primitives (`string | number | boolean`); nested
+ * objects and arrays are not supported by the wire format.
+ */
+export type RenderMetadata = Record<string, string | number | boolean>;
+
 interface BaseRenderInput {
 	/** Template data (variables, locale hints, etc.). Required. */
 	data: Record<string, unknown>;
@@ -29,6 +39,12 @@ interface BaseRenderInput {
 	orientation?: Orientation;
 	/** BCP 47 locale (e.g. `en-US`, `fr-FR`) for page numbers and formatting. */
 	locale?: string;
+	/**
+	 * Caller-supplied metadata. Free-form key-value pairs, forwarded to the
+	 * API and echoed on `preview` and `document` responses. Not interpreted
+	 * by the SDK.
+	 */
+	metadata?: RenderMetadata;
 	/** Optional caller cancellation. Composed with the SDK's internal timeout. */
 	signal?: AbortSignal;
 	/** Optional override for the auto-generated UUID v4 idempotency key. */
@@ -63,6 +79,8 @@ export type RenderInput = ProjectModeInput | InlineModeInput;
 export interface PreviewResult {
 	html: string;
 	totalPages: number;
+	/** Echoed back when `metadata` was supplied on the input. */
+	metadata?: RenderMetadata;
 }
 
 export interface ThumbnailOptions {

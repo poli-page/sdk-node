@@ -11,6 +11,7 @@ export type {
 	ProjectModeInput,
 	InlineModeInput,
 	RenderInput,
+	RenderMetadata,
 	PreviewResult,
 	Thumbnail,
 	ThumbnailOptions,
