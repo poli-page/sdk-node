@@ -125,6 +125,34 @@ export interface DocumentDescriptor extends RawDocumentDescriptor {
 	downloadPdf(options?: { signal?: AbortSignal }): Promise<Uint8Array>;
 }
 
+/**
+ * Options for `client.documents.thumbnails(id, options)`. Spec §6.3.
+ */
+export interface ThumbnailOptions {
+	/** Thumbnail width in pixels. Required. */
+	width: number;
+	/** Output format. Default `png`. */
+	format?: 'png' | 'jpeg';
+	/** JPEG quality 1-100. Only valid when `format` is `jpeg`. */
+	quality?: number;
+	/** Generate only this page (1-based). */
+	page?: number;
+	/** Generate only these pages (1-based). */
+	pages?: number[];
+}
+
+/**
+ * A single page thumbnail returned by `documents.thumbnails`. Spec §6.3.
+ */
+export interface Thumbnail {
+	page: number;
+	width: number;
+	height: number;
+	contentType: string;
+	/** Base64-encoded image bytes. */
+	data: string;
+}
+
 export interface RequestEvent {
 	method: string;
 	url: string;

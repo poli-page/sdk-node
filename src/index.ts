@@ -15,6 +15,8 @@ export type {
 	RenderNamespace,
 	DocumentDescriptor,
 	PreviewResult,
+	Thumbnail,
+	ThumbnailOptions,
 	PoliPageOptions,
 	RequestEvent,
 	ResponseEvent,

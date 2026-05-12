@@ -4,6 +4,8 @@ import type {
 	DocumentDescriptor,
 	PreviewResult,
 	RawDocumentDescriptor,
+	Thumbnail,
+	ThumbnailOptions,
 } from './types.js';
 
 /**
@@ -66,4 +68,25 @@ export async function documentsPreview(
 ): Promise<PreviewResult> {
 	const response = await ctx.get(`/v1/documents/${encodeURIComponent(id)}/preview`);
 	return response.json() as Promise<PreviewResult>;
+}
+
+/**
+ * Implementation of `client.documents.thumbnails`. Wired by
+ * `createDocumentsNamespace` (Task 7).
+ *
+ * POSTs `/v1/documents/:id/thumbnails` with the options object as the
+ * request body. Unwraps the server envelope `{ thumbnails: [...] }` and
+ * returns the array. Spec §6.3.
+ */
+export async function documentsThumbnails(
+	ctx: SdkContext,
+	id: string,
+	options: ThumbnailOptions,
+): Promise<Thumbnail[]> {
+	const response = await ctx.post(
+		`/v1/documents/${encodeURIComponent(id)}/thumbnails`,
+		options,
+	);
+	const result = (await response.json()) as { thumbnails: Thumbnail[] };
+	return result.thumbnails;
 }
