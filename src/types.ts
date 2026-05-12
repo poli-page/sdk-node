@@ -83,22 +83,6 @@ export interface PreviewResult {
 	metadata?: RenderMetadata;
 }
 
-export interface ThumbnailOptions {
-	width: number;
-	format?: 'png' | 'jpeg';
-	quality?: number;
-	page?: number;
-	pages?: number[];
-}
-
-export interface Thumbnail {
-	page: number;
-	width: number;
-	height: number;
-	contentType: string;
-	data: string;
-}
-
 export interface RequestEvent {
 	method: string;
 	url: string;

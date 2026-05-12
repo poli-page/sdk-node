@@ -31,7 +31,7 @@ export async function renderToFile(
 	outputPath: string,
 ): Promise<void> {
 	await mkdir(dirname(outputPath), { recursive: true });
-	const stream = await client.renderStream(input);
+	const stream = await client.render.pdfStream(input);
 	const fileStream = createWriteStream(outputPath);
 	await stream.pipeTo(Writable.toWeb(fileStream) as WritableStream<Uint8Array>);
 }

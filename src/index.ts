@@ -14,18 +14,23 @@ export type {
 	RenderMetadata,
 	RenderNamespace,
 	PreviewResult,
-	Thumbnail,
-	ThumbnailOptions,
 	PoliPageOptions,
 	RequestEvent,
 	ResponseEvent,
 	RetryEvent,
 } from './types.js';
 
-import type { RenderInput, PreviewResult, Thumbnail, ThumbnailOptions, PoliPageOptions, RequestEvent, ResponseEvent, RetryEvent } from './types.js';
+import type {
+	PoliPageOptions,
+	RequestEvent,
+	ResponseEvent,
+	RetryEvent,
+	RenderNamespace,
+} from './types.js';
 
 export { PoliPageError, type PoliPageErrorCode } from './error.js';
 import { PoliPageError } from './error.js';
+import { createRenderNamespace, type RenderContext } from './render.js';
 import { parseRetryAfter, computeBackoff, parseErrorBody, buildHeaders } from './internal/http.js';
 
 type SendOnceResult =
@@ -38,8 +43,7 @@ const DEFAULT_RETRY_DELAY = 500;
 const DEFAULT_TIMEOUT = 60_000;
 
 /**
- * Poli Page client. Single entry point for rendering PDFs, previewing
- * paginated HTML, and generating page thumbnails.
+ * Poli Page client. Entry point for the namespaced render API.
  *
  * @example
  * ```ts
@@ -47,14 +51,17 @@ const DEFAULT_TIMEOUT = 60_000;
  *
  * const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });
  *
- * const pdf = await client.render({
+ * const pdf = await client.render.pdf({
  *   project: 'billing',
  *   template: 'invoice',
+ *   version: '1.0.0',
  *   data: { invoiceNumber: 'INV-001', total: 1280 },
  * });
  * ```
  */
 export class PoliPage {
+	readonly render: RenderNamespace;
+
 	readonly #apiKey: string;
 	readonly #baseUrl: string;
 	readonly #maxRetries: number;
@@ -78,132 +85,12 @@ export class PoliPage {
 		this.#onResponse = options.onResponse;
 		this.#onRetry = options.onRetry;
 		this.#onError = options.onError;
-	}
 
-	/**
-	 * Render a PDF and return a `ReadableStream` of its bytes. Calls `POST /v1/render/pdf`.
-	 *
-	 * Use this when you want to pipe the response straight to a destination
-	 * (HTTP response, S3 upload, file) without buffering the full PDF in memory.
-	 *
-	 * @example
-	 * ```ts
-	 * const stream = await client.renderStream({
-	 *   project: 'billing',
-	 *   template: 'invoice',
-	 *   data: { invoiceNumber: 'INV-001' },
-	 * });
-	 *
-	 * // In an HTTP handler, pipe directly to the response:
-	 * return new Response(stream, { headers: { 'content-type': 'application/pdf' } });
-	 * ```
-	 */
-	async renderStream(input: RenderInput): Promise<ReadableStream<Uint8Array>> {
-		const { signal, idempotencyKey, ...wireBody } = input;
-		const response = await this.#request('/v1/render/pdf', wireBody, signal, idempotencyKey);
-		const contentType = response.headers.get('content-type') ?? '';
-		if (!contentType.includes('application/pdf')) {
-			const requestId = response.headers.get('x-request-id') ?? undefined;
-			throw new PoliPageError(
-				`Expected application/pdf response, got ${contentType || 'no content-type'}`,
-				'INTERNAL_ERROR',
-				response.status,
-				requestId,
-			);
-		}
-		if (!response.body) {
-			throw new PoliPageError('Response has no body', 'INTERNAL_ERROR', response.status);
-		}
-		return response.body as ReadableStream<Uint8Array>;
-	}
-
-	/**
-	 * Render a PDF and return its raw bytes. Calls `POST /v1/render/pdf`.
-	 *
-	 * For large PDFs or when streaming is preferable (e.g. piping to S3 or an
-	 * HTTP response), use {@link PoliPage.renderStream} instead.
-	 *
-	 * @example
-	 * ```ts
-	 * const pdf = await client.render({
-	 *   project: 'billing',
-	 *   template: 'invoice',
-	 *   data: { invoiceNumber: 'INV-001', total: 1280 },
-	 * });
-	 * // pdf is a Uint8Array
-	 * ```
-	 *
-	 * @example Inline HTML mode
-	 * ```ts
-	 * const pdf = await client.render({
-	 *   template: '<h1>Hello {{ name }}</h1>',
-	 *   data: { name: 'World' },
-	 * });
-	 * ```
-	 */
-	async render(input: RenderInput): Promise<Uint8Array> {
-		const stream = await this.renderStream(input);
-		const reader = stream.getReader();
-		const chunks: Uint8Array[] = [];
-		let total = 0;
-		while (true) {
-			const { value, done } = await reader.read();
-			if (done) break;
-			chunks.push(value);
-			total += value.length;
-		}
-		const out = new Uint8Array(total);
-		let offset = 0;
-		for (const chunk of chunks) {
-			out.set(chunk, offset);
-			offset += chunk.length;
-		}
-		return out;
-	}
-
-	/**
-	 * Generate paginated HTML output. Calls `POST /v1/render/preview`.
-	 *
-	 * Useful for live preview in editor UIs or for asserting layout in tests
-	 * without producing a PDF.
-	 *
-	 * @example
-	 * ```ts
-	 * const { html, totalPages } = await client.preview({
-	 *   project: 'billing',
-	 *   template: 'invoice',
-	 *   data: { invoiceNumber: 'INV-001' },
-	 * });
-	 * console.log(`Rendered ${totalPages} page(s)`);
-	 * ```
-	 */
-	async preview(input: RenderInput): Promise<PreviewResult> {
-		const { signal, idempotencyKey, ...wireBody } = input;
-		const response = await this.#request('/v1/render/preview', wireBody, signal, idempotencyKey);
-		return response.json() as Promise<PreviewResult>;
-	}
-
-	/**
-	 * Generate page thumbnails as base64-encoded images.
-	 * Calls `POST /v1/render/thumbnails`.
-	 *
-	 * @example
-	 * ```ts
-	 * const thumbs = await client.thumbnails(
-	 *   { project: 'billing', template: 'invoice', data: { invoiceNumber: 'INV-001' } },
-	 *   { width: 320, format: 'png' },
-	 * );
-	 * for (const t of thumbs) {
-	 *   console.log(`page ${t.page}: ${t.width}x${t.height} ${t.contentType}`);
-	 * }
-	 * ```
-	 */
-	async thumbnails(input: RenderInput, options: ThumbnailOptions): Promise<Thumbnail[]> {
-		const { signal, idempotencyKey, ...inputBody } = input;
-		const body = { ...inputBody, thumbnails: options };
-		const response = await this.#request('/v1/render/thumbnails', body, signal, idempotencyKey);
-		const result = (await response.json()) as { thumbnails: Thumbnail[] };
-		return result.thumbnails;
+		const ctx: RenderContext = {
+			request: (path, body, signal, idempotencyKey) =>
+				this.#request(path, body, signal, idempotencyKey),
+		};
+		this.render = createRenderNamespace(ctx);
 	}
 
 	#fireHook<T>(hook: ((e: T) => void) | undefined, event: T): void {
