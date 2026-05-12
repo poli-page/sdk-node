@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
 import { PoliPageError } from '../src/error.js';
-import { renderPdf, renderPdfStream, renderPreview, type RenderContext } from '../src/render.js';
+import {
+	renderPdf,
+	renderPdfStream,
+	renderPreview,
+	createRenderNamespace,
+	type RenderContext,
+} from '../src/render.js';
 
 let server: Server;
 let baseUrl: string;
@@ -220,5 +226,21 @@ describe('renderPreview', () => {
 			metadata: { customerId: 'cust_1' },
 		});
 		expect(JSON.parse(lastRequest.body).metadata).toEqual({ customerId: 'cust_1' });
+	});
+});
+
+describe('createRenderNamespace', () => {
+	it('returns an object with pdf, pdfStream, preview methods bound to ctx', async () => {
+		const ns = createRenderNamespace(buildCtx());
+		expect(typeof ns.pdf).toBe('function');
+		expect(typeof ns.pdfStream).toBe('function');
+		expect(typeof ns.preview).toBe('function');
+	});
+
+	it('routes pdf through the underlying ctx.request', async () => {
+		const ns = createRenderNamespace(buildCtx());
+		const pdf = await ns.pdf({ template: '<p>x</p>', data: {} });
+		expect(pdf).toBeInstanceOf(Uint8Array);
+		expect(lastRequest.path).toBe('/v1/render/pdf');
 	});
 });

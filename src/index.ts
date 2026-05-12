@@ -12,6 +12,7 @@ export type {
 	InlineModeInput,
 	RenderInput,
 	RenderMetadata,
+	RenderNamespace,
 	PreviewResult,
 	Thumbnail,
 	ThumbnailOptions,

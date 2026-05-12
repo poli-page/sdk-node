@@ -128,3 +128,25 @@ export interface PoliPageOptions {
 	onRetry?: (e: RetryEvent) => void;
 	onError?: (err: PoliPageError) => void;
 }
+
+/**
+ * The render namespace exposed as `client.render`. Hosts the three
+ * synchronous render operations defined by spec v1.3 §5.1–§5.2.
+ *
+ * (`render.document` is added in N2.)
+ */
+export interface RenderNamespace {
+	/**
+	 * Render a PDF and return its raw bytes. Calls `POST /v1/render/pdf`.
+	 */
+	pdf(input: RenderInput): Promise<Uint8Array>;
+	/**
+	 * Render a PDF and return a `ReadableStream` of its bytes. Use when
+	 * piping directly to a destination without buffering.
+	 */
+	pdfStream(input: RenderInput): Promise<ReadableStream<Uint8Array>>;
+	/**
+	 * Generate paginated HTML preview output. Calls `POST /v1/render/preview`.
+	 */
+	preview(input: RenderInput): Promise<PreviewResult>;
+}

@@ -1,5 +1,5 @@
 import { PoliPageError } from './error.js';
-import type { PreviewResult, RenderInput } from './types.js';
+import type { PreviewResult, RenderInput, RenderNamespace } from './types.js';
 
 /**
  * Internal handle injected into render functions. The `request` callable
@@ -84,6 +84,20 @@ async function renderPdfStreamInternal(
 		throw new PoliPageError('Response has no body', 'INTERNAL_ERROR', response.status);
 	}
 	return response.body as ReadableStream<Uint8Array>;
+}
+
+/**
+ * Build the object exposed as `client.render`. Each method captures the
+ * provided `ctx` and forwards to the corresponding free function.
+ *
+ * @internal
+ */
+export function createRenderNamespace(ctx: RenderContext): RenderNamespace {
+	return {
+		pdf: (input) => renderPdf(ctx, input),
+		pdfStream: (input) => renderPdfStream(ctx, input),
+		preview: (input) => renderPreview(ctx, input),
+	};
 }
 
 async function collectStream(stream: ReadableStream<Uint8Array>): Promise<Uint8Array> {
