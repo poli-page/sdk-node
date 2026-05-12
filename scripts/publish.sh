@@ -61,8 +61,15 @@ echo "  Releasing ${bold}${NAME}@${VERSION}${reset}"
 step "Pre-flight checks"
 
 current_branch=$(git rev-parse --abbrev-ref HEAD)
-[[ "$current_branch" == "main" ]] || fail "must be on main branch (currently on $current_branch)"
-ok "on main branch"
+if [[ "$current_branch" != "main" ]]; then
+	if [[ $DRY_RUN -eq 1 ]]; then
+		echo "  ${yellow}⚠${reset} not on main (currently on $current_branch) — allowed for --dry-run"
+	else
+		fail "must be on main branch (currently on $current_branch)"
+	fi
+else
+	ok "on main branch"
+fi
 
 if ! git diff --quiet HEAD || ! git diff --cached --quiet HEAD; then
 	fail "working tree has uncommitted changes — commit or stash first"
@@ -105,12 +112,14 @@ echo
 echo "  ${dim}Size:${reset} $(du -h "$TARBALL" | cut -f1)"
 
 # ─── 6. confirm ─────────────────────────────────────────────────────────────
-echo
-read -r -p "  Publish ${bold}${NAME}@${VERSION}${reset} to npm? [y/N] " confirm
-if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
-	echo "  ${yellow}aborted by user${reset}"
-	rm -f "$TARBALL"
-	exit 0
+if [[ $DRY_RUN -eq 0 ]]; then
+	echo
+	read -r -p "  Publish ${bold}${NAME}@${VERSION}${reset} to npm? [y/N] " confirm
+	if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
+		echo "  ${yellow}aborted by user${reset}"
+		rm -f "$TARBALL"
+		exit 0
+	fi
 fi
 
 # ─── 7. publish ─────────────────────────────────────────────────────────────
