@@ -74,15 +74,14 @@ pnpm demo:esm    # writes to demo/node/output-esm/
 pnpm demo:cjs    # writes to demo/node/output-cjs/
 ```
 
-Each run produces five output files:
+Each run produces four output files:
 
 | File | What |
 |---|---|
-| `render.pdf` | PDF bytes (in-memory, `client.render()`) |
-| `stream.pdf` | PDF bytes (streamed, `client.renderStream()`) |
+| `render.pdf` | PDF bytes (in-memory, `client.render.pdf()`) |
+| `stream.pdf` | PDF bytes (streamed, `client.render.pdfStream()`) |
 | `file.pdf` | PDF bytes (streamed-to-disk, `renderToFile()`) |
-| `preview.html` | Engine HTML output (`client.preview()`) — open in any browser |
-| `thumb-page-N.png` | One thumbnail per page (`client.thumbnails()`) |
+| `preview.html` | Engine HTML output (`client.render.preview()`) — open in any browser |
 
 The three PDFs are byte-identical (modulo creation timestamps) — that's the cross-method consistency check. To verify:
 
