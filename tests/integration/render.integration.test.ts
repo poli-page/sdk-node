@@ -12,7 +12,7 @@ const describeIfKey = apiKey ? describe : describe.skip;
 describeIfKey('integration: develop API', () => {
 	it('renders a real PDF (Inline mode, %PDF magic bytes, > 1KB)', async () => {
 		const client = new PoliPage({ apiKey: apiKey!, baseUrl });
-		const pdf = await client.render({
+		const pdf = await client.render.pdf({
 			template: '<h1>{{ name }}</h1>',
 			data: { name: 'Integration Test' },
 		});
@@ -23,7 +23,7 @@ describeIfKey('integration: develop API', () => {
 
 	it('preview returns html and totalPages > 0', async () => {
 		const client = new PoliPage({ apiKey: apiKey!, baseUrl });
-		const result = await client.preview({
+		const result = await client.render.preview({
 			template: '<p>{{ name }}</p>',
 			data: { name: 'Preview Test' },
 		});
@@ -35,7 +35,7 @@ describeIfKey('integration: develop API', () => {
 	it('bad API key produces PoliPageError with status 401', async () => {
 		const client = new PoliPage({ apiKey: 'pp_test_invalid_xxx', baseUrl, maxRetries: 0 });
 		try {
-			await client.render({ template: '<p>x</p>', data: {} });
+			await client.render.pdf({ template: '<p>x</p>', data: {} });
 			expect.fail('Should have thrown');
 		} catch (err) {
 			expect(err).toBeInstanceOf(PoliPageError);

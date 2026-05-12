@@ -10,21 +10,21 @@ test('InlineModeInput requires template, forbids project', () => {
 	expectTypeOf<{ template: string; data: Record<string, unknown> }>().toMatchTypeOf<InlineModeInput>();
 });
 
-test('render() rejects invalid combos at compile time', () => {
+test('render.pdf rejects invalid combos at compile time', () => {
 	const c = new PoliPage({ apiKey: 'pp_test_x' });
 	// Valid inline mode:
-	void c.render({ template: '<p>x</p>', data: {} });
+	void c.render.pdf({ template: '<p>x</p>', data: {} });
 	// Valid project mode:
-	void c.render({ project: 'billing', template: 'invoice', data: {} });
+	void c.render.pdf({ project: 'billing', template: 'invoice', data: {} });
 	// @ts-expect-error — project mode requires template
-	void c.render({ project: 'billing', data: {} });
+	void c.render.pdf({ project: 'billing', data: {} });
 	// @ts-expect-error — at least template required
-	void c.render({ data: {} });
+	void c.render.pdf({ data: {} });
 });
 
-test('render returns Promise<Uint8Array>', () => {
+test('render.pdf returns Promise<Uint8Array>', () => {
 	const c = new PoliPage({ apiKey: 'pp_test_x' });
-	expectTypeOf(c.render).returns.resolves.toEqualTypeOf<Uint8Array>();
+	expectTypeOf(c.render.pdf).returns.resolves.toEqualTypeOf<Uint8Array>();
 });
 
 test('RenderMetadata accepts string, number, boolean values', () => {
