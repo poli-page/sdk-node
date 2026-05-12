@@ -207,3 +207,30 @@ export interface RenderNamespace {
 	 */
 	document(input: RenderInput): Promise<DocumentDescriptor>;
 }
+
+/**
+ * The documents namespace exposed as `client.documents`. Hosts the four
+ * stored-document operations defined by spec v1.3 §6.
+ */
+export interface DocumentsNamespace {
+	/**
+	 * Retrieve a stored document's descriptor with a fresh presigned URL.
+	 * Spec §6.1. GET `/v1/documents/:id`.
+	 */
+	get(id: string): Promise<DocumentDescriptor>;
+	/**
+	 * Retrieve a stored document's paginated HTML. No counter — the engine
+	 * performs no work. Spec §6.2. GET `/v1/documents/:id/preview`.
+	 */
+	preview(id: string): Promise<PreviewResult>;
+	/**
+	 * Generate page thumbnails for a stored document. Spec §6.3.
+	 * POST `/v1/documents/:id/thumbnails`.
+	 */
+	thumbnails(id: string, options: ThumbnailOptions): Promise<Thumbnail[]>;
+	/**
+	 * Soft-delete a stored document. The PDF is purged from storage;
+	 * metadata is retained for audit. Spec §6.4. DELETE `/v1/documents/:id`.
+	 */
+	delete(id: string): Promise<void>;
+}

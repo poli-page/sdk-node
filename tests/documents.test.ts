@@ -1,6 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
-import { documentsGet, documentsPreview, documentsThumbnails, documentsDelete } from '../src/documents.js';
+import {
+	documentsGet,
+	documentsPreview,
+	documentsThumbnails,
+	documentsDelete,
+	createDocumentsNamespace,
+} from '../src/documents.js';
 import type { SdkContext } from '../src/render.js';
 
 let server: Server;
@@ -281,5 +287,29 @@ describe('documentsDelete', () => {
 		});
 		await documentsDelete(buildCtx(), 'doc/with/slashes');
 		expect(lastRequest.path).toBe('/v1/documents/doc%2Fwith%2Fslashes');
+	});
+});
+
+describe('createDocumentsNamespace', () => {
+	it('returns an object with get, preview, thumbnails, delete methods', () => {
+		const ns = createDocumentsNamespace(buildCtx());
+		expect(typeof ns.get).toBe('function');
+		expect(typeof ns.preview).toBe('function');
+		expect(typeof ns.thumbnails).toBe('function');
+		expect(typeof ns.delete).toBe('function');
+	});
+
+	it('routes get through ctx.get to the right path', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(
+				JSON.stringify({ ...sampleDescriptor, presignedPdfUrl: 'http://example/x.pdf' }),
+			);
+		});
+		const ns = createDocumentsNamespace(buildCtx());
+		const doc = await ns.get('doc_routing');
+		expect(lastRequest.method).toBe('GET');
+		expect(lastRequest.path).toBe('/v1/documents/doc_routing');
+		expect(doc.documentId).toBe('doc_abc123');
 	});
 });

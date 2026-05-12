@@ -13,6 +13,7 @@ export type {
 	RenderInput,
 	RenderMetadata,
 	RenderNamespace,
+	DocumentsNamespace,
 	DocumentDescriptor,
 	PreviewResult,
 	Thumbnail,
@@ -29,11 +30,13 @@ import type {
 	ResponseEvent,
 	RetryEvent,
 	RenderNamespace,
+	DocumentsNamespace,
 } from './types.js';
 
 export { PoliPageError, type PoliPageErrorCode } from './error.js';
 import { PoliPageError } from './error.js';
 import { createRenderNamespace, type SdkContext } from './render.js';
+import { createDocumentsNamespace } from './documents.js';
 import { parseRetryAfter, computeBackoff, parseErrorBody, buildHeaders } from './internal/http.js';
 
 type SendOnceResult =
@@ -64,6 +67,7 @@ const DEFAULT_TIMEOUT = 60_000;
  */
 export class PoliPage {
 	readonly render: RenderNamespace;
+	readonly documents: DocumentsNamespace;
 
 	readonly #apiKey: string;
 	readonly #baseUrl: string;
@@ -95,6 +99,7 @@ export class PoliPage {
 			delete: (path, signal) => this.#request('DELETE', path, undefined, signal),
 		};
 		this.render = createRenderNamespace(ctx);
+		this.documents = createDocumentsNamespace(ctx);
 	}
 
 	#fireHook<T>(hook: ((e: T) => void) | undefined, event: T): void {

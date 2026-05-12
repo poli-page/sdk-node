@@ -590,6 +590,68 @@ describe('PoliPage SDK', () => {
 		});
 	});
 
+	describe('transport verb dispatch', () => {
+		it('sends GET requests with no body and no Content-Type/Idempotency-Key headers', async () => {
+			setMockHandler((_req, res) => {
+				res.writeHead(200, { 'Content-Type': 'application/json' });
+				res.end(
+					JSON.stringify({
+						documentId: 'd', organizationId: 'o', projectId: null, projectSlug: null,
+						templateId: null, templateSlug: '<inline>', version: null,
+						environment: 'sandbox', apiKeyId: 'k', format: 'A4', orientation: 'portrait',
+						locale: 'en-US', pageCount: 1, sizeBytes: 0, createdAt: 'now',
+						metadata: {}, presignedPdfUrl: 'http://x', expiresAt: 'later',
+					}),
+				);
+			});
+			const client = new PoliPage({ apiKey: 'pp_test_abc', baseUrl });
+			await client.documents.get('d');
+			expect(lastRequest.method).toBe('GET');
+			expect(lastRequest.body).toBe('');
+			expect(lastRequest.headers['content-type']).toBeUndefined();
+			expect(lastRequest.headers['idempotency-key']).toBeUndefined();
+			expect(lastRequest.headers.authorization).toBe('Bearer pp_test_abc');
+		});
+
+		it('sends DELETE requests with no body and no Content-Type/Idempotency-Key headers', async () => {
+			setMockHandler((_req, res) => {
+				res.writeHead(204);
+				res.end();
+			});
+			const client = new PoliPage({ apiKey: 'pp_test_abc', baseUrl });
+			await client.documents.delete('d');
+			expect(lastRequest.method).toBe('DELETE');
+			expect(lastRequest.body).toBe('');
+			expect(lastRequest.headers['content-type']).toBeUndefined();
+			expect(lastRequest.headers['idempotency-key']).toBeUndefined();
+		});
+
+		it('retries GET on 5xx like POST does', async () => {
+			let attempts = 0;
+			setMockHandler((_req, res) => {
+				attempts++;
+				if (attempts === 1) {
+					res.writeHead(503);
+					res.end();
+					return;
+				}
+				res.writeHead(200, { 'Content-Type': 'application/json' });
+				res.end(
+					JSON.stringify({
+						documentId: 'd', organizationId: 'o', projectId: null, projectSlug: null,
+						templateId: null, templateSlug: '<inline>', version: null,
+						environment: 'sandbox', apiKeyId: 'k', format: 'A4', orientation: 'portrait',
+						locale: 'en-US', pageCount: 1, sizeBytes: 0, createdAt: 'now',
+						metadata: {}, presignedPdfUrl: 'http://x', expiresAt: 'later',
+					}),
+				);
+			});
+			const client = new PoliPage({ apiKey: 'pp_test_abc', baseUrl, retryDelay: 1 });
+			await client.documents.get('d');
+			expect(attempts).toBe(2);
+		});
+	});
+
 	describe('observability hooks', () => {
 		it('calls onRequest with method, url, attempt', async () => {
 			const events: { method: string; url: string; attempt: number }[] = [];

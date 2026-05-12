@@ -2,6 +2,7 @@ import { PoliPageError } from './error.js';
 import type { SdkContext } from './render.js';
 import type {
 	DocumentDescriptor,
+	DocumentsNamespace,
 	PreviewResult,
 	RawDocumentDescriptor,
 	Thumbnail,
@@ -104,4 +105,19 @@ export async function documentsThumbnails(
  */
 export async function documentsDelete(ctx: SdkContext, id: string): Promise<void> {
 	await ctx.delete(`/v1/documents/${encodeURIComponent(id)}`);
+}
+
+/**
+ * Build the object exposed as `client.documents`. Each method captures the
+ * provided `ctx` and forwards to the corresponding free function.
+ *
+ * @internal
+ */
+export function createDocumentsNamespace(ctx: SdkContext): DocumentsNamespace {
+	return {
+		get: (id) => documentsGet(ctx, id),
+		preview: (id) => documentsPreview(ctx, id),
+		thumbnails: (id, options) => documentsThumbnails(ctx, id, options),
+		delete: (id) => documentsDelete(ctx, id),
+	};
 }
