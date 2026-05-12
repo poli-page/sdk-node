@@ -38,7 +38,7 @@
 		"node": ">=20.18.0"
 	},
 	"scripts": {
-		"build": "tsup",
+		"build": "tsup && tsc -p tsconfig.build.json && node scripts/emit-dcts.mjs",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:types": "vitest run --typecheck",
