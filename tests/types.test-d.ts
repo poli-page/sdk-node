@@ -39,18 +39,10 @@ test('RenderMetadata rejects arrays', () => {
 	expectTypeOf<{ tags: string[] }>().not.toMatchTypeOf<RenderMetadata>();
 });
 
-test('RenderInput accepts a metadata field', () => {
-	expectTypeOf<{
-		template: string;
-		data: Record<string, unknown>;
-		metadata: { customerId: string; amount: number; paid: boolean };
-	}>().toMatchTypeOf<RenderInput>();
+test('RenderInput has optional metadata field', () => {
+	expectTypeOf<RenderInput['metadata']>().toEqualTypeOf<RenderMetadata | undefined>();
 });
 
 test('PreviewResult.metadata is optional RenderMetadata', () => {
-	expectTypeOf<PreviewResult>().toMatchTypeOf<{
-		html: string;
-		totalPages: number;
-		metadata?: RenderMetadata;
-	}>();
+	expectTypeOf<PreviewResult['metadata']>().toEqualTypeOf<RenderMetadata | undefined>();
 });
