@@ -2,27 +2,28 @@ import { PoliPageError } from './error.js';
 import type { PreviewResult, RenderInput, RenderNamespace } from './types.js';
 
 /**
- * Internal handle injected into render functions. The `request` callable
- * encapsulates the SDK's transport layer (retry, idempotency, hooks, auth,
- * timeouts) so render functions only deal with body construction and
- * response shape.
+ * The transport seam used by all namespace factories. Three named callables,
+ * one per verb. Each delegates to PoliPage's `#request` method, which owns
+ * auth, retry, idempotency, hooks, abort, and timeout.
  *
  * @internal
  */
-export interface RenderContext {
-	request(
+export interface SdkContext {
+	post(
 		path: string,
 		body: object,
 		signal?: AbortSignal,
 		idempotencyKey?: string,
 	): Promise<Response>;
+	get(path: string, signal?: AbortSignal): Promise<Response>;
+	delete(path: string, signal?: AbortSignal): Promise<Response>;
 }
 
 /**
  * Implementation of `client.render.pdf`. Wired by `createRenderNamespace`
  * and not intended for direct caller use.
  */
-export async function renderPdf(ctx: RenderContext, input: RenderInput): Promise<Uint8Array> {
+export async function renderPdf(ctx: SdkContext, input: RenderInput): Promise<Uint8Array> {
 	const stream = await renderPdfStreamInternal(ctx, input);
 	return collectStream(stream);
 }
@@ -36,7 +37,7 @@ export async function renderPdf(ctx: RenderContext, input: RenderInput): Promise
  * buffering the full PDF in memory.
  */
 export function renderPdfStream(
-	ctx: RenderContext,
+	ctx: SdkContext,
 	input: RenderInput,
 ): Promise<ReadableStream<Uint8Array>> {
 	return renderPdfStreamInternal(ctx, input);
@@ -50,11 +51,11 @@ export function renderPdfStream(
  * including optional `metadata` echo per spec §5.2.
  */
 export async function renderPreview(
-	ctx: RenderContext,
+	ctx: SdkContext,
 	input: RenderInput,
 ): Promise<PreviewResult> {
 	const { signal, idempotencyKey, ...wireBody } = input;
-	const response = await ctx.request('/v1/render/preview', wireBody, signal, idempotencyKey);
+	const response = await ctx.post('/v1/render/preview', wireBody, signal, idempotencyKey);
 	return response.json() as Promise<PreviewResult>;
 }
 
@@ -65,11 +66,11 @@ export async function renderPreview(
  * (streamed) — both call this and then handle the body differently.
  */
 async function renderPdfStreamInternal(
-	ctx: RenderContext,
+	ctx: SdkContext,
 	input: RenderInput,
 ): Promise<ReadableStream<Uint8Array>> {
 	const { signal, idempotencyKey, ...wireBody } = input;
-	const response = await ctx.request('/v1/render/pdf', wireBody, signal, idempotencyKey);
+	const response = await ctx.post('/v1/render/pdf', wireBody, signal, idempotencyKey);
 	const contentType = response.headers.get('content-type') ?? '';
 	if (!contentType.includes('application/pdf')) {
 		const requestId = response.headers.get('x-request-id') ?? undefined;
@@ -92,7 +93,7 @@ async function renderPdfStreamInternal(
  *
  * @internal
  */
-export function createRenderNamespace(ctx: RenderContext): RenderNamespace {
+export function createRenderNamespace(ctx: SdkContext): RenderNamespace {
 	return {
 		pdf: (input) => renderPdf(ctx, input),
 		pdfStream: (input) => renderPdfStream(ctx, input),

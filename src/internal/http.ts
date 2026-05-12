@@ -58,22 +58,27 @@ export function parseErrorBody(
 }
 
 /**
- * Build the standard request headers. `Accept` is `application/pdf` for the
- * PDF render path and `application/json` otherwise. `userAgent` is supplied
- * by the caller so this module stays free of the build-time `__SDK_VERSION__`
- * global.
+ * Build the standard request headers. POST requests get `Content-Type: application/json`
+ * and the caller's `Idempotency-Key`. GET and DELETE requests skip both. `Accept`
+ * is `application/pdf` only for the PDF render path; `application/json` otherwise.
+ * `userAgent` is supplied by the caller so this module stays free of the
+ * build-time `__SDK_VERSION__` global.
  */
 export function buildHeaders(
+	method: 'GET' | 'POST' | 'DELETE',
 	path: string,
 	apiKey: string,
-	idempotencyKey: string,
+	idempotencyKey: string | undefined,
 	userAgent: string,
 ): Record<string, string> {
-	return {
-		'Content-Type': 'application/json',
+	const headers: Record<string, string> = {
 		Accept: path === '/v1/render/pdf' ? 'application/pdf' : 'application/json',
 		Authorization: `Bearer ${apiKey}`,
 		'User-Agent': userAgent,
-		'Idempotency-Key': idempotencyKey,
 	};
+	if (method === 'POST') {
+		headers['Content-Type'] = 'application/json';
+		if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
+	}
+	return headers;
 }

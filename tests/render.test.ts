@@ -5,7 +5,7 @@ import {
 	renderPdfStream,
 	renderPreview,
 	createRenderNamespace,
-	type RenderContext,
+	type SdkContext,
 } from '../src/render.js';
 
 let server: Server;
@@ -51,21 +51,35 @@ afterAll(async () => {
 });
 
 /**
- * Build a real `RenderContext` whose `request` performs an actual HTTP call
+ * Build a real `SdkContext` whose verb callables perform actual HTTP calls
  * against the mock server above. Bypasses the PoliPage class so render
  * functions can be tested in isolation from retry/hooks/etc.
  */
-function buildCtx(): RenderContext {
+function buildCtx(): SdkContext {
 	return {
-		async request(path, body, signal, idempotencyKey) {
+		async post(path, body, signal, idempotencyKey) {
 			return fetch(`${baseUrl}${path}`, {
 				method: 'POST',
 				headers: {
 					'content-type': 'application/json',
-					accept: path.endsWith('/preview') ? 'application/json' : 'application/pdf',
+					accept: path.endsWith('/preview') || path.endsWith('/document') || path.startsWith('/v1/documents/') ? 'application/json' : 'application/pdf',
 					'idempotency-key': idempotencyKey ?? 'test-key',
 				},
 				body: JSON.stringify(body),
+				signal,
+			});
+		},
+		async get(path, signal) {
+			return fetch(`${baseUrl}${path}`, {
+				method: 'GET',
+				headers: { accept: 'application/json' },
+				signal,
+			});
+		},
+		async delete(path, signal) {
+			return fetch(`${baseUrl}${path}`, {
+				method: 'DELETE',
+				headers: { accept: 'application/json' },
 				signal,
 			});
 		},
@@ -236,7 +250,7 @@ describe('createRenderNamespace', () => {
 		expect(typeof ns.preview).toBe('function');
 	});
 
-	it('routes pdf through the underlying ctx.request', async () => {
+	it('routes pdf through the underlying ctx.post', async () => {
 		const ns = createRenderNamespace(buildCtx());
 		const pdf = await ns.pdf({ template: '<p>x</p>', data: {} });
 		expect(pdf).toBeInstanceOf(Uint8Array);

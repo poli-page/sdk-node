@@ -30,7 +30,7 @@ import type {
 
 export { PoliPageError, type PoliPageErrorCode } from './error.js';
 import { PoliPageError } from './error.js';
-import { createRenderNamespace, type RenderContext } from './render.js';
+import { createRenderNamespace, type SdkContext } from './render.js';
 import { parseRetryAfter, computeBackoff, parseErrorBody, buildHeaders } from './internal/http.js';
 
 type SendOnceResult =
@@ -86,9 +86,10 @@ export class PoliPage {
 		this.#onRetry = options.onRetry;
 		this.#onError = options.onError;
 
-		const ctx: RenderContext = {
-			request: (path, body, signal, idempotencyKey) =>
-				this.#request(path, body, signal, idempotencyKey),
+		const ctx: SdkContext = {
+			post: (path, body, signal, key) => this.#request('POST', path, body, signal, key),
+			get: (path, signal) => this.#request('GET', path, undefined, signal),
+			delete: (path, signal) => this.#request('DELETE', path, undefined, signal),
 		};
 		this.render = createRenderNamespace(ctx);
 	}
@@ -103,19 +104,23 @@ export class PoliPage {
 	}
 
 	async #request(
+		method: 'GET' | 'POST' | 'DELETE',
 		path: string,
-		body: object,
+		body: object | undefined,
 		signal?: AbortSignal,
 		callerIdempotencyKey?: string,
 	): Promise<Response> {
-		const idempotencyKey = callerIdempotencyKey ?? globalThis.crypto.randomUUID();
-		return this.#runWithRetry(path, body, idempotencyKey, signal);
+		const idempotencyKey = method === 'POST'
+			? (callerIdempotencyKey ?? globalThis.crypto.randomUUID())
+			: undefined;
+		return this.#runWithRetry(method, path, body, idempotencyKey, signal);
 	}
 
 	async #runWithRetry(
+		method: 'GET' | 'POST' | 'DELETE',
 		path: string,
-		body: object,
-		idempotencyKey: string,
+		body: object | undefined,
+		idempotencyKey: string | undefined,
 		signal: AbortSignal | undefined,
 	): Promise<Response> {
 		if (signal?.aborted) {
@@ -138,7 +143,7 @@ export class PoliPage {
 				await this.#sleep(delay, signal);
 			}
 
-			const result = await this.#sendOnce(path, body, idempotencyKey, attempt + 1, signal);
+			const result = await this.#sendOnce(method, path, body, idempotencyKey, attempt + 1, signal);
 
 			if (result.ok) return result.response;
 
@@ -156,9 +161,10 @@ export class PoliPage {
 	}
 
 	async #sendOnce(
+		method: 'GET' | 'POST' | 'DELETE',
 		path: string,
-		body: object,
-		idempotencyKey: string,
+		body: object | undefined,
+		idempotencyKey: string | undefined,
 		attempt: number,
 		signal: AbortSignal | undefined,
 	): Promise<SendOnceResult> {
@@ -169,7 +175,7 @@ export class PoliPage {
 			: timeoutController.signal;
 
 		this.#fireHook(this.#onRequest, {
-			method: 'POST',
+			method,
 			url: `${this.#baseUrl}${path}`,
 			attempt,
 		});
@@ -178,14 +184,15 @@ export class PoliPage {
 		let response: Response;
 		try {
 			response = await fetch(`${this.#baseUrl}${path}`, {
-				method: 'POST',
+				method,
 				headers: buildHeaders(
+					method,
 					path,
 					this.#apiKey,
 					idempotencyKey,
 					`poli-page-sdk-node/${__SDK_VERSION__}`,
 				),
-				body: JSON.stringify(body),
+				body: method === 'POST' ? JSON.stringify(body) : undefined,
 				signal: composed,
 			});
 		} catch (err) {
