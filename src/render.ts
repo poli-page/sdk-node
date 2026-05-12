@@ -19,8 +19,8 @@ export interface RenderContext {
 }
 
 /**
- * Render a PDF and return its raw bytes. Internal — exposed publicly via
- * `client.render.pdf` (see `createRenderNamespace`).
+ * Implementation of `client.render.pdf`. Wired by `createRenderNamespace`
+ * and not intended for direct caller use.
  */
 export async function renderPdf(ctx: RenderContext, input: RenderInput): Promise<Uint8Array> {
 	const stream = await renderPdfStreamInternal(ctx, input);
@@ -59,11 +59,15 @@ async function collectStream(stream: ReadableStream<Uint8Array>): Promise<Uint8A
 	const reader = stream.getReader();
 	const chunks: Uint8Array[] = [];
 	let total = 0;
-	while (true) {
-		const { value, done } = await reader.read();
-		if (done) break;
-		chunks.push(value);
-		total += value.length;
+	try {
+		while (true) {
+			const { value, done } = await reader.read();
+			if (done) break;
+			chunks.push(value);
+			total += value.length;
+		}
+	} finally {
+		reader.releaseLock();
 	}
 	const out = new Uint8Array(total);
 	let offset = 0;

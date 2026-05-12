@@ -103,6 +103,9 @@ describe('renderPdf', () => {
 		const body = JSON.parse(lastRequest.body);
 		expect('signal' in body).toBe(false);
 		expect('idempotencyKey' in body).toBe(false);
+		// idempotencyKey is forwarded as a transport argument, not in the body —
+		// the test fake exposes it as the 'idempotency-key' header.
+		expect(lastRequest.headers['idempotency-key']).toBe('custom-key');
 	});
 
 	it('supports project + template slug mode', async () => {
@@ -120,13 +123,14 @@ describe('renderPdf', () => {
 
 	it('throws PoliPageError when response content-type is not application/pdf', async () => {
 		setMockHandler((_req, res) => {
-			res.writeHead(200, { 'Content-Type': 'text/html' });
+			res.writeHead(200, { 'Content-Type': 'text/html', 'x-request-id': 'req_test_42' });
 			res.end('<html>not a pdf</html>');
 		});
 		await expect(renderPdf(buildCtx(), { template: '<p>x</p>', data: {} })).rejects.toMatchObject({
 			name: 'PoliPageError',
 			code: 'INTERNAL_ERROR',
 			status: 200,
+			requestId: 'req_test_42',
 		});
 	});
 });
