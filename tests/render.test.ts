@@ -143,6 +143,7 @@ describe('renderPdfStream', () => {
 		const { value } = await reader.read();
 		expect(value).toBeInstanceOf(Uint8Array);
 		expect(new TextDecoder().decode(value!.subarray(0, 4))).toBe('%PDF');
+		reader.releaseLock();
 	});
 
 	it('throws PoliPageError when content-type is not application/pdf', async () => {
