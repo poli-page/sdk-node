@@ -120,7 +120,15 @@ export interface DocumentDescriptor extends RawDocumentDescriptor {
 	/**
 	 * Fetch the PDF bytes from `presignedPdfUrl`. The URL has a 15-minute
 	 * TTL — if it expired, call `documents.get(id)` to refresh and retry.
-	 * Throws `PoliPageError` with `code: 'DOWNLOAD_FAILED'` on non-2xx.
+	 * Throws `PoliPageError` with `code: 'DOWNLOAD_FAILED'` on non-2xx or
+	 * network failures.
+	 *
+	 * @example
+	 * ```ts
+	 * const pdf = await doc.downloadPdf();
+	 * // Or with cancellation:
+	 * const pdf = await doc.downloadPdf({ signal: AbortSignal.timeout(10_000) });
+	 * ```
 	 */
 	downloadPdf(options?: { signal?: AbortSignal }): Promise<Uint8Array>;
 }
@@ -190,20 +198,64 @@ export interface PoliPageOptions {
 export interface RenderNamespace {
 	/**
 	 * Render a PDF and return its raw bytes. Calls `POST /v1/render/pdf`.
+	 *
+	 * @example
+	 * ```ts
+	 * const pdf = await client.render.pdf({
+	 *   project: 'billing',
+	 *   template: 'invoice',
+	 *   version: '1.0.0',
+	 *   data: { invoiceNumber: 'INV-001' },
+	 * });
+	 * ```
 	 */
 	pdf(input: RenderInput): Promise<Uint8Array>;
+
 	/**
-	 * Render a PDF and return a `ReadableStream` of its bytes. Use when
-	 * piping directly to a destination without buffering.
+	 * Render a PDF and return a `ReadableStream` of its bytes. Use when piping
+	 * directly to a destination (HTTP response, S3 upload, file) without
+	 * buffering.
+	 *
+	 * @example
+	 * ```ts
+	 * const stream = await client.render.pdfStream({
+	 *   project: 'billing', template: 'invoice', version: '1.0.0', data: { ... },
+	 * });
+	 * return new Response(stream, { headers: { 'content-type': 'application/pdf' } });
+	 * ```
 	 */
 	pdfStream(input: RenderInput): Promise<ReadableStream<Uint8Array>>;
+
 	/**
 	 * Generate paginated HTML preview output. Calls `POST /v1/render/preview`.
+	 *
+	 * @example
+	 * ```ts
+	 * const { html, totalPages } = await client.render.preview({
+	 *   project: 'billing', template: 'invoice', version: '1.0.0', data: { ... },
+	 * });
+	 * ```
 	 */
 	preview(input: RenderInput): Promise<PreviewResult>;
+
 	/**
-	 * Render and store a PDF document. Calls `POST /v1/render/document` and
-	 * returns a `DocumentDescriptor` with a fluent `downloadPdf()` helper.
+	 * Render a PDF, store it server-side, and return a flat document descriptor
+	 * with system metadata + caller-supplied `metadata` + presigned PDF URL.
+	 * The SDK does not auto-download the PDF — call `downloadPdf()` on the
+	 * returned descriptor when you need the bytes.
+	 *
+	 * Calls `POST /v1/render/document`. Starter+ tier (Free tier returns
+	 * `403 STORAGE_REQUIRED`).
+	 *
+	 * @example
+	 * ```ts
+	 * const doc = await client.render.document({
+	 *   project: 'billing', template: 'invoice', version: '1.0.0',
+	 *   data: { ... },
+	 *   metadata: { customerId: 'cust_123' },
+	 * });
+	 * const pdf = await doc.downloadPdf();
+	 * ```
 	 */
 	document(input: RenderInput): Promise<DocumentDescriptor>;
 }
@@ -216,21 +268,48 @@ export interface DocumentsNamespace {
 	/**
 	 * Retrieve a stored document's descriptor with a fresh presigned URL.
 	 * Spec §6.1. GET `/v1/documents/:id`.
+	 *
+	 * @example
+	 * ```ts
+	 * const doc = await client.documents.get('doc_abc123');
+	 * const pdf = await doc.downloadPdf();
+	 * ```
 	 */
 	get(id: string): Promise<DocumentDescriptor>;
+
 	/**
 	 * Retrieve a stored document's paginated HTML. No counter — the engine
 	 * performs no work. Spec §6.2. GET `/v1/documents/:id/preview`.
+	 *
+	 * @example
+	 * ```ts
+	 * const { html, totalPages } = await client.documents.preview('doc_abc123');
+	 * ```
 	 */
 	preview(id: string): Promise<PreviewResult>;
+
 	/**
 	 * Generate page thumbnails for a stored document. Spec §6.3.
 	 * POST `/v1/documents/:id/thumbnails`.
+	 *
+	 * @example
+	 * ```ts
+	 * const thumbs = await client.documents.thumbnails('doc_abc123', {
+	 *   width: 840,
+	 *   format: 'png',
+	 * });
+	 * ```
 	 */
 	thumbnails(id: string, options: ThumbnailOptions): Promise<Thumbnail[]>;
+
 	/**
 	 * Soft-delete a stored document. The PDF is purged from storage;
 	 * metadata is retained for audit. Spec §6.4. DELETE `/v1/documents/:id`.
+	 *
+	 * @example
+	 * ```ts
+	 * await client.documents.delete('doc_abc123');
+	 * ```
 	 */
 	delete(id: string): Promise<void>;
 }
