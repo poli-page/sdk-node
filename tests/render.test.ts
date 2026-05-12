@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
 import { PoliPageError } from '../src/error.js';
-import { renderPdf, type RenderContext } from '../src/render.js';
+import { renderPdf, renderPdfStream, type RenderContext } from '../src/render.js';
 
 let server: Server;
 let baseUrl: string;
@@ -132,5 +132,38 @@ describe('renderPdf', () => {
 			status: 200,
 			requestId: 'req_test_42',
 		});
+	});
+});
+
+describe('renderPdfStream', () => {
+	it('returns a ReadableStream of PDF bytes', async () => {
+		const stream = await renderPdfStream(buildCtx(), { template: '<p>x</p>', data: {} });
+		expect(stream).toBeInstanceOf(ReadableStream);
+		const reader = stream.getReader();
+		const { value } = await reader.read();
+		expect(value).toBeInstanceOf(Uint8Array);
+		expect(new TextDecoder().decode(value!.subarray(0, 4))).toBe('%PDF');
+	});
+
+	it('throws PoliPageError when content-type is not application/pdf', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(200, { 'Content-Type': 'text/html' });
+			res.end('<html>x</html>');
+		});
+		await expect(
+			renderPdfStream(buildCtx(), { template: '<p>x</p>', data: {} }),
+		).rejects.toMatchObject({ name: 'PoliPageError', status: 200 });
+	});
+
+	it('forwards metadata in the request body', async () => {
+		const stream = await renderPdfStream(buildCtx(), {
+			template: '<p>x</p>',
+			data: {},
+			metadata: { trace: 'abc' },
+		});
+		// Drain so the server records the request:
+		const reader = stream.getReader();
+		while (!(await reader.read()).done) { /* drain */ }
+		expect(JSON.parse(lastRequest.body).metadata).toEqual({ trace: 'abc' });
 	});
 });

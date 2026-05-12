@@ -28,6 +28,21 @@ export async function renderPdf(ctx: RenderContext, input: RenderInput): Promise
 }
 
 /**
+ * Implementation of `client.render.pdfStream`. Wired by `createRenderNamespace`
+ * and not intended for direct caller use.
+ *
+ * Render a PDF and return a `ReadableStream` of its bytes. Use when piping
+ * directly to a destination (HTTP response, S3 upload, file) without
+ * buffering the full PDF in memory.
+ */
+export function renderPdfStream(
+	ctx: RenderContext,
+	input: RenderInput,
+): Promise<ReadableStream<Uint8Array>> {
+	return renderPdfStreamInternal(ctx, input);
+}
+
+/**
  * Strip caller-only fields (`signal`, `idempotencyKey`) and POST to
  * `/v1/render/pdf`. Validates the response content-type before returning
  * the body. Shared between `renderPdf` (buffered) and `renderPdfStream`
