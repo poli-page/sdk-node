@@ -58,4 +58,21 @@ describeIfKey('integration: develop API', () => {
 			await rm(tempDir, { recursive: true, force: true });
 		}
 	});
+
+	it('render.document stores a PDF and returns a descriptor with downloadable bytes', async () => {
+		const client = new PoliPage({ apiKey: apiKey!, baseUrl });
+		const doc = await client.render.document({
+			template: '<h1>Integration {{ name }}</h1>',
+			data: { name: 'render.document' },
+			metadata: { source: 'sdk-node integration test' },
+		});
+		expect(doc.documentId).toMatch(/^doc_/);
+		expect(doc.pageCount).toBeGreaterThan(0);
+		expect(doc.sizeBytes).toBeGreaterThan(0);
+		expect(doc.metadata.source).toBe('sdk-node integration test');
+		expect(doc.presignedPdfUrl).toMatch(/^https:/);
+		const pdf = await doc.downloadPdf();
+		expect(pdf.length).toBeGreaterThan(1000);
+		expect(new TextDecoder().decode(pdf.subarray(0, 4))).toBe('%PDF');
+	});
 });
