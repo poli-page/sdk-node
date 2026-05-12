@@ -10,6 +10,9 @@
  *   - `require(...)` instead of `import ... from ...`
  *   - The async work is wrapped in an IIFE because CommonJS does NOT
  *     support top-level `await` (only ESM modules do).
+ *
+ * Note: thumbnails are available against stored documents via
+ * client.documents.thumbnails() — that requires Starter+ tier. See README.
  */
 
 const { PoliPage, PoliPageError } = require('@poli-page/sdk');
@@ -65,25 +68,25 @@ const input = {
 		onRetry: (e) => console.log(c.yellow('  ↻'), c.dim(`retrying after ${e.delayMs}ms: ${e.reason.code}`)),
 	});
 
-	const TOTAL_STEPS = 6;
+	const TOTAL_STEPS = 5;
 
 	// ─────────────────────────────────────────────────────────────────────────
-	// 1. render() — fetch PDF bytes into memory
+	// 1. render.pdf() — fetch PDF bytes into memory
 	//    Use when: small documents, you need the bytes synchronously.
 	// ─────────────────────────────────────────────────────────────────────────
-	step(1, TOTAL_STEPS, 'render() — PDF bytes in memory');
-	const pdf = await client.render(input);
+	step(1, TOTAL_STEPS, 'render.pdf() — PDF bytes in memory');
+	const pdf = await client.render.pdf(input);
 	const renderPath = join(OUT_DIR, 'render.pdf');
 	writeFileSync(renderPath, pdf);
 	console.log(`  ${pdf.byteLength} bytes, magic: ${c.bold(new TextDecoder().decode(pdf.subarray(0, 4)))}`);
 	console.log(`  ${c.dim('open:')} ${fileLink(renderPath)}`);
 
 	// ─────────────────────────────────────────────────────────────────────────
-	// 2. renderStream() — get a ReadableStream of PDF bytes
+	// 2. render.pdfStream() — get a ReadableStream of PDF bytes
 	//    Use when: large documents, piping somewhere. Memory-bounded.
 	// ─────────────────────────────────────────────────────────────────────────
-	step(2, TOTAL_STEPS, 'renderStream() — ReadableStream of PDF bytes');
-	const stream = await client.renderStream(input);
+	step(2, TOTAL_STEPS, 'render.pdfStream() — ReadableStream of PDF bytes');
+	const stream = await client.render.pdfStream(input);
 	const chunks = [];
 	let total = 0;
 	for await (const chunk of stream) {
@@ -112,40 +115,26 @@ const input = {
 	console.log(`  ${c.dim('open:')} ${fileLink(filePath)}`);
 
 	// ─────────────────────────────────────────────────────────────────────────
-	// 4. preview() — get the engine's HTML output (no PDF rasterization)
-	//    Use when: debugging, live editors, snapshot tests. Much faster than render().
+	// 4. render.preview() — get the engine's HTML output (no PDF rasterization)
+	//    Use when: debugging, live editors, snapshot tests. Much faster than render.pdf().
 	// ─────────────────────────────────────────────────────────────────────────
-	step(4, TOTAL_STEPS, 'preview() — engine HTML output (no PDF rasterization)');
-	const preview = await client.preview(input);
+	step(4, TOTAL_STEPS, 'render.preview() — engine HTML output (no PDF rasterization)');
+	const preview = await client.render.preview(input);
 	const previewPath = join(OUT_DIR, 'preview.html');
 	writeFileSync(previewPath, preview.html);
 	console.log(`  ${c.bold(preview.totalPages)} page(s), ${preview.html.length} chars`);
 	console.log(`  ${c.dim('open:')} ${fileLink(previewPath)}`);
 
 	// ─────────────────────────────────────────────────────────────────────────
-	// 5. thumbnails() — base64-encoded page images
-	//    Use when: document pickers, preview grids, OG images.
+	// 5. Error handling — DELIBERATELY trigger a failure, then catch it.
 	// ─────────────────────────────────────────────────────────────────────────
-	step(5, TOTAL_STEPS, 'thumbnails() — base64-encoded page images');
-	const thumbs = await client.thumbnails(input, { width: 400 });
-	for (const thumb of thumbs) {
-		const ext = thumb.contentType === 'image/jpeg' ? 'jpg' : 'png';
-		const thumbPath = join(OUT_DIR, `thumb-page-${thumb.page}.${ext}`);
-		writeFileSync(thumbPath, Buffer.from(thumb.data, 'base64'));
-		console.log(`  page ${thumb.page} ${c.dim(`(${thumb.width}×${thumb.height}, ${thumb.contentType})`)}`);
-		console.log(`  ${c.dim('open:')} ${fileLink(thumbPath)}`);
-	}
-
-	// ─────────────────────────────────────────────────────────────────────────
-	// 6. Error handling — DELIBERATELY trigger a failure, then catch it.
-	// ─────────────────────────────────────────────────────────────────────────
-	step(6, TOTAL_STEPS, 'error handling — DEMO ONLY (we trigger an error on purpose)');
+	step(5, TOTAL_STEPS, 'error handling — DEMO ONLY (we trigger an error on purpose)');
 	console.log(c.yellow('  ⚠  This step is intentional — the SDK is about to throw, but the'));
 	console.log(c.yellow('     demo will catch and inspect it. ') + c.bold('The demo is NOT crashing.'));
 	console.log(c.dim('     (We send an empty template, expecting the API to return 400.)'));
 	console.log('');
 	try {
-		await client.render({ template: '', data: {} });
+		await client.render.pdf({ template: '', data: {} });
 		console.log('  ' + c.red('✗ unexpected: the call succeeded but should have failed'));
 	} catch (err) {
 		if (err instanceof PoliPageError) {

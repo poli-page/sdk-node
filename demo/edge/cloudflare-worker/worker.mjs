@@ -32,20 +32,19 @@ export default {
 			baseUrl: 'https://api-develop.poli.page',
 		});
 
-		// Run all five SDK paths in parallel. `allSettled` lets us collect
+		// Run all SDK paths in parallel. `allSettled` lets us collect
 		// every outcome (success or failure) so the report shows what
 		// happened on each step independently.
-		const [renderRes, streamRes, previewRes, thumbsRes, errorRes] = await Promise.allSettled([
-			client.render(input),
-			collectStream(client.renderStream(input)),
-			client.preview(input),
-			client.thumbnails(input, { width: 400 }),
-			// Step 6 is supposed to fail — empty template triggers a 400.
+		const [renderRes, streamRes, previewRes, errorRes] = await Promise.allSettled([
+			client.render.pdf(input),
+			collectStream(client.render.pdfStream(input)),
+			client.render.preview(input),
+			// Step 4 is supposed to fail — empty template triggers a 400.
 			// We invert the framing in the report: rejection is the success.
-			client.render({ template: '', data: {} }),
+			client.render.pdf({ template: '', data: {} }),
 		]);
 
-		return new Response(reportHtml({ renderRes, streamRes, previewRes, thumbsRes, errorRes }), {
+		return new Response(reportHtml({ renderRes, streamRes, previewRes, errorRes }), {
 			headers: { 'content-type': 'text/html; charset=utf-8' },
 		});
 	},
@@ -107,8 +106,8 @@ function errorBlock(err) {
 // Report page
 // ─────────────────────────────────────────────────────────────────────────────
 
-function reportHtml({ renderRes, streamRes, previewRes, thumbsRes, errorRes }) {
-	// Step 1: render() → PDF bytes. Offer a download via data URI.
+function reportHtml({ renderRes, streamRes, previewRes, errorRes }) {
+	// Step 1: render.pdf() → PDF bytes. Offer a download via data URI.
 	const renderSection =
 		renderRes.status === 'fulfilled'
 			? `<p class="ok">✔ ${renderRes.value.byteLength} bytes</p>
@@ -116,7 +115,7 @@ function reportHtml({ renderRes, streamRes, previewRes, thumbsRes, errorRes }) {
           href="data:application/pdf;base64,${toBase64(renderRes.value)}">Download render.pdf</a>`
 			: `<p class="fail">✗ failed</p>${errorBlock(renderRes.reason)}`;
 
-	// Step 2: renderStream() → same bytes, drained client-side via getReader().
+	// Step 2: render.pdfStream() → same bytes, drained client-side via getReader().
 	const streamSection =
 		streamRes.status === 'fulfilled'
 			? `<p class="ok">✔ ${streamRes.value.byteLength} bytes streamed and concatenated</p>
@@ -124,12 +123,7 @@ function reportHtml({ renderRes, streamRes, previewRes, thumbsRes, errorRes }) {
           href="data:application/pdf;base64,${toBase64(streamRes.value)}">Download stream.pdf</a>`
 			: `<p class="fail">✗ failed</p>${errorBlock(streamRes.reason)}`;
 
-	// Step 3: renderToFile is intentionally absent — Node-only sub-export.
-	const fileSection = `<p class="skip">Skipped — <code>renderToFile</code> is exposed from
-       <code>@poli-page/sdk/node</code> and uses <code>node:fs</code>. Workers don't have a
-       filesystem; see the Node demo.</p>`;
-
-	// Step 4: preview() → engine HTML output. Render it inside an iframe
+	// Step 3: render.preview() → engine HTML output. Render it inside an iframe
 	// via srcdoc so it stays sandboxed from the report page.
 	const previewSection =
 		previewRes.status === 'fulfilled'
@@ -138,21 +132,7 @@ function reportHtml({ renderRes, streamRes, previewRes, thumbsRes, errorRes }) {
        <iframe class="preview" sandbox srcdoc="${esc(previewRes.value.html)}"></iframe>`
 			: `<p class="fail">✗ failed</p>${errorBlock(previewRes.reason)}`;
 
-	// Step 5: thumbnails() → base64 page images. Embed each as <img>.
-	const thumbsSection =
-		thumbsRes.status === 'fulfilled'
-			? `<p class="ok">✔ ${thumbsRes.value.length} thumbnail(s)</p>
-       <div class="thumbs">${thumbsRes.value
-				.map(
-					(t) => `<figure>
-         <img src="data:${esc(t.contentType)};base64,${esc(t.data)}" alt="page ${t.page}" />
-         <figcaption>page ${t.page} (${t.width}×${t.height})</figcaption>
-       </figure>`,
-				)
-				.join('')}</div>`
-			: `<p class="fail">✗ failed</p>${errorBlock(thumbsRes.reason)}`;
-
-	// Step 6: error handling. Inverted — the demo passes when the SDK throws
+	// Step 4: error handling. Inverted — the demo passes when the SDK throws
 	// a PoliPageError on a deliberately invalid input.
 	const errorSection =
 		errorRes.status === 'rejected' && errorRes.reason instanceof PoliPageError
@@ -199,22 +179,16 @@ function reportHtml({ renderRes, streamRes, previewRes, thumbsRes, errorRes }) {
     Edge, Deno, and Bun.
   </p>
 
-  <h2>[1/6] render() — PDF bytes in memory</h2>
+  <h2>[1/4] render.pdf() — PDF bytes in memory</h2>
   ${renderSection}
 
-  <h2>[2/6] renderStream() — ReadableStream of PDF bytes</h2>
+  <h2>[2/4] render.pdfStream() — ReadableStream of PDF bytes</h2>
   ${streamSection}
 
-  <h2>[3/6] renderToFile() — Node only (skipped here)</h2>
-  ${fileSection}
-
-  <h2>[4/6] preview() — engine HTML output (no PDF rasterization)</h2>
+  <h2>[3/4] render.preview() — engine HTML output (no PDF rasterization)</h2>
   ${previewSection}
 
-  <h2>[5/6] thumbnails() — base64-encoded page images</h2>
-  ${thumbsSection}
-
-  <h2>[6/6] error handling — DEMO ONLY (we trigger an error on purpose)</h2>
+  <h2>[4/4] error handling — DEMO ONLY (we trigger an error on purpose)</h2>
   <div class="intentional">
     <strong>This step is intentional.</strong> The SDK is sent an empty template,
     the API returns 400, and the SDK surfaces it as a <code>PoliPageError</code>.

@@ -6,11 +6,13 @@
  * Walks through every public method of the SDK and writes the results to
  * `output-esm/`. Open the generated files to confirm everything works:
  *
- *   - output-esm/render.pdf       (from client.render())
- *   - output-esm/stream.pdf       (from client.renderStream())
- *   - output-esm/file.pdf         (from renderToFile())
- *   - output-esm/preview.html     (from client.preview())
- *   - output-esm/thumb-page-N.png (from client.thumbnails())
+ *   - output-esm/render.pdf   (from client.render.pdf())
+ *   - output-esm/stream.pdf   (from client.render.pdfStream())
+ *   - output-esm/file.pdf     (from renderToFile())
+ *   - output-esm/preview.html (from client.render.preview())
+ *
+ * Note: thumbnails are available against stored documents via
+ * client.documents.thumbnails() — that requires Starter+ tier. See README.
  */
 
 import { PoliPage, PoliPageError } from '@poli-page/sdk';
@@ -65,27 +67,27 @@ const client = new PoliPage({
 	onRetry: (e) => console.log(c.yellow('  ↻'), c.dim(`retrying after ${e.delayMs}ms: ${e.reason.code}`)),
 });
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 5;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. render() — fetch PDF bytes into memory
+// 1. render.pdf() — fetch PDF bytes into memory
 //    Use when: small documents, you need the bytes synchronously (return from
 //    an HTTP handler, attach to an email, hash for a signature).
 // ─────────────────────────────────────────────────────────────────────────────
-step(1, TOTAL_STEPS, 'render() — PDF bytes in memory');
-const pdf = await client.render(input);
+step(1, TOTAL_STEPS, 'render.pdf() — PDF bytes in memory');
+const pdf = await client.render.pdf(input);
 const renderPath = join(OUT_DIR, 'render.pdf');
 writeFileSync(renderPath, pdf);
 console.log(`  ${pdf.byteLength} bytes, magic: ${c.bold(new TextDecoder().decode(pdf.subarray(0, 4)))}`);
 console.log(`  ${c.dim('open:')} ${fileLink(renderPath)}`);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. renderStream() — get a ReadableStream of PDF bytes
+// 2. render.pdfStream() — get a ReadableStream of PDF bytes
 //    Use when: large documents, piping to S3 / an HTTP response / a transformer.
 //    Memory-bounded — never holds the whole PDF in RAM.
 // ─────────────────────────────────────────────────────────────────────────────
-step(2, TOTAL_STEPS, 'renderStream() — ReadableStream of PDF bytes');
-const stream = await client.renderStream(input);
+step(2, TOTAL_STEPS, 'render.pdfStream() — ReadableStream of PDF bytes');
+const stream = await client.render.pdfStream(input);
 const chunks = [];
 let total = 0;
 for await (const chunk of stream) {
@@ -117,48 +119,32 @@ console.log(`  wrote ${filePath}`);
 console.log(`  ${c.dim('open:')} ${fileLink(filePath)}`);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. preview() — get the engine's HTML output (no PDF rasterization)
+// 4. render.preview() — get the engine's HTML output (no PDF rasterization)
 //    Use when: debugging templates, building a live editor, snapshot tests
-//    in CI. Much faster than render() because it skips headless Chromium.
+//    in CI. Much faster than render.pdf() because it skips headless Chromium.
 //    Returns { html, totalPages }. Open the HTML file in any browser.
 // ─────────────────────────────────────────────────────────────────────────────
-step(4, TOTAL_STEPS, 'preview() — engine HTML output (no PDF rasterization)');
-const preview = await client.preview(input);
+step(4, TOTAL_STEPS, 'render.preview() — engine HTML output (no PDF rasterization)');
+const preview = await client.render.preview(input);
 const previewPath = join(OUT_DIR, 'preview.html');
 writeFileSync(previewPath, preview.html);
 console.log(`  ${c.bold(preview.totalPages)} page(s), ${preview.html.length} chars`);
 console.log(`  ${c.dim('open:')} ${fileLink(previewPath)}`);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5. thumbnails() — base64-encoded page images
-//    Use when: building a document picker, showing a preview grid, generating
-//    OG images. Pass `{ width, format?, quality?, page?, pages? }` to control
-//    output. Each item has `data` as a base64 string — decode before saving.
-// ─────────────────────────────────────────────────────────────────────────────
-step(5, TOTAL_STEPS, 'thumbnails() — base64-encoded page images');
-const thumbs = await client.thumbnails(input, { width: 400 });
-for (const thumb of thumbs) {
-	const ext = thumb.contentType === 'image/jpeg' ? 'jpg' : 'png';
-	const thumbPath = join(OUT_DIR, `thumb-page-${thumb.page}.${ext}`);
-	writeFileSync(thumbPath, Buffer.from(thumb.data, 'base64'));
-	console.log(`  page ${thumb.page} ${c.dim(`(${thumb.width}×${thumb.height}, ${thumb.contentType})`)}`);
-	console.log(`  ${c.dim('open:')} ${fileLink(thumbPath)}`);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 6. Error handling — DELIBERATELY trigger a failure, then catch it.
+// 5. Error handling — DELIBERATELY trigger a failure, then catch it.
 //    Every failure — API errors, network failures, timeouts, caller aborts —
 //    surfaces as `PoliPageError`. Inspect `code`, `status`, `requestId`, or
 //    use the predicate helpers (isAuthError, isRateLimitError, isRetryable…).
 // ─────────────────────────────────────────────────────────────────────────────
-step(6, TOTAL_STEPS, 'error handling — DEMO ONLY (we trigger an error on purpose)');
+step(5, TOTAL_STEPS, 'error handling — DEMO ONLY (we trigger an error on purpose)');
 console.log(c.yellow('  ⚠  This step is intentional — the SDK is about to throw, but the'));
 console.log(c.yellow('     demo will catch and inspect it. ') + c.bold('The demo is NOT crashing.'));
 console.log(c.dim('     (We send an empty template, expecting the API to return 400.)'));
 console.log('');
 try {
 	// Intentionally invalid: empty template + empty data triggers 400.
-	await client.render({ template: '', data: {} });
+	await client.render.pdf({ template: '', data: {} });
 	console.log('  ' + c.red('✗ unexpected: the call succeeded but should have failed'));
 } catch (err) {
 	if (err instanceof PoliPageError) {

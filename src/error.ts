@@ -3,15 +3,32 @@ type SdkInternalCode = 'invalid_options' | 'network_error' | 'timeout' | 'aborte
 
 /** @internal */
 type ApiCode =
-	| 'INVALID_API_KEY'
+	// auth
 	| 'MISSING_API_KEY'
+	| 'INVALID_API_KEY'
+	// billing / lifecycle
+	| 'PAYMENT_REQUIRED'
 	| 'FORBIDDEN'
+	| 'STORAGE_REQUIRED'
+	| 'ORGANIZATION_CANCELLED'
+	| 'ORGANIZATION_PURGED'
+	// not found / gone
 	| 'NOT_FOUND'
 	| 'VERSION_NOT_FOUND'
+	| 'DOCUMENT_NOT_FOUND'
+	| 'GONE'
+	// validation
 	| 'VALIDATION_ERROR'
 	| 'MISSING_DATA'
 	| 'MISSING_PROJECT_OR_TEMPLATE'
 	| 'MISSING_TEMPLATE_SLUG'
+	| 'INVALID_VERSION_FORMAT'
+	| 'VERSION_REQUIRED'
+	| 'INVALID_VERSION_FOR_KEY_ENV'
+	// rate / quota
+	| 'QUOTA_EXCEEDED'
+	| 'OVERAGE_CAP_EXCEEDED'
+	// server
 	| 'INTERNAL_ERROR';
 
 /**
