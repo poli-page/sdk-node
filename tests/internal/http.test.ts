@@ -165,7 +165,7 @@ describe('buildHeaders', () => {
 		expect(h.Accept).toBe('application/json');
 	});
 
-	it('sets Accept: application/json for /v1/render/thumbnails', () => {
+	it('sets Accept: application/json for /v1/documents/:id/thumbnails', () => {
 		const h = buildHeaders('POST', '/v1/documents/doc_x/thumbnails', 'pp_test_x', 'idem-1', ua);
 		expect(h.Accept).toBe('application/json');
 	});
