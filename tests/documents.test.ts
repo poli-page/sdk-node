@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
-import { documentsGet } from '../src/documents.js';
+import { documentsGet, documentsPreview } from '../src/documents.js';
 import type { SdkContext } from '../src/render.js';
 
 let server: Server;
@@ -149,5 +149,37 @@ describe('documentsGet', () => {
 		const doc = await documentsGet(buildCtx(), 'doc_abc123');
 		const pdf = await doc.downloadPdf();
 		expect(new TextDecoder().decode(pdf.subarray(0, 4))).toBe('%PDF');
+	});
+});
+
+describe('documentsPreview', () => {
+	it('GETs /v1/documents/:id/preview and returns html + totalPages', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ html: '<p>stored preview</p>', totalPages: 4 }));
+		});
+		const result = await documentsPreview(buildCtx(), 'doc_abc123');
+		expect(lastRequest.method).toBe('GET');
+		expect(lastRequest.path).toBe('/v1/documents/doc_abc123/preview');
+		expect(result.html).toBe('<p>stored preview</p>');
+		expect(result.totalPages).toBe(4);
+	});
+
+	it('sends no request body', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ html: '<p>x</p>', totalPages: 1 }));
+		});
+		await documentsPreview(buildCtx(), 'doc_abc123');
+		expect(lastRequest.body).toBe('');
+	});
+
+	it('encodes special characters in the document ID', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ html: '<p>x</p>', totalPages: 1 }));
+		});
+		await documentsPreview(buildCtx(), 'doc/with/slashes');
+		expect(lastRequest.path).toBe('/v1/documents/doc%2Fwith%2Fslashes/preview');
 	});
 });

@@ -2,6 +2,7 @@ import { PoliPageError } from './error.js';
 import type { SdkContext } from './render.js';
 import type {
 	DocumentDescriptor,
+	PreviewResult,
 	RawDocumentDescriptor,
 } from './types.js';
 
@@ -50,4 +51,19 @@ export async function documentsGet(ctx: SdkContext, id: string): Promise<Documen
 	const response = await ctx.get(`/v1/documents/${encodeURIComponent(id)}`);
 	const raw = (await response.json()) as RawDocumentDescriptor;
 	return attachDownloadPdf(raw);
+}
+
+/**
+ * Implementation of `client.documents.preview`. Wired by
+ * `createDocumentsNamespace` (Task 7).
+ *
+ * GETs `/v1/documents/:id/preview`, returns the stored paginated HTML.
+ * No counter increments — the engine performs no work (spec §6.2).
+ */
+export async function documentsPreview(
+	ctx: SdkContext,
+	id: string,
+): Promise<PreviewResult> {
+	const response = await ctx.get(`/v1/documents/${encodeURIComponent(id)}/preview`);
+	return response.json() as Promise<PreviewResult>;
 }
