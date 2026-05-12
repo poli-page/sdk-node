@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
-import { PoliPageError } from '../src/error.js';
 import {
 	renderPdf,
 	renderPdfStream,
@@ -230,7 +229,7 @@ describe('renderPreview', () => {
 });
 
 describe('createRenderNamespace', () => {
-	it('returns an object with pdf, pdfStream, preview methods bound to ctx', async () => {
+	it('returns an object with pdf, pdfStream, preview methods bound to ctx', () => {
 		const ns = createRenderNamespace(buildCtx());
 		expect(typeof ns.pdf).toBe('function');
 		expect(typeof ns.pdfStream).toBe('function');

@@ -31,7 +31,7 @@ export type PoliPageErrorCode = SdkInternalCode | ApiCode | (string & {});
  * import { PoliPage, PoliPageError } from '@poli-page/sdk';
  *
  * try {
- *   await client.render({ project: 'billing', template: 'invoice', data: { ... } });
+ *   await client.render.pdf({ project: 'billing', template: 'invoice', data: { ... } });
  * } catch (err) {
  *   if (err instanceof PoliPageError) {
  *     if (err.isAuthError())      return refreshCredentials();

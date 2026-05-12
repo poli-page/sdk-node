@@ -578,7 +578,7 @@ describe('PoliPage SDK', () => {
 			).rejects.toMatchObject({ name: 'PoliPageError', code: 'VALIDATION_ERROR' });
 		});
 
-		it('rejects 2xx renderStream response if Content-Type is not application/pdf', async () => {
+		it('rejects 2xx pdfStream response if Content-Type is not application/pdf', async () => {
 			setMockHandler((_req, res) => {
 				res.writeHead(200, { 'Content-Type': 'text/html' });
 				res.end('<html>oops</html>');
