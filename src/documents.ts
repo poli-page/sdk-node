@@ -90,3 +90,18 @@ export async function documentsThumbnails(
 	const result = (await response.json()) as { thumbnails: Thumbnail[] };
 	return result.thumbnails;
 }
+
+/**
+ * Implementation of `client.documents.delete`. Wired by
+ * `createDocumentsNamespace` (Task 7).
+ *
+ * DELETEs `/v1/documents/:id`. Returns void; the response body is
+ * ignored. Spec §6.4.
+ *
+ * Note: a re-delete of an already-deleted document surfaces as
+ * `PoliPageError` with `code: 'GONE'` (HTTP 410) from the transport
+ * layer — no special handling here.
+ */
+export async function documentsDelete(ctx: SdkContext, id: string): Promise<void> {
+	await ctx.delete(`/v1/documents/${encodeURIComponent(id)}`);
+}

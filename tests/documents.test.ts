@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
-import { documentsGet, documentsPreview, documentsThumbnails } from '../src/documents.js';
+import { documentsGet, documentsPreview, documentsThumbnails, documentsDelete } from '../src/documents.js';
 import type { SdkContext } from '../src/render.js';
 
 let server: Server;
@@ -242,5 +242,44 @@ describe('documentsThumbnails', () => {
 		});
 		await documentsThumbnails(buildCtx(), 'doc/with/slashes', { width: 100 });
 		expect(lastRequest.path).toBe('/v1/documents/doc%2Fwith%2Fslashes/thumbnails');
+	});
+});
+
+describe('documentsDelete', () => {
+	it('DELETEs /v1/documents/:id', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(204);
+			res.end();
+		});
+		await documentsDelete(buildCtx(), 'doc_abc123');
+		expect(lastRequest.method).toBe('DELETE');
+		expect(lastRequest.path).toBe('/v1/documents/doc_abc123');
+	});
+
+	it('sends no request body', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(204);
+			res.end();
+		});
+		await documentsDelete(buildCtx(), 'doc_abc123');
+		expect(lastRequest.body).toBe('');
+	});
+
+	it('returns void', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(204);
+			res.end();
+		});
+		const result = await documentsDelete(buildCtx(), 'doc_abc123');
+		expect(result).toBeUndefined();
+	});
+
+	it('encodes special characters in the document ID', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(204);
+			res.end();
+		});
+		await documentsDelete(buildCtx(), 'doc/with/slashes');
+		expect(lastRequest.path).toBe('/v1/documents/doc%2Fwith%2Fslashes');
 	});
 });
