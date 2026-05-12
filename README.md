@@ -2,6 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/@poli-page/sdk.svg)](https://www.npmjs.com/package/@poli-page/sdk)
 [![CI](https://github.com/poli-page/sdk-node/actions/workflows/ci.yml/badge.svg)](https://github.com/poli-page/sdk-node/actions/workflows/ci.yml)
+[![install size](https://packagephobia.com/badge?p=@poli-page/sdk)](https://packagephobia.com/result?p=@poli-page/sdk)
 [![license](https://img.shields.io/npm/l/@poli-page/sdk.svg)](LICENSE)
 [![node](https://img.shields.io/node/v/@poli-page/sdk.svg)](https://nodejs.org/)
 
@@ -28,9 +29,10 @@ import { PoliPage } from '@poli-page/sdk';
 
 const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });
 
-const pdf = await client.render({
+const pdf = await client.render.pdf({
   project: 'billing',
   template: 'invoice',
+  version: '1.0.0',
   data: { invoiceNumber: 'INV-001', total: 1280 },
 });
 // pdf is a Uint8Array
@@ -39,7 +41,7 @@ const pdf = await client.render({
 ### Inline mode — pass raw HTML
 
 ```ts
-const pdf = await client.render({
+const pdf = await client.render.pdf({
   template: '<h1>Hello {{ name }}</h1>',
   data: { name: 'World' },
 });
@@ -54,7 +56,7 @@ import { renderToFile } from '@poli-page/sdk/node';
 const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });
 await renderToFile(
   client,
-  { project: 'billing', template: 'invoice', data: { invoiceNumber: 'INV-001' } },
+  { project: 'billing', template: 'invoice', version: '1.0.0', data: { invoiceNumber: 'INV-001' } },
   './invoices/INV-001.pdf',
 );
 ```
@@ -76,14 +78,48 @@ First run prompts for a `pp_test_*` key and saves it to `.env`. Subsequent runs 
 ### Stream — for large PDFs or piping to S3 / HTTP responses
 
 ```ts
-const stream = await client.renderStream({
+const stream = await client.render.pdfStream({
   project: 'billing',
   template: 'invoice',
+  version: '1.0.0',
   data: { ... },
 });
 // stream is a ReadableStream<Uint8Array>
 await s3.upload({ Bucket: 'invoices', Key: 'INV-001.pdf', Body: stream }).promise();
 ```
+
+## Working with stored documents
+
+`render.document` stores the rendered PDF server-side and returns a flat descriptor (with a presigned URL, page count, file size, your `metadata`, etc.). The SDK does **not** auto-download the PDF — fetch it on demand via the fluent `downloadPdf()` helper.
+
+```ts
+// 1. Render and store
+const doc = await client.render.document({
+  project: 'billing',
+  template: 'invoice',
+  version: '1.0.0',
+  data: { invoiceNumber: 'INV-001' },
+  metadata: { customerId: 'cust_123' },  // your own audit data
+});
+// doc.documentId, doc.pageCount, doc.sizeBytes, doc.presignedPdfUrl, doc.metadata, ...
+
+// 2. Save doc.documentId in your database
+await db.invoices.update({ id: 'INV-001' }, { documentId: doc.documentId });
+
+// 3. Later, fetch a fresh presigned URL + download
+const fresh = await client.documents.get(doc.documentId);
+const pdf = await fresh.downloadPdf();
+
+// 4. Generate thumbnails
+const thumbs = await client.documents.thumbnails(doc.documentId, { width: 320, format: 'png' });
+
+// 5. When done, soft-delete
+await client.documents.delete(doc.documentId);
+```
+
+The presigned URL has a 15-minute TTL. If `downloadPdf()` fails with `code: 'DOWNLOAD_FAILED'` (HTTP 403 from S3), call `documents.get(id)` to refresh and retry.
+
+**Tier**: `render.document` and all `documents.*` methods require **Starter+** subscription. Free-tier requests return `403 STORAGE_REQUIRED`.
 
 ## Authentication & environments
 
@@ -106,11 +142,15 @@ const client = new PoliPage({
 
 | Method | Returns | Description |
 | ------ | ------- | ----------- |
-| `render(input)` | `Promise<Uint8Array>` | Render a PDF, return bytes |
-| `renderStream(input)` | `Promise<ReadableStream<Uint8Array>>` | Render and stream the response |
-| `preview(input)` | `Promise<{ html, totalPages }>` | Paginated HTML preview |
-| `thumbnails(input, options)` | `Promise<Thumbnail[]>` | Page thumbnails as base64 images |
-| `renderToFile(client, input, path)` *(from `@poli-page/sdk/node`)* | `Promise<void>` | Render a PDF and stream it to disk |
+| `client.render.pdf(input)` | `Promise<Uint8Array>` | Render a PDF, return bytes |
+| `client.render.pdfStream(input)` | `Promise<ReadableStream<Uint8Array>>` | Render and stream the response |
+| `client.render.preview(input)` | `Promise<PreviewResult>` | Paginated HTML preview |
+| `client.render.document(input)` | `Promise<DocumentDescriptor>` | Render and **store** (Starter+) |
+| `client.documents.get(id)` | `Promise<DocumentDescriptor>` | Retrieve a stored document |
+| `client.documents.preview(id)` | `Promise<PreviewResult>` | Stored document's paginated HTML |
+| `client.documents.thumbnails(id, options)` | `Promise<Thumbnail[]>` | Page thumbnails (PNG/JPEG, base64) |
+| `client.documents.delete(id)` | `Promise<void>` | Soft-delete a stored document |
+| `renderToFile(client, input, path)` *(from `@poli-page/sdk/node`)* | `Promise<void>` | Render and stream to disk (Node only) |
 
 ## Configuration
 
@@ -134,7 +174,7 @@ The SDK throws a single error type, `PoliPageError`, for every failure (API erro
 import { PoliPage, PoliPageError } from '@poli-page/sdk';
 
 try {
-  await client.render({ ... });
+  await client.render.pdf({ ... });
 } catch (err) {
   if (err instanceof PoliPageError) {
     if (err.isAuthError())       return refreshCredentials();
@@ -143,6 +183,25 @@ try {
     if (err.isNetworkError())    console.error('Network/timeout');
     if (err.isRetryable())       /* SDK already retried up to maxRetries */;
     console.error(err.code, err.status, err.requestId);
+  }
+  throw err;
+}
+```
+
+For lifecycle and billing failures, route the user to actionable messages rather than treating them as opaque errors:
+
+```ts
+try {
+  await client.render.document({ ... });
+} catch (err) {
+  if (err instanceof PoliPageError) {
+    if (err.code === 'STORAGE_REQUIRED')       return showUpgrade('Upgrade to Starter for document storage.');
+    if (err.code === 'PAYMENT_REQUIRED')       return showBanner('Subscription has unpaid invoices.');
+    if (err.code === 'ORGANIZATION_CANCELLED') return showBanner('Subscription cancelled — service is read-only.');
+    if (err.code === 'ORGANIZATION_PURGED')    return showBanner('Organization has been purged.');
+    if (err.code === 'DOCUMENT_NOT_FOUND')     return show404();
+    if (err.code === 'GONE')                   return show410();   // document was soft-deleted
+    // ... existing predicate-based handling above ...
   }
   throw err;
 }
@@ -158,7 +217,7 @@ Pass an `AbortSignal` to cancel a render in flight:
 const controller = new AbortController();
 setTimeout(() => controller.abort(), 5000);
 
-const pdf = await client.render({ ..., signal: controller.signal });
+const pdf = await client.render.pdf({ ..., signal: controller.signal });
 ```
 
 When the signal aborts, the SDK throws `PoliPageError` with `code: 'aborted'`.
