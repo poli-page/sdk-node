@@ -1,5 +1,14 @@
 import { expectTypeOf, test } from 'vitest';
-import type { ProjectModeInput, InlineModeInput, RenderInput, RenderMetadata, PreviewResult } from '../src/types.js';
+import type {
+	ProjectModeInput,
+	InlineModeInput,
+	RenderInput,
+	RenderMetadata,
+	PreviewResult,
+	DocumentDescriptor,
+	Thumbnail,
+	ThumbnailOptions,
+} from '../src/types.js';
 import { PoliPage } from '../src/index.js';
 
 test('ProjectModeInput requires project and template', () => {
@@ -82,4 +91,45 @@ test('client.preview (flat) has been removed', () => {
 	const c = new PoliPage({ apiKey: 'pp_test_x' });
 	// @ts-expect-error — replaced by render.preview
 	void c.preview({ template: '<p>x</p>', data: {} });
+});
+
+test('render.document returns Promise<DocumentDescriptor>', () => {
+	const c = new PoliPage({ apiKey: 'pp_test_x' });
+	expectTypeOf(c.render.document).returns.resolves.toMatchTypeOf<DocumentDescriptor>();
+});
+
+test('DocumentDescriptor.downloadPdf returns Promise<Uint8Array>', () => {
+	expectTypeOf<DocumentDescriptor['downloadPdf']>().returns.toEqualTypeOf<Promise<Uint8Array>>();
+});
+
+test('DocumentDescriptor.metadata is RenderMetadata (always present)', () => {
+	expectTypeOf<DocumentDescriptor['metadata']>().toEqualTypeOf<RenderMetadata>();
+});
+
+test('client.documents.get returns Promise<DocumentDescriptor>', () => {
+	const c = new PoliPage({ apiKey: 'pp_test_x' });
+	expectTypeOf(c.documents.get).returns.resolves.toMatchTypeOf<DocumentDescriptor>();
+});
+
+test('client.documents.preview returns Promise<PreviewResult>', () => {
+	const c = new PoliPage({ apiKey: 'pp_test_x' });
+	expectTypeOf(c.documents.preview).returns.resolves.toMatchTypeOf<PreviewResult>();
+});
+
+test('client.documents.thumbnails options is required (not optional)', () => {
+	const c = new PoliPage({ apiKey: 'pp_test_x' });
+	// @ts-expect-error — options object is required because width inside is required
+	void c.documents.thumbnails('doc_id');
+	// Valid call:
+	void c.documents.thumbnails('doc_id', { width: 320 });
+});
+
+test('client.documents.delete returns Promise<void>', () => {
+	const c = new PoliPage({ apiKey: 'pp_test_x' });
+	expectTypeOf(c.documents.delete).returns.resolves.toEqualTypeOf<void>();
+});
+
+test('Thumbnail and ThumbnailOptions are re-exported', () => {
+	expectTypeOf<ThumbnailOptions>().toMatchTypeOf<{ width: number }>();
+	expectTypeOf<Thumbnail>().toMatchTypeOf<{ page: number; data: string }>();
 });
