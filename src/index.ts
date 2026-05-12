@@ -13,6 +13,7 @@ export type {
 	RenderInput,
 	RenderMetadata,
 	RenderNamespace,
+	DocumentDescriptor,
 	PreviewResult,
 	PoliPageOptions,
 	RequestEvent,

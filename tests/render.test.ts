@@ -4,6 +4,7 @@ import {
 	renderPdf,
 	renderPdfStream,
 	renderPreview,
+	renderDocument,
 	createRenderNamespace,
 	type SdkContext,
 } from '../src/render.js';
@@ -243,11 +244,12 @@ describe('renderPreview', () => {
 });
 
 describe('createRenderNamespace', () => {
-	it('returns an object with pdf, pdfStream, preview methods bound to ctx', () => {
+	it('returns an object with pdf, pdfStream, preview, document methods bound to ctx', () => {
 		const ns = createRenderNamespace(buildCtx());
 		expect(typeof ns.pdf).toBe('function');
 		expect(typeof ns.pdfStream).toBe('function');
 		expect(typeof ns.preview).toBe('function');
+		expect(typeof ns.document).toBe('function');
 	});
 
 	it('routes pdf through the underlying ctx.post', async () => {
@@ -255,5 +257,140 @@ describe('createRenderNamespace', () => {
 		const pdf = await ns.pdf({ template: '<p>x</p>', data: {} });
 		expect(pdf).toBeInstanceOf(Uint8Array);
 		expect(lastRequest.path).toBe('/v1/render/pdf');
+	});
+
+	it('routes document through the underlying ctx.post', async () => {
+		setMockHandler((req, res) => {
+			if (req.url?.startsWith('/v1/render/document')) {
+				res.writeHead(200, { 'Content-Type': 'application/json' });
+				res.end(
+					JSON.stringify({
+						documentId: 'doc_routing',
+						organizationId: 'org_x',
+						projectId: null,
+						projectSlug: null,
+						templateId: null,
+						templateSlug: '<inline>',
+						version: null,
+						environment: 'sandbox',
+						apiKeyId: 'key',
+						format: 'A4',
+						orientation: 'portrait',
+						locale: 'en-US',
+						pageCount: 1,
+						sizeBytes: 100,
+						createdAt: '2026-01-01T00:00:00Z',
+						metadata: {},
+						presignedPdfUrl: 'http://example/x.pdf',
+						expiresAt: '2026-01-01T00:15:00Z',
+					}),
+				);
+				return;
+			}
+			res.writeHead(404);
+			res.end();
+		});
+		const ns = createRenderNamespace(buildCtx());
+		const doc = await ns.document({ template: '<p>x</p>', data: {} });
+		expect(doc.documentId).toBe('doc_routing');
+		expect(lastRequest.path).toBe('/v1/render/document');
+	});
+});
+
+describe('renderDocument', () => {
+	const sampleDescriptor = {
+		documentId: 'doc_abc123',
+		organizationId: 'org_xyz',
+		projectId: 'proj_42',
+		projectSlug: 'billing',
+		templateId: 'tpl_invoice_v1',
+		templateSlug: 'invoice',
+		version: '1.0.0',
+		environment: 'live',
+		apiKeyId: 'key_live_abc',
+		format: 'A4',
+		orientation: 'portrait',
+		locale: 'en-US',
+		pageCount: 2,
+		sizeBytes: 38421,
+		createdAt: '2026-04-30T19:45:22Z',
+		metadata: {},
+		presignedPdfUrl: 'http://localhost:0/presigned/doc_abc123.pdf',
+		expiresAt: '2026-04-30T20:00:22Z',
+	};
+
+	function setDescriptorHandler(descriptor: object) {
+		setMockHandler((req, res) => {
+			if (req.url?.startsWith('/v1/render/document')) {
+				res.writeHead(200, { 'Content-Type': 'application/json' });
+				res.end(JSON.stringify(descriptor));
+				return;
+			}
+			res.writeHead(200, { 'Content-Type': 'application/pdf' });
+			res.end(Buffer.from('%PDF-1.4 stub'));
+		});
+	}
+
+	it('POSTs to /v1/render/document and returns a descriptor', async () => {
+		setDescriptorHandler({ ...sampleDescriptor, presignedPdfUrl: `${baseUrl}/presigned/x.pdf` });
+		const doc = await renderDocument(buildCtx(), { template: '<p>x</p>', data: {} });
+		expect(lastRequest.path).toBe('/v1/render/document');
+		expect(doc.documentId).toBe('doc_abc123');
+		expect(doc.templateSlug).toBe('invoice');
+		expect(doc.pageCount).toBe(2);
+	});
+
+	it('forwards metadata in the request body', async () => {
+		setDescriptorHandler({
+			...sampleDescriptor,
+			presignedPdfUrl: `${baseUrl}/presigned/x.pdf`,
+			metadata: { customerId: 'cust_1' },
+		});
+		await renderDocument(buildCtx(), {
+			template: '<p>x</p>',
+			data: {},
+			metadata: { customerId: 'cust_1' },
+		});
+		expect(JSON.parse(lastRequest.body).metadata).toEqual({ customerId: 'cust_1' });
+	});
+
+	it('returns metadata: {} when server returns empty metadata', async () => {
+		setDescriptorHandler({ ...sampleDescriptor, presignedPdfUrl: `${baseUrl}/presigned/x.pdf` });
+		const doc = await renderDocument(buildCtx(), { template: '<p>x</p>', data: {} });
+		expect(doc.metadata).toEqual({});
+	});
+
+	it('attaches a downloadPdf method on the returned descriptor', async () => {
+		setDescriptorHandler({ ...sampleDescriptor, presignedPdfUrl: `${baseUrl}/presigned/x.pdf` });
+		const doc = await renderDocument(buildCtx(), { template: '<p>x</p>', data: {} });
+		expect(typeof doc.downloadPdf).toBe('function');
+	});
+
+	it('downloadPdf fetches the presignedPdfUrl and returns a Uint8Array', async () => {
+		setDescriptorHandler({ ...sampleDescriptor, presignedPdfUrl: `${baseUrl}/presigned/x.pdf` });
+		const doc = await renderDocument(buildCtx(), { template: '<p>x</p>', data: {} });
+		const pdf = await doc.downloadPdf();
+		expect(pdf).toBeInstanceOf(Uint8Array);
+		expect(new TextDecoder().decode(pdf.subarray(0, 4))).toBe('%PDF');
+	});
+
+	it('downloadPdf throws PoliPageError with code DOWNLOAD_FAILED on non-2xx', async () => {
+		setMockHandler((req, res) => {
+			if (req.url?.startsWith('/v1/render/document')) {
+				res.writeHead(200, { 'Content-Type': 'application/json' });
+				res.end(
+					JSON.stringify({ ...sampleDescriptor, presignedPdfUrl: `${baseUrl}/presigned/expired.pdf` }),
+				);
+				return;
+			}
+			res.writeHead(403, { 'Content-Type': 'text/plain' });
+			res.end('Forbidden');
+		});
+		const doc = await renderDocument(buildCtx(), { template: '<p>x</p>', data: {} });
+		await expect(doc.downloadPdf()).rejects.toMatchObject({
+			name: 'PoliPageError',
+			code: 'DOWNLOAD_FAILED',
+			status: 403,
+		});
 	});
 });

@@ -83,6 +83,48 @@ export interface PreviewResult {
 	metadata?: RenderMetadata;
 }
 
+/**
+ * Wire-shape representation of a stored document. The public type
+ * `DocumentDescriptor` extends this with a `downloadPdf` method.
+ *
+ * @internal
+ */
+export interface RawDocumentDescriptor {
+	documentId: string;
+	organizationId: string;
+	projectId: string | null;
+	projectSlug: string | null;
+	templateId: string | null;
+	templateSlug: string;
+	version: string | null;
+	environment: 'sandbox' | 'live';
+	apiKeyId: string;
+	format: PageFormat;
+	orientation: Orientation;
+	locale: string;
+	pageCount: number;
+	sizeBytes: number;
+	createdAt: string;
+	metadata: RenderMetadata;
+	presignedPdfUrl: string;
+	expiresAt: string;
+}
+
+/**
+ * Stored document returned by `client.render.document` and
+ * `client.documents.get`. Top-level fields are system-controlled;
+ * `metadata` echoes caller-supplied data. `downloadPdf()` fetches the
+ * PDF bytes from `presignedPdfUrl` on demand.
+ */
+export interface DocumentDescriptor extends RawDocumentDescriptor {
+	/**
+	 * Fetch the PDF bytes from `presignedPdfUrl`. The URL has a 15-minute
+	 * TTL — if it expired, call `documents.get(id)` to refresh and retry.
+	 * Throws `PoliPageError` with `code: 'DOWNLOAD_FAILED'` on non-2xx.
+	 */
+	downloadPdf(options?: { signal?: AbortSignal }): Promise<Uint8Array>;
+}
+
 export interface RequestEvent {
 	method: string;
 	url: string;
@@ -114,10 +156,8 @@ export interface PoliPageOptions {
 }
 
 /**
- * The render namespace exposed as `client.render`. Hosts the three
- * synchronous render operations defined by spec v1.3 §5.1–§5.2.
- *
- * (`render.document` is added in N2.)
+ * The render namespace exposed as `client.render`. Hosts the four
+ * render operations defined by spec v1.3 §5.1–§5.3.
  */
 export interface RenderNamespace {
 	/**
@@ -133,4 +173,9 @@ export interface RenderNamespace {
 	 * Generate paginated HTML preview output. Calls `POST /v1/render/preview`.
 	 */
 	preview(input: RenderInput): Promise<PreviewResult>;
+	/**
+	 * Render and store a PDF document. Calls `POST /v1/render/document` and
+	 * returns a `DocumentDescriptor` with a fluent `downloadPdf()` helper.
+	 */
+	document(input: RenderInput): Promise<DocumentDescriptor>;
 }

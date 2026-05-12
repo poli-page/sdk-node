@@ -1,5 +1,11 @@
 import { PoliPageError } from './error.js';
-import type { PreviewResult, RenderInput, RenderNamespace } from './types.js';
+import type {
+	DocumentDescriptor,
+	PreviewResult,
+	RawDocumentDescriptor,
+	RenderInput,
+	RenderNamespace,
+} from './types.js';
 
 /**
  * The transport seam used by all namespace factories. Three named callables,
@@ -88,6 +94,59 @@ async function renderPdfStreamInternal(
 }
 
 /**
+ * Attach the `downloadPdf` fluent helper to a raw wire descriptor. The
+ * helper uses plain `fetch` against the presigned S3 URL — no SDK auth,
+ * no retry, no idempotency. Errors are wrapped in `PoliPageError` for
+ * consistency with the rest of the SDK.
+ *
+ * Duplicated identically in `src/documents.ts` to avoid a circular import
+ * or a single-helper file.
+ *
+ * @internal
+ */
+function attachDownloadPdf(raw: RawDocumentDescriptor): DocumentDescriptor {
+	return {
+		...raw,
+		async downloadPdf(options) {
+			let response: Response;
+			try {
+				response = await fetch(raw.presignedPdfUrl, { signal: options?.signal });
+			} catch (err) {
+				throw new PoliPageError(
+					(err as Error).message,
+					'DOWNLOAD_FAILED',
+				);
+			}
+			if (!response.ok) {
+				throw new PoliPageError(
+					`Failed to download PDF: ${response.status} ${response.statusText}`,
+					'DOWNLOAD_FAILED',
+					response.status,
+				);
+			}
+			return new Uint8Array(await response.arrayBuffer());
+		},
+	};
+}
+
+/**
+ * Implementation of `client.render.document`. Wired by `createRenderNamespace`
+ * and not intended for direct caller use.
+ *
+ * POSTs to `/v1/render/document`, parses the JSON wire response, and attaches
+ * the `downloadPdf` fluent helper before returning. Spec §5.3.
+ */
+export async function renderDocument(
+	ctx: SdkContext,
+	input: RenderInput,
+): Promise<DocumentDescriptor> {
+	const { signal, idempotencyKey, ...wireBody } = input;
+	const response = await ctx.post('/v1/render/document', wireBody, signal, idempotencyKey);
+	const raw = (await response.json()) as RawDocumentDescriptor;
+	return attachDownloadPdf(raw);
+}
+
+/**
  * Build the object exposed as `client.render`. Each method captures the
  * provided `ctx` and forwards to the corresponding free function.
  *
@@ -98,6 +157,7 @@ export function createRenderNamespace(ctx: SdkContext): RenderNamespace {
 		pdf: (input) => renderPdf(ctx, input),
 		pdfStream: (input) => renderPdfStream(ctx, input),
 		preview: (input) => renderPreview(ctx, input),
+		document: (input) => renderDocument(ctx, input),
 	};
 }
 
