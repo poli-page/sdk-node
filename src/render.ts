@@ -1,5 +1,5 @@
 import { PoliPageError } from './error.js';
-import type { RenderInput } from './types.js';
+import type { PreviewResult, RenderInput } from './types.js';
 
 /**
  * Internal handle injected into render functions. The `request` callable
@@ -40,6 +40,22 @@ export function renderPdfStream(
 	input: RenderInput,
 ): Promise<ReadableStream<Uint8Array>> {
 	return renderPdfStreamInternal(ctx, input);
+}
+
+/**
+ * Implementation of `client.render.preview`. Wired by `createRenderNamespace`
+ * and not intended for direct caller use.
+ *
+ * Calls `POST /v1/render/preview` and returns the parsed `PreviewResult`,
+ * including optional `metadata` echo per spec §5.2.
+ */
+export async function renderPreview(
+	ctx: RenderContext,
+	input: RenderInput,
+): Promise<PreviewResult> {
+	const { signal, idempotencyKey, ...wireBody } = input;
+	const response = await ctx.request('/v1/render/preview', wireBody, signal, idempotencyKey);
+	return response.json() as Promise<PreviewResult>;
 }
 
 /**

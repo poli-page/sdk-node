@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
 import { PoliPageError } from '../src/error.js';
-import { renderPdf, renderPdfStream, type RenderContext } from '../src/render.js';
+import { renderPdf, renderPdfStream, renderPreview, type RenderContext } from '../src/render.js';
 
 let server: Server;
 let baseUrl: string;
@@ -166,5 +166,59 @@ describe('renderPdfStream', () => {
 		const reader = stream.getReader();
 		while (!(await reader.read()).done) { /* drain */ }
 		expect(JSON.parse(lastRequest.body).metadata).toEqual({ trace: 'abc' });
+	});
+});
+
+describe('renderPreview', () => {
+	it('POSTs to /v1/render/preview and returns html + totalPages', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ html: '<p>preview</p>', totalPages: 3 }));
+		});
+		const result = await renderPreview(buildCtx(), { template: '<p>x</p>', data: {} });
+		expect(result.html).toBe('<p>preview</p>');
+		expect(result.totalPages).toBe(3);
+		expect(lastRequest.path).toBe('/v1/render/preview');
+	});
+
+	it('echoes metadata from the server response when present', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(
+				JSON.stringify({
+					html: '<p>x</p>',
+					totalPages: 1,
+					metadata: { trace: 'abc-123' },
+				}),
+			);
+		});
+		const result = await renderPreview(buildCtx(), {
+			template: '<p>x</p>',
+			data: {},
+			metadata: { trace: 'abc-123' },
+		});
+		expect(result.metadata).toEqual({ trace: 'abc-123' });
+	});
+
+	it('omits metadata from result when server does not return it', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ html: '<p>x</p>', totalPages: 1 }));
+		});
+		const result = await renderPreview(buildCtx(), { template: '<p>x</p>', data: {} });
+		expect(result.metadata).toBeUndefined();
+	});
+
+	it('forwards metadata in the request body', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ html: '<p>x</p>', totalPages: 1 }));
+		});
+		await renderPreview(buildCtx(), {
+			template: '<p>x</p>',
+			data: {},
+			metadata: { customerId: 'cust_1' },
+		});
+		expect(JSON.parse(lastRequest.body).metadata).toEqual({ customerId: 'cust_1' });
 	});
 });
