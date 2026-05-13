@@ -155,19 +155,13 @@ describe('parseErrorBody', () => {
 describe('buildHeaders', () => {
 	const ua = 'poli-page-sdk-node/1.0.0';
 
-	it('sets Accept: application/pdf for /v1/render/pdf', () => {
-		const h = buildHeaders('POST', '/v1/render/pdf', 'pp_test_x', 'idem-1', ua);
-		expect(h.Accept).toBe('application/pdf');
-	});
-
-	it('sets Accept: application/json for /v1/render/preview', () => {
-		const h = buildHeaders('POST', '/v1/render/preview', 'pp_test_x', 'idem-1', ua);
-		expect(h.Accept).toBe('application/json');
-	});
-
-	it('sets Accept: application/json for /v1/documents/:id/thumbnails', () => {
-		const h = buildHeaders('POST', '/v1/documents/doc_x/thumbnails', 'pp_test_x', 'idem-1', ua);
-		expect(h.Accept).toBe('application/json');
+	it('always sets Accept: application/json (deployed SDK endpoints all return JSON)', () => {
+		const renderH = buildHeaders('POST', '/v1/render', 'pp_test_x', 'idem-1', ua);
+		expect(renderH.Accept).toBe('application/json');
+		const previewH = buildHeaders('POST', '/v1/render/preview', 'pp_test_x', 'idem-1', ua);
+		expect(previewH.Accept).toBe('application/json');
+		const thumbsH = buildHeaders('POST', '/v1/documents/doc_x/thumbnails', 'pp_test_x', 'idem-1', ua);
+		expect(thumbsH.Accept).toBe('application/json');
 	});
 
 	it('always sets Content-Type: application/json', () => {
