@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Shared helpers for the @poli-page/sdk Node demos.
  *

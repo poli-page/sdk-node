@@ -1,0 +1,30 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"allowJs": true,
+		"checkJs": true,
+		"noEmit": true,
+		// The demos are illustrative sample code — we want TypeScript to verify
+		// SDK call shapes (the bug we care about), not enforce strict JS typing
+		// on the helper plumbing. Turn off implicit-any since the helpers use
+		// untyped parameters.
+		"noImplicitAny": false,
+		// Map the bare specifiers used by the demos to the local SDK source.
+		// This way `pnpm typecheck:demos` doesn't depend on a built dist/.
+		"paths": {
+			"@poli-page/sdk": ["./src/index.ts"],
+			"@poli-page/sdk/node": ["./src/node.ts"]
+		},
+		// Loosen `nodenext` extension enforcement since the demos use bare
+		// specifiers for the SDK (resolved via paths) — extension checking
+		// would otherwise flag them.
+		"moduleResolution": "bundler",
+		"module": "esnext"
+	},
+	"include": [
+		"src/global.d.ts",
+		"demo/_shared.mjs",
+		"demo/node/esm-demo.mjs",
+		"demo/node/cjs-demo.cjs"
+	]
+}

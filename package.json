@@ -39,7 +39,8 @@
 	},
 	"scripts": {
 		"build": "tsup && tsc -p tsconfig.build.json && node scripts/emit-dcts.mjs",
-		"typecheck": "tsc --noEmit",
+		"typecheck": "tsc --noEmit && pnpm typecheck:demos",
+		"typecheck:demos": "tsc -p tsconfig.demos.json --noEmit",
 		"test": "vitest run",
 		"test:types": "vitest run --typecheck",
 		"test:integration": "vitest run --config vitest.integration.config.ts",

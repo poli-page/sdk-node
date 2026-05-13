@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * @poli-page/sdk — Node.js ESM demo
  *
