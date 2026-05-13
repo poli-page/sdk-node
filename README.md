@@ -22,20 +22,29 @@ Requires Node.js 20.18 or later.
 
 ## Quick start
 
-### Project mode — render a published template by slug
-
 ```ts
 import { PoliPage } from '@poli-page/sdk';
 
 const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });
 
 const pdf = await client.render.pdf({
+  project: 'getting-started',
+  template: 'welcome',
+  version: '1.0.0',
+  data: { name: 'World' },
+});
+// pdf is a Uint8Array
+```
+
+Every Poli Page org comes pre-provisioned with a `getting-started/welcome` template, so the snippet above runs as-is the moment you have an API key — no project setup needed. For your own templates, swap the slugs once you've pushed a version with the `poli` CLI:
+
+```ts
+const pdf = await client.render.pdf({
   project: 'billing',
   template: 'invoice',
   version: '1.0.0',
   data: { invoiceNumber: 'INV-001', total: 1280 },
 });
-// pdf is a Uint8Array
 ```
 
 ### Preview inline HTML
@@ -61,8 +70,8 @@ import { renderToFile } from '@poli-page/sdk/node';
 const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });
 await renderToFile(
   client,
-  { project: 'billing', template: 'invoice', version: '1.0.0', data: { invoiceNumber: 'INV-001' } },
-  './invoices/INV-001.pdf',
+  { project: 'getting-started', template: 'welcome', version: '1.0.0', data: { name: 'World' } },
+  './welcome.pdf',
 );
 ```
 
@@ -87,7 +96,7 @@ const stream = await client.render.pdfStream({
   project: 'billing',
   template: 'invoice',
   version: '1.0.0',
-  data: { ... },
+  data: { invoiceNumber: 'INV-001' },
 });
 // stream is a ReadableStream<Uint8Array>
 await s3.upload({ Bucket: 'invoices', Key: 'INV-001.pdf', Body: stream }).promise();

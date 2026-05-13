@@ -35,6 +35,10 @@ import { renderToFile } from '@poli-page/sdk/node';
 renderToFile(client, input, path)     // → void
 ```
 
+### Auto-provisioned `getting-started/welcome` template
+
+Every Poli Page org is created with a `getting-started/welcome/1.0.0` template already in place. You can call `client.render.pdf({ project: 'getting-started', template: 'welcome', version: '1.0.0', data: {...} })` the moment your API key is active — no `poli init` / `poli push` required. The SDK Quick Start example, the demos, and the integration tests in this repo all default to this template so they run for any new user.
+
 ### Renames from the pre-1.0 shape
 
 | Pre-1.0 (`0.1.0` and earlier dev versions) | 1.0.0 |

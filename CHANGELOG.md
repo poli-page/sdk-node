@@ -22,6 +22,7 @@ Breaking changes between major versions are summarized in [MIGRATION.md](MIGRATI
 
 ### Added
 
+- **`getting-started/welcome/1.0.0`** template is auto-provisioned in every Poli Page org, letting the SDK Quick Start work with a fresh API key and no project setup. README, demos, and integration tests use this as the default project for direct API calls.
 - **Storage namespace** `client.documents.*`: `get(id)`, `preview(id)`, `thumbnails(id, options)`, `delete(id)`.
 - **`client.render.document(input) → DocumentDescriptor`** — render and store; returns a flat descriptor with the presigned PDF URL, page count, file size, environment, and your `metadata`.
 - **`DocumentDescriptor.downloadPdf(options?) → Promise<Uint8Array>`** fluent helper to fetch the PDF bytes from the presigned URL on demand.

@@ -8,10 +8,11 @@ import { renderToFile } from '../../src/node.js';
 const apiKey = process.env.POLI_PAGE_API_KEY;
 const baseUrl = process.env.POLI_PAGE_BASE_URL ?? 'https://api-develop.poli.page';
 
-// Integration tests need a real, published template in your develop org.
-// Override these via env vars if your project/template/version differ.
-const project = process.env.POLI_PAGE_TEST_PROJECT ?? 'invoice-demo';
-const template = process.env.POLI_PAGE_TEST_TEMPLATE ?? 'invoice';
+// Integration tests use the `getting-started/welcome/1.0.0` template that
+// every Poli Page org gets provisioned automatically — works out of the box
+// for any fresh API key. Override via env vars to point at your own template.
+const project = process.env.POLI_PAGE_TEST_PROJECT ?? 'getting-started';
+const template = process.env.POLI_PAGE_TEST_TEMPLATE ?? 'welcome';
 const version = process.env.POLI_PAGE_TEST_VERSION ?? '1.0.0';
 
 const describeIfKey = apiKey ? describe : describe.skip;
