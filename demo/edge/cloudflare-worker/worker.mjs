@@ -15,16 +15,6 @@
 
 import { PoliPage, PoliPageError } from '@poli-page/sdk';
 
-// One template, used by every method below — same Tailwind-rich snippet
-// the Node demos use, kept inline here so the worker stays a single file.
-const input = {
-	template: `<div class="p-8">
-  <h1 class="text-3xl font-bold">{{ title }}</h1>
-  <p class="mt-4">Rendered from a Cloudflare Worker — no node:* imports needed.</p>
-</div>`,
-	data: { title: 'Hello from the edge' },
-};
-
 export default {
 	async fetch(request, env) {
 		const client = new PoliPage({
@@ -32,16 +22,35 @@ export default {
 			baseUrl: 'https://api-develop.poli.page',
 		});
 
+		// For render.pdf/pdfStream — must use project mode.
+		// getting-started/welcome is auto-provisioned in every org.
+		const projectInput = {
+			project: 'getting-started',
+			template: 'welcome',
+			version: '1.0.0',
+			data: { name: 'Edge Demo' },
+		};
+
+		// For render.preview — inline mode is allowed here. Workers can't
+		// readFileSync, so we use a simple inline template for this showcase.
+		const inlineInput = {
+			template: `<div class="p-8">
+  <h1 class="text-3xl font-bold">Hello {{ name }} (preview)</h1>
+  <p class="mt-4">Rendered from a Cloudflare Worker — no node:* imports needed.</p>
+</div>`,
+			data: { name: 'Edge Demo' },
+		};
+
 		// Run all SDK paths in parallel. `allSettled` lets us collect
 		// every outcome (success or failure) so the report shows what
 		// happened on each step independently.
 		const [renderRes, streamRes, previewRes, errorRes] = await Promise.allSettled([
-			client.render.pdf(input),
-			collectStream(client.render.pdfStream(input)),
-			client.render.preview(input),
-			// Step 4 is supposed to fail — empty template triggers a 400.
+			client.render.pdf(projectInput),
+			collectStream(client.render.pdfStream(projectInput)),
+			client.render.preview(inlineInput),
+			// Step 4 is supposed to fail — version 'banana' triggers INVALID_VERSION_FORMAT (400).
 			// We invert the framing in the report: rejection is the success.
-			client.render.pdf({ template: '', data: {} }),
+			client.render.pdf({ project: 'getting-started', template: 'welcome', version: 'banana', data: {} }),
 		]);
 
 		return new Response(reportHtml({ renderRes, streamRes, previewRes, errorRes }), {
@@ -133,7 +142,7 @@ function reportHtml({ renderRes, streamRes, previewRes, errorRes }) {
 			: `<p class="fail">✗ failed</p>${errorBlock(previewRes.reason)}`;
 
 	// Step 4: error handling. Inverted — the demo passes when the SDK throws
-	// a PoliPageError on a deliberately invalid input.
+	// a PoliPageError for the deliberately invalid version string.
 	const errorSection =
 		errorRes.status === 'rejected' && errorRes.reason instanceof PoliPageError
 			? `<p class="ok">✔ Error caught successfully — the SDK exposed:</p>
@@ -190,9 +199,10 @@ function reportHtml({ renderRes, streamRes, previewRes, errorRes }) {
 
   <h2>[4/4] error handling — DEMO ONLY (we trigger an error on purpose)</h2>
   <div class="intentional">
-    <strong>This step is intentional.</strong> The SDK is sent an empty template,
-    the API returns 400, and the SDK surfaces it as a <code>PoliPageError</code>.
-    The demo passes when this error is caught.
+    <strong>This step is intentional.</strong> The SDK is sent an invalid version
+    string (<code>version: 'banana'</code>), the API returns 400
+    <code>INVALID_VERSION_FORMAT</code>, and the SDK surfaces it as a
+    <code>PoliPageError</code>. The demo passes when this error is caught.
   </div>
   ${errorSection}
 </body>
