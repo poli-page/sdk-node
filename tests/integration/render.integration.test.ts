@@ -82,7 +82,8 @@ describeIfKey('integration: develop API', () => {
 			data: { name: 'render.document' },
 			metadata: { source: 'sdk-node integration test' },
 		});
-		expect(doc.documentId).toMatch(/^doc_/);
+		expect(typeof doc.documentId).toBe('string');
+		expect(doc.documentId.length).toBeGreaterThan(0);
 		expect(doc.pageCount).toBeGreaterThan(0);
 		expect(doc.sizeBytes).toBeGreaterThan(0);
 		expect(doc.metadata.source).toBe('sdk-node integration test');

@@ -159,10 +159,13 @@ describe('documentsGet', () => {
 });
 
 describe('documentsPreview', () => {
-	it('GETs /v1/documents/:id/preview and returns html + pageCount', async () => {
+	it('GETs /v1/documents/:id/preview and assembles { html, pageCount } from text/html body + X-Document-Page-Count header', async () => {
 		setMockHandler((_req, res) => {
-			res.writeHead(200, { 'Content-Type': 'application/json' });
-			res.end(JSON.stringify({ html: '<p>stored preview</p>', pageCount: 4 }));
+			res.writeHead(200, {
+				'Content-Type': 'text/html; charset=utf-8',
+				'X-Document-Page-Count': '4',
+			});
+			res.end('<p>stored preview</p>');
 		});
 		const result = await documentsPreview(buildCtx(), 'doc_abc123');
 		expect(lastRequest.method).toBe('GET');
@@ -171,10 +174,22 @@ describe('documentsPreview', () => {
 		expect(result.pageCount).toBe(4);
 	});
 
+	it('defaults pageCount to 0 when the X-Document-Page-Count header is absent', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+			res.end('<p>x</p>');
+		});
+		const result = await documentsPreview(buildCtx(), 'doc_abc123');
+		expect(result.pageCount).toBe(0);
+	});
+
 	it('sends no request body', async () => {
 		setMockHandler((_req, res) => {
-			res.writeHead(200, { 'Content-Type': 'application/json' });
-			res.end(JSON.stringify({ html: '<p>x</p>', pageCount: 1 }));
+			res.writeHead(200, {
+				'Content-Type': 'text/html; charset=utf-8',
+				'X-Document-Page-Count': '1',
+			});
+			res.end('<p>x</p>');
 		});
 		await documentsPreview(buildCtx(), 'doc_abc123');
 		expect(lastRequest.body).toBe('');
@@ -182,8 +197,11 @@ describe('documentsPreview', () => {
 
 	it('encodes special characters in the document ID', async () => {
 		setMockHandler((_req, res) => {
-			res.writeHead(200, { 'Content-Type': 'application/json' });
-			res.end(JSON.stringify({ html: '<p>x</p>', pageCount: 1 }));
+			res.writeHead(200, {
+				'Content-Type': 'text/html; charset=utf-8',
+				'X-Document-Page-Count': '1',
+			});
+			res.end('<p>x</p>');
 		});
 		await documentsPreview(buildCtx(), 'doc/with/slashes');
 		expect(lastRequest.path).toBe('/v1/documents/doc%2Fwith%2Fslashes/preview');

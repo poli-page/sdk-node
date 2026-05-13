@@ -58,17 +58,24 @@ export async function documentsGet(ctx: SdkContext, id: string): Promise<Documen
 
 /**
  * Implementation of `client.documents.preview`. Wired by
- * `createDocumentsNamespace` (Task 7).
+ * `createDocumentsNamespace`.
  *
- * GETs `/v1/documents/:id/preview`, returns the stored paginated HTML.
- * No counter increments — the engine performs no work (spec §6.2).
+ * GETs `/v1/documents/:id/preview` and returns the stored paginated HTML.
+ * The deployed API responds with `text/html` directly (not a JSON envelope)
+ * and exposes the page count via the `X-Document-Page-Count` response
+ * header — the SDK assembles the `DocumentPreviewResult` envelope here.
+ * No counter increments — the engine performs no work.
  */
 export async function documentsPreview(
 	ctx: SdkContext,
 	id: string,
 ): Promise<DocumentPreviewResult> {
 	const response = await ctx.get(`/v1/documents/${encodeURIComponent(id)}/preview`);
-	return response.json() as Promise<DocumentPreviewResult>;
+	const html = await response.text();
+	const raw = response.headers.get('X-Document-Page-Count');
+	const parsed = raw !== null ? Number.parseInt(raw, 10) : Number.NaN;
+	const pageCount = Number.isFinite(parsed) ? parsed : 0;
+	return { html, pageCount };
 }
 
 /**
