@@ -2,8 +2,8 @@ import { PoliPageError } from './error.js';
 import type { SdkContext } from './render.js';
 import type {
 	DocumentDescriptor,
+	DocumentPreviewResult,
 	DocumentsNamespace,
-	PreviewResult,
 	RawDocumentDescriptor,
 	Thumbnail,
 	ThumbnailOptions,
@@ -66,9 +66,9 @@ export async function documentsGet(ctx: SdkContext, id: string): Promise<Documen
 export async function documentsPreview(
 	ctx: SdkContext,
 	id: string,
-): Promise<PreviewResult> {
+): Promise<DocumentPreviewResult> {
 	const response = await ctx.get(`/v1/documents/${encodeURIComponent(id)}/preview`);
-	return response.json() as Promise<PreviewResult>;
+	return response.json() as Promise<DocumentPreviewResult>;
 }
 
 /**
