@@ -29,3 +29,15 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Internal planning + AI process artifacts (never commit these)
+/PLAN.md
+/sdk-engineering-guide.md
+/sdk-specification.md
+/sdk-roadmap.md
+/implementation-plan-*.md
+/templates-design.md
+/docs/superpowers/
+
+# Claude Code local state
+.claude/
