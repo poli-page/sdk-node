@@ -17,14 +17,16 @@ import { PoliPage } from '@poli-page/sdk';
 const client = new PoliPage({ apiKey });
 
 // Render namespace
-client.render.pdf(input)          // → Uint8Array
-client.render.pdfStream(input)    // → ReadableStream<Uint8Array>
-client.render.preview(input)      // → { html, totalPages, metadata? }
-client.render.document(input)     // → DocumentDescriptor (Starter+)
+// render.pdf, render.pdfStream, render.document → project mode only (project + template + version)
+// render.preview → accepts both project mode and inline HTML
+client.render.pdf(input)          // → Uint8Array  (two HTTP calls internally)
+client.render.pdfStream(input)    // → ReadableStream<Uint8Array>  (two HTTP calls internally)
+client.render.preview(input)      // → { html, totalPages, environment }
+client.render.document(input)     // → DocumentDescriptor  (skip auto-download)
 
-// Documents namespace (Starter+)
+// Documents namespace
 client.documents.get(id)              // → DocumentDescriptor
-client.documents.preview(id)          // → { html, totalPages }
+client.documents.preview(id)          // → DocumentPreviewResult { html, pageCount }
 client.documents.thumbnails(id, opts) // → Thumbnail[]
 client.documents.delete(id)           // → void
 
@@ -41,6 +43,14 @@ renderToFile(client, input, path)     // → void
 | `client.renderStream(input)` | `client.render.pdfStream(input)` |
 | `client.preview(input)` | `client.render.preview(input)` |
 | `client.thumbnails(input, options)` | *Retired — use `client.documents.thumbnails(id, options)` against a stored document* |
+
+### Render is always a stored document
+
+Every `render.*` (except `render.preview`) produces a stored document server-side. `render.pdf` and `render.pdfStream` are SDK conveniences that chain a presigned-URL fetch internally to return PDF bytes. `render.document` returns just the descriptor — use it when you'd rather hold the `documentId` and fetch bytes later.
+
+This means `render.pdf` makes two HTTP calls (`POST /v1/render` + `GET presignedPdfUrl`). Same throughput characteristics as before; only network-log visibility differs.
+
+`render.preview` is the exception — it doesn't store and returns paginated HTML directly. It's also the only render method that accepts inline-mode HTML.
 
 ### Storage workflow (new in 1.0)
 

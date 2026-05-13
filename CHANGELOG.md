@@ -8,49 +8,57 @@ Breaking changes between major versions are summarized in [MIGRATION.md](MIGRATI
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-05-12
+## [1.0.0] - 2026-05-13
 
 ### BREAKING
 
-- **Namespaced surface** per spec v1.3 §2.1. Top-level flat methods are removed:
+- **Namespaced surface** per the Poli Page API contract. Top-level flat methods removed:
   - `client.render(input)` → `client.render.pdf(input)`
   - `client.renderStream(input)` → `client.render.pdfStream(input)`
   - `client.preview(input)` → `client.render.preview(input)`
   - `client.thumbnails(input, options)` is **retired entirely**; the equivalent against stored documents is `client.documents.thumbnails(id, options)`.
-- `render` methods return `Uint8Array` instead of `Buffer`. Use `Buffer.from(uint8)` if a Node `Buffer` is specifically needed.
+- **Inline-mode restriction**: `render.pdf`, `render.pdfStream`, and `render.document` require project mode (project + template + version). Inline mode survives only for `render.preview`. The type system enforces this at compile time.
+- `render.*` methods return `Uint8Array` (not `Buffer`). Use `Buffer.from(uint8)` if you specifically need a Node `Buffer`.
 
 ### Added
 
-- **Storage namespace** `client.documents.*` per spec §6: `get(id)`, `preview(id)`, `thumbnails(id, options)`, `delete(id)`.
-- **`client.render.document(input)`** per spec §5.3 — renders, stores server-side, returns a `DocumentDescriptor` with system fields + caller-supplied `metadata` + presigned PDF URL.
-- **`DocumentDescriptor.downloadPdf(options?)`** fluent helper to fetch the PDF bytes from the presigned URL on demand.
-- **`metadata: RenderMetadata`** pass-through field on all render inputs (spec §4.4); echoed back on `preview` and `document` responses.
-- **`renderToFile`** sub-export at `@poli-page/sdk/node` (Node-only) streams a PDF directly to disk.
-- **`AbortSignal` cancellation** via per-call `signal?` option. Aborted requests throw `PoliPageError` with `code: 'aborted'`.
+- **Storage namespace** `client.documents.*`: `get(id)`, `preview(id)`, `thumbnails(id, options)`, `delete(id)`.
+- **`client.render.document(input) → DocumentDescriptor`** — render and store; returns a flat descriptor with the presigned PDF URL, page count, file size, environment, and your `metadata`.
+- **`DocumentDescriptor.downloadPdf(options?) → Promise<Uint8Array>`** fluent helper to fetch the PDF bytes from the presigned URL on demand.
+- **`metadata: RenderMetadata`** pass-through field on all render inputs; echoed back in `DocumentDescriptor.metadata`.
+- **`renderToFile`** sub-export at `@poli-page/sdk/node` (Node-only) — streams a PDF directly to disk.
+- **`AbortSignal` cancellation** via per-call `signal?` option.
 - **Idempotency-Key** auto-generation (UUID v4, reused across retries on POST); per-call override via `idempotencyKey`.
 - **Observability hooks**: `onRequest`, `onResponse`, `onRetry`, `onError`.
 - **Predicate helpers** on `PoliPageError`: `isAuthError`, `isRateLimitError`, `isValidationError`, `isNetworkError`, `isRetryable`.
-- **Retry policy** retries on 5xx, 429, network errors, and timeouts. Exponential backoff with jitter; honors `Retry-After`, capped at 30 s.
+- **Retry policy**: 5xx, 429, network errors, and timeouts. Exponential backoff with jitter; honors `Retry-After`, capped at 30 s.
 - **TSDoc `@example`** blocks on every public method.
-- **Public type re-exports**: `RenderNamespace`, `DocumentsNamespace`, `DocumentDescriptor`, `Thumbnail`, `ThumbnailOptions`, `RenderMetadata`, `PreviewResult`, `PageFormat`, `Orientation`, `ProjectModeInput`, `InlineModeInput`, `RenderInput`, `PoliPageOptions`, `RequestEvent`, `ResponseEvent`, `RetryEvent`.
+- **Declaration maps** (`.d.ts.map`) shipped alongside `.d.ts` for "Go to Definition" parity in IDEs.
+- **Public type re-exports**: `RenderNamespace`, `DocumentsNamespace`, `DocumentDescriptor`, `DocumentPreviewResult`, `Thumbnail`, `ThumbnailOptions`, `RenderMetadata`, `PreviewResult`, `PageFormat`, `Orientation`, `ProjectModeInput`, `InlineModeInput`, `RenderInput`, `PoliPageOptions`, `RequestEvent`, `ResponseEvent`, `RetryEvent`.
 
 ### Changed
 
-- Internal transport seam supports POST, GET, and DELETE verbs. Previously POST-only.
+- **`render.pdf` and `render.pdfStream`** make two HTTP calls: `POST /v1/render` to produce a stored document, then `GET presignedPdfUrl` to fetch the bytes. Same as before from the caller's perspective; the difference is observable only in network logs.
+- **`render.preview` response** is `{ html, totalPages, environment }`. The `environment` field is new (`'sandbox' | 'live'`); `metadata` is no longer echoed on preview responses.
+- **`documents.preview` returns `DocumentPreviewResult { html, pageCount }`** — `pageCount` (singular), distinct from `render.preview`'s `totalPages` (the deployed API uses different field names for the two endpoints).
+- **`documents.thumbnails` wire body** wraps options in `{ thumbnails: {...} }`. SDK abstracts this; callers pass options flat.
+- **`DocumentDescriptor` nullability** loosened: `apiKeyId`, `templateSlug`, `orientation`, `locale` are `string | null`.
+- **`ThumbnailOptions`** has no singular `page` field; use `pages: [N]` instead.
+- Internal transport seam supports POST, GET, and DELETE verbs.
 - Constructor throws `PoliPageError` with `code: 'invalid_options'` when `apiKey` is missing.
-- Minimum supported Node.js version is now 20.18.
-- Dual ESM + CJS build via `tsup`. `package.json` declares `sideEffects: false`.
+- Minimum supported Node.js version is 20.18.
+- Dual ESM + CJS build via `tsup`. `package.json` declares `sideEffects: false`. CJS preserves the `node:` prefix on Node builtin imports.
 
 ### Removed
 
 - Top-level flat methods: `client.render`, `client.renderStream`, `client.preview`, `client.thumbnails`.
-- Inline-input thumbnails. `Thumbnail` / `ThumbnailOptions` types are reintroduced bound to `client.documents.thumbnails(id, options)` against stored documents.
+- Inline-input thumbnails. `Thumbnail` / `ThumbnailOptions` types reintroduced under `client.documents.thumbnails`.
+- `ThumbnailOptions.page` (singular) — use `pages: [N]`.
 
 ### Fixed
 
 - Non-JSON non-2xx response bodies produce `PoliPageError` with `code: 'INTERNAL_ERROR'` and the HTTP status. Previously the raw body was stuffed into the `code` field.
-- 2xx responses with non-`application/pdf` Content-Type on PDF endpoints now throw `PoliPageError` instead of returning whatever bytes the server sent.
-- Main entry no longer imports from `node:crypto`. Idempotency-key generation uses `globalThis.crypto.randomUUID()`, keeping the main entry isomorphic (Cloudflare Workers, Vercel Edge, Deno, Bun).
+- Main entry is fully isomorphic — no `node:*` imports. Idempotency-key generation uses `globalThis.crypto.randomUUID()` (Cloudflare Workers, Vercel Edge, Deno, Bun all supported).
 
 ## [0.1.0] - 2026-04-26
 

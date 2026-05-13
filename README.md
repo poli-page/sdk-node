@@ -38,14 +38,19 @@ const pdf = await client.render.pdf({
 // pdf is a Uint8Array
 ```
 
-### Inline mode — pass raw HTML
+### Preview inline HTML
+
+`render.preview` accepts raw HTML for live editing and visual inspection without producing a stored document. Use this for editor previews or layout tests.
 
 ```ts
-const pdf = await client.render.pdf({
+const { html, totalPages, environment } = await client.render.preview({
   template: '<h1>Hello {{ name }}</h1>',
   data: { name: 'World' },
 });
+console.log(`Rendered ${totalPages} page(s) in ${environment} mode`);
 ```
+
+**`render.pdf`, `render.pdfStream`, and `render.document` require project mode** — they need a published template version for traceability. The deployed API rejects inline mode on these endpoints; the SDK enforces project mode at compile time.
 
 ### Write a PDF to disk
 
@@ -90,7 +95,7 @@ await s3.upload({ Bucket: 'invoices', Key: 'INV-001.pdf', Body: stream }).promis
 
 ## Working with stored documents
 
-`render.document` stores the rendered PDF server-side and returns a flat descriptor (with a presigned URL, page count, file size, your `metadata`, etc.). The SDK does **not** auto-download the PDF — fetch it on demand via the fluent `downloadPdf()` helper.
+Every render produces a stored document, accessible via `documentId` for later download or thumbnails. `render.pdf` and `render.pdfStream` are conveniences that chain a presigned-URL fetch internally to return bytes; `render.document` returns just the descriptor (skip the auto-download when you'll fetch the bytes later).
 
 ```ts
 // 1. Render and store
@@ -119,8 +124,6 @@ await client.documents.delete(doc.documentId);
 
 The presigned URL has a 15-minute TTL. If `downloadPdf()` fails with `code: 'DOWNLOAD_FAILED'` (HTTP 403 from S3), call `documents.get(id)` to refresh and retry.
 
-**Tier**: `render.document` and all `documents.*` methods require **Starter+** subscription. Free-tier requests return `403 STORAGE_REQUIRED`.
-
 ## Authentication & environments
 
 The mode is determined by the API key prefix:
@@ -146,9 +149,9 @@ const client = new PoliPage({
 | `client.render.pdf(input)` | `Promise<Uint8Array>` | Render a PDF, return bytes |
 | `client.render.pdfStream(input)` | `Promise<ReadableStream<Uint8Array>>` | Render and stream the response |
 | `client.render.preview(input)` | `Promise<PreviewResult>` | Paginated HTML preview |
-| `client.render.document(input)` | `Promise<DocumentDescriptor>` | Render and **store** (Starter+) |
+| `client.render.document(input)` | `Promise<DocumentDescriptor>` | Render and return descriptor (skip auto-download) |
 | `client.documents.get(id)` | `Promise<DocumentDescriptor>` | Retrieve a stored document |
-| `client.documents.preview(id)` | `Promise<PreviewResult>` | Stored document's paginated HTML |
+| `client.documents.preview(id)` | `Promise<DocumentPreviewResult>` | Stored document's paginated HTML |
 | `client.documents.thumbnails(id, options)` | `Promise<Thumbnail[]>` | Page thumbnails (PNG/JPEG, base64) |
 | `client.documents.delete(id)` | `Promise<void>` | Soft-delete a stored document |
 | `renderToFile(client, input, path)` *(from `@poli-page/sdk/node`)* | `Promise<void>` | Render and stream to disk (Node only) |
@@ -196,7 +199,6 @@ try {
   await client.render.document({ ... });
 } catch (err) {
   if (err instanceof PoliPageError) {
-    if (err.code === 'STORAGE_REQUIRED')       return showUpgrade('Upgrade to Starter for document storage.');
     if (err.code === 'PAYMENT_REQUIRED')       return showBanner('Subscription has unpaid invoices.');
     if (err.code === 'ORGANIZATION_CANCELLED') return showBanner('Subscription cancelled — service is read-only.');
     if (err.code === 'ORGANIZATION_PURGED')    return showBanner('Organization has been purged.');
