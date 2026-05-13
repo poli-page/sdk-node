@@ -159,22 +159,22 @@ describe('documentsGet', () => {
 });
 
 describe('documentsPreview', () => {
-	it('GETs /v1/documents/:id/preview and returns html + totalPages', async () => {
+	it('GETs /v1/documents/:id/preview and returns html + pageCount', async () => {
 		setMockHandler((_req, res) => {
 			res.writeHead(200, { 'Content-Type': 'application/json' });
-			res.end(JSON.stringify({ html: '<p>stored preview</p>', totalPages: 4 }));
+			res.end(JSON.stringify({ html: '<p>stored preview</p>', pageCount: 4 }));
 		});
 		const result = await documentsPreview(buildCtx(), 'doc_abc123');
 		expect(lastRequest.method).toBe('GET');
 		expect(lastRequest.path).toBe('/v1/documents/doc_abc123/preview');
 		expect(result.html).toBe('<p>stored preview</p>');
-		expect(result.totalPages).toBe(4);
+		expect(result.pageCount).toBe(4);
 	});
 
 	it('sends no request body', async () => {
 		setMockHandler((_req, res) => {
 			res.writeHead(200, { 'Content-Type': 'application/json' });
-			res.end(JSON.stringify({ html: '<p>x</p>', totalPages: 1 }));
+			res.end(JSON.stringify({ html: '<p>x</p>', pageCount: 1 }));
 		});
 		await documentsPreview(buildCtx(), 'doc_abc123');
 		expect(lastRequest.body).toBe('');
@@ -183,7 +183,7 @@ describe('documentsPreview', () => {
 	it('encodes special characters in the document ID', async () => {
 		setMockHandler((_req, res) => {
 			res.writeHead(200, { 'Content-Type': 'application/json' });
-			res.end(JSON.stringify({ html: '<p>x</p>', totalPages: 1 }));
+			res.end(JSON.stringify({ html: '<p>x</p>', pageCount: 1 }));
 		});
 		await documentsPreview(buildCtx(), 'doc/with/slashes');
 		expect(lastRequest.path).toBe('/v1/documents/doc%2Fwith%2Fslashes/preview');
@@ -199,7 +199,7 @@ describe('documentsThumbnails', () => {
 		data: 'iVBORw0KGgoAAAANSU=',
 	};
 
-	it('POSTs /v1/documents/:id/thumbnails with the options as body', async () => {
+	it('POSTs /v1/documents/:id/thumbnails with options wrapped in { thumbnails: ... }', async () => {
 		setMockHandler((_req, res) => {
 			res.writeHead(200, { 'Content-Type': 'application/json' });
 			res.end(JSON.stringify({ thumbnails: [sampleThumbnail] }));
@@ -208,11 +208,10 @@ describe('documentsThumbnails', () => {
 		expect(lastRequest.method).toBe('POST');
 		expect(lastRequest.path).toBe('/v1/documents/doc_abc123/thumbnails');
 		const body = JSON.parse(lastRequest.body);
-		expect(body.width).toBe(840);
-		expect(body.format).toBe('png');
+		expect(body).toEqual({ thumbnails: { width: 840, format: 'png' } });
 	});
 
-	it('forwards all options: format, quality, page, pages', async () => {
+	it('forwards all options inside the thumbnails wrap', async () => {
 		setMockHandler((_req, res) => {
 			res.writeHead(200, { 'Content-Type': 'application/json' });
 			res.end(JSON.stringify({ thumbnails: [] }));
@@ -224,9 +223,12 @@ describe('documentsThumbnails', () => {
 			pages: [1, 2, 3],
 		});
 		const body = JSON.parse(lastRequest.body);
-		expect(body.format).toBe('jpeg');
-		expect(body.quality).toBe(85);
-		expect(body.pages).toEqual([1, 2, 3]);
+		expect(body.thumbnails).toEqual({
+			width: 320,
+			format: 'jpeg',
+			quality: 85,
+			pages: [1, 2, 3],
+		});
 	});
 
 	it('unwraps the server { thumbnails: [...] } envelope and returns Thumbnail[]', async () => {
