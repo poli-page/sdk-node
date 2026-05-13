@@ -73,11 +73,11 @@ export async function documentsPreview(
 
 /**
  * Implementation of `client.documents.thumbnails`. Wired by
- * `createDocumentsNamespace` (Task 7).
+ * `createDocumentsNamespace`.
  *
- * POSTs `/v1/documents/:id/thumbnails` with the options object as the
- * request body. Unwraps the server envelope `{ thumbnails: [...] }` and
- * returns the array. Spec §6.3.
+ * POSTs `/v1/documents/:id/thumbnails` with the options object nested
+ * under a `thumbnails` key (deployed-API wire shape). Unwraps the server
+ * envelope `{ thumbnails: [...] }` from the response and returns the array.
  */
 export async function documentsThumbnails(
 	ctx: SdkContext,
@@ -86,7 +86,7 @@ export async function documentsThumbnails(
 ): Promise<Thumbnail[]> {
 	const response = await ctx.post(
 		`/v1/documents/${encodeURIComponent(id)}/thumbnails`,
-		options,
+		{ thumbnails: options },
 	);
 	const result = (await response.json()) as { thumbnails: Thumbnail[] };
 	return result.thumbnails;
