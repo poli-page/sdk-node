@@ -71,8 +71,12 @@ export function buildHeaders(
 	idempotencyKey: string | undefined,
 	userAgent: string,
 ): Record<string, string> {
+	// `path` is intentionally unused — every SDK request goes to a
+	// JSON-returning endpoint. PDF bytes come from a separate plain `fetch`
+	// to the presigned S3 URL outside `buildHeaders`'s scope.
+	void path;
 	const headers: Record<string, string> = {
-		Accept: path === '/v1/render/pdf' ? 'application/pdf' : 'application/json',
+		Accept: 'application/json',
 		Authorization: `Bearer ${apiKey}`,
 		'User-Agent': userAgent,
 	};

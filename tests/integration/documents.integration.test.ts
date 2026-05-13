@@ -3,6 +3,13 @@ import { PoliPage, PoliPageError } from '../../src/index.js';
 
 const apiKey = process.env.POLI_PAGE_API_KEY;
 const baseUrl = process.env.POLI_PAGE_BASE_URL ?? 'https://api-develop.poli.page';
+
+// Integration tests need a real, published template in your develop org.
+// Override these via env vars if your project/template/version differ.
+const project = process.env.POLI_PAGE_TEST_PROJECT ?? 'invoice-demo';
+const template = process.env.POLI_PAGE_TEST_TEMPLATE ?? 'invoice';
+const version = process.env.POLI_PAGE_TEST_VERSION ?? '1.0.0';
+
 const describeIfKey = apiKey ? describe : describe.skip;
 
 describeIfKey('integration: documents.* round trip', () => {
@@ -11,7 +18,7 @@ describeIfKey('integration: documents.* round trip', () => {
 
 		// 1. Render and store a document.
 		const created = await client.render.document({
-			template: '<h1>Integration {{ id }}</h1>',
+			project, template, version,
 			data: { id: Date.now() },
 			metadata: { source: 'documents integration test' },
 		});
@@ -34,9 +41,9 @@ describeIfKey('integration: documents.* round trip', () => {
 		expect(thumbs.length).toBeGreaterThan(0);
 		expect(thumbs[0]?.contentType).toBe('image/png');
 
-		// 5. documents.preview returns html + totalPages.
+		// 5. documents.preview returns html + pageCount.
 		const preview = await client.documents.preview(created.documentId);
-		expect(preview.totalPages).toBeGreaterThan(0);
+		expect(preview.pageCount).toBeGreaterThan(0);
 		expect(typeof preview.html).toBe('string');
 
 		// 6. Soft-delete.
@@ -49,7 +56,10 @@ describeIfKey('integration: documents.* round trip', () => {
 		} catch (err) {
 			expect(err).toBeInstanceOf(PoliPageError);
 			expect((err as PoliPageError).status).toBe(410);
-			expect((err as PoliPageError).code).toBe('GONE');
+			// The deployed API may surface this code as 'GONE' or
+			// 'DOCUMENT_GONE' depending on the API version. Both are
+			// valid; assert the family rather than a single string.
+			expect(['GONE', 'DOCUMENT_GONE']).toContain((err as PoliPageError).code);
 		}
 	});
 });

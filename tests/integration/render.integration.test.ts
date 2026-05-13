@@ -7,13 +7,20 @@ import { renderToFile } from '../../src/node.js';
 
 const apiKey = process.env.POLI_PAGE_API_KEY;
 const baseUrl = process.env.POLI_PAGE_BASE_URL ?? 'https://api-develop.poli.page';
+
+// Integration tests need a real, published template in your develop org.
+// Override these via env vars if your project/template/version differ.
+const project = process.env.POLI_PAGE_TEST_PROJECT ?? 'invoice-demo';
+const template = process.env.POLI_PAGE_TEST_TEMPLATE ?? 'invoice';
+const version = process.env.POLI_PAGE_TEST_VERSION ?? '1.0.0';
+
 const describeIfKey = apiKey ? describe : describe.skip;
 
 describeIfKey('integration: develop API', () => {
-	it('renders a real PDF (Inline mode, %PDF magic bytes, > 1KB)', async () => {
+	it('renders a real PDF (project mode, %PDF magic bytes, > 1KB)', async () => {
 		const client = new PoliPage({ apiKey: apiKey!, baseUrl });
 		const pdf = await client.render.pdf({
-			template: '<h1>{{ name }}</h1>',
+			project, template, version,
 			data: { name: 'Integration Test' },
 		});
 		expect(pdf).toBeInstanceOf(Uint8Array);
@@ -21,8 +28,10 @@ describeIfKey('integration: develop API', () => {
 		expect(new TextDecoder().decode(pdf.subarray(0, 4))).toBe('%PDF');
 	});
 
-	it('preview returns html and totalPages > 0', async () => {
+	it('preview returns html + totalPages + environment', async () => {
 		const client = new PoliPage({ apiKey: apiKey!, baseUrl });
+		// render.preview accepts inline mode — keep this test inline-mode to
+		// exercise that path (no project/template setup required).
 		const result = await client.render.preview({
 			template: '<p>{{ name }}</p>',
 			data: { name: 'Preview Test' },
@@ -30,12 +39,13 @@ describeIfKey('integration: develop API', () => {
 		expect(typeof result.html).toBe('string');
 		expect(result.html.length).toBeGreaterThan(0);
 		expect(result.totalPages).toBeGreaterThan(0);
+		expect(['sandbox', 'live']).toContain(result.environment);
 	});
 
 	it('bad API key produces PoliPageError with status 401', async () => {
 		const client = new PoliPage({ apiKey: 'pp_test_invalid_xxx', baseUrl, maxRetries: 0 });
 		try {
-			await client.render.pdf({ template: '<p>x</p>', data: {} });
+			await client.render.pdf({ project, template, version, data: {} });
 			expect.fail('Should have thrown');
 		} catch (err) {
 			expect(err).toBeInstanceOf(PoliPageError);
@@ -49,7 +59,11 @@ describeIfKey('integration: develop API', () => {
 		const tempDir = await mkdtemp(join(tmpdir(), 'poli-sdk-int-'));
 		const out = join(tempDir, 'integration.pdf');
 		try {
-			await renderToFile(client, { template: '<p>integration</p>', data: {} }, out);
+			await renderToFile(
+				client,
+				{ project, template, version, data: { name: 'renderToFile' } },
+				out,
+			);
 			const s = await stat(out);
 			expect(s.size).toBeGreaterThan(1000);
 			const content = await readFile(out);
@@ -62,7 +76,7 @@ describeIfKey('integration: develop API', () => {
 	it('render.document stores a PDF and returns a descriptor with downloadable bytes', async () => {
 		const client = new PoliPage({ apiKey: apiKey!, baseUrl });
 		const doc = await client.render.document({
-			template: '<h1>Integration {{ name }}</h1>',
+			project, template, version,
 			data: { name: 'render.document' },
 			metadata: { source: 'sdk-node integration test' },
 		});
