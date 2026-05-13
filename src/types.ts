@@ -79,8 +79,17 @@ export type RenderInput = ProjectModeInput | InlineModeInput;
 export interface PreviewResult {
 	html: string;
 	totalPages: number;
-	/** Echoed back when `metadata` was supplied on the input. */
-	metadata?: RenderMetadata;
+	environment: 'sandbox' | 'live';
+}
+
+/**
+ * Result of `client.documents.preview(id)`. The deployed API uses
+ * `pageCount` (singular) here — different from `render.preview`'s
+ * `totalPages` field.
+ */
+export interface DocumentPreviewResult {
+	html: string;
+	pageCount: number;
 }
 
 /**
@@ -95,13 +104,13 @@ export interface RawDocumentDescriptor {
 	projectId: string | null;
 	projectSlug: string | null;
 	templateId: string | null;
-	templateSlug: string;
+	templateSlug: string | null;
 	version: string | null;
 	environment: 'sandbox' | 'live';
-	apiKeyId: string;
+	apiKeyId: string | null;
 	format: PageFormat;
-	orientation: Orientation;
-	locale: string;
+	orientation: Orientation | null;
+	locale: string | null;
 	pageCount: number;
 	sizeBytes: number;
 	createdAt: string;
@@ -143,8 +152,6 @@ export interface ThumbnailOptions {
 	format?: 'png' | 'jpeg';
 	/** JPEG quality 1-100. Only valid when `format` is `jpeg`. */
 	quality?: number;
-	/** Generate only this page (1-based). */
-	page?: number;
 	/** Generate only these pages (1-based). */
 	pages?: number[];
 }
@@ -197,7 +204,9 @@ export interface PoliPageOptions {
  */
 export interface RenderNamespace {
 	/**
-	 * Render a PDF and return its raw bytes. Calls `POST /v1/render/pdf`.
+	 * Render a PDF and return its raw bytes. Two HTTP calls under the hood:
+	 * `POST /v1/render` to produce a stored document, then `GET presignedPdfUrl`
+	 * to fetch the bytes.
 	 *
 	 * @example
 	 * ```ts
@@ -209,12 +218,10 @@ export interface RenderNamespace {
 	 * });
 	 * ```
 	 */
-	pdf(input: RenderInput): Promise<Uint8Array>;
+	pdf(input: ProjectModeInput): Promise<Uint8Array>;
 
 	/**
-	 * Render a PDF and return a `ReadableStream` of its bytes. Use when piping
-	 * directly to a destination (HTTP response, S3 upload, file) without
-	 * buffering.
+	 * Like `render.pdf` but returns a `ReadableStream` of the PDF bytes.
 	 *
 	 * @example
 	 * ```ts
@@ -224,14 +231,15 @@ export interface RenderNamespace {
 	 * return new Response(stream, { headers: { 'content-type': 'application/pdf' } });
 	 * ```
 	 */
-	pdfStream(input: RenderInput): Promise<ReadableStream<Uint8Array>>;
+	pdfStream(input: ProjectModeInput): Promise<ReadableStream<Uint8Array>>;
 
 	/**
-	 * Generate paginated HTML preview output. Calls `POST /v1/render/preview`.
+	 * Generate paginated HTML preview output. Accepts both project mode
+	 * and inline mode. Calls `POST /v1/render/preview`.
 	 *
 	 * @example
 	 * ```ts
-	 * const { html, totalPages } = await client.render.preview({
+	 * const { html, totalPages, environment } = await client.render.preview({
 	 *   project: 'billing', template: 'invoice', version: '1.0.0', data: { ... },
 	 * });
 	 * ```
@@ -239,13 +247,13 @@ export interface RenderNamespace {
 	preview(input: RenderInput): Promise<PreviewResult>;
 
 	/**
-	 * Render a PDF, store it server-side, and return a flat document descriptor
-	 * with system metadata + caller-supplied `metadata` + presigned PDF URL.
-	 * The SDK does not auto-download the PDF — call `downloadPdf()` on the
-	 * returned descriptor when you need the bytes.
+	 * Render a PDF, store it server-side, and return a flat document descriptor.
+	 * Like `render.pdf` but skips the auto-download — caller fetches the PDF
+	 * via `result.downloadPdf()` (or stores `documentId` for later via
+	 * `client.documents.get(id).downloadPdf()`).
 	 *
-	 * Calls `POST /v1/render/document`. Starter+ tier (Free tier returns
-	 * `403 STORAGE_REQUIRED`).
+	 * Calls `POST /v1/render`. Same wire endpoint as `render.pdf` — the
+	 * difference is that `pdf` chains a second fetch.
 	 *
 	 * @example
 	 * ```ts
@@ -254,10 +262,10 @@ export interface RenderNamespace {
 	 *   data: { ... },
 	 *   metadata: { customerId: 'cust_123' },
 	 * });
-	 * const pdf = await doc.downloadPdf();
+	 * await db.invoices.update({ id: 'INV-001' }, { documentId: doc.documentId });
 	 * ```
 	 */
-	document(input: RenderInput): Promise<DocumentDescriptor>;
+	document(input: ProjectModeInput): Promise<DocumentDescriptor>;
 }
 
 /**
@@ -283,10 +291,10 @@ export interface DocumentsNamespace {
 	 *
 	 * @example
 	 * ```ts
-	 * const { html, totalPages } = await client.documents.preview('doc_abc123');
+	 * const { html, pageCount } = await client.documents.preview('doc_abc123');
 	 * ```
 	 */
-	preview(id: string): Promise<PreviewResult>;
+	preview(id: string): Promise<DocumentPreviewResult>;
 
 	/**
 	 * Generate page thumbnails for a stored document. Spec §6.3.
