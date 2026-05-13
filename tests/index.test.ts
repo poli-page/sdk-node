@@ -5,15 +5,85 @@ import { PoliPage, PoliPageError } from '../src/index.js';
 let server: Server;
 let baseUrl: string;
 let lastRequest: { method: string; path: string; headers: Record<string, string>; body: string };
+/**
+ * The most recent `/v1/render` POST captured by the mock server, broken out
+ * separately from `lastRequest` because `render.pdf` makes a second HTTP call
+ * (the presigned-URL PDF fetch) that would otherwise overwrite `lastRequest`
+ * before assertions run.
+ */
+let renderRequest:
+	| { headers: Record<string, string>; body: string }
+	| undefined;
+let renderRequestBody: string | undefined;
 let mockHandler: (req: IncomingMessage, res: ServerResponse) => void;
 
 function setMockHandler(handler: typeof mockHandler) {
 	mockHandler = handler;
 }
 
-function defaultHandler(_req: IncomingMessage, res: ServerResponse) {
-	res.writeHead(200, { 'Content-Type': 'application/pdf' });
-	res.end(Buffer.from('%PDF-1.4 test'));
+/**
+ * Stub descriptor used by the default handler. Fields match the wire shape
+ * required by `RawDocumentDescriptor` in src/types.ts.
+ */
+const sampleDescriptor = {
+	documentId: 'doc_default',
+	organizationId: 'org_x',
+	projectId: 'proj_p',
+	projectSlug: 'p',
+	templateId: 'tpl_t',
+	templateSlug: 't',
+	version: '1.0.0',
+	environment: 'sandbox',
+	apiKeyId: 'key_x',
+	format: 'A4',
+	orientation: 'portrait',
+	locale: 'en-US',
+	pageCount: 1,
+	sizeBytes: 100,
+	createdAt: '2026-01-01T00:00:00Z',
+	metadata: {},
+	expiresAt: '2026-01-01T00:15:00Z',
+};
+
+/**
+ * Routing default handler for the two-call render flow. POST /v1/render
+ * returns a JSON descriptor pointing at /presigned/default.pdf; the
+ * presigned URL returns PDF bytes. Preview, documents.get, and documents.delete
+ * are also routed here so tests that don't override the handler still work.
+ */
+function defaultHandler(req: IncomingMessage, res: ServerResponse) {
+	if (req.url === '/v1/render') {
+		res.writeHead(200, { 'Content-Type': 'application/json' });
+		res.end(
+			JSON.stringify({
+				...sampleDescriptor,
+				presignedPdfUrl: `${baseUrl}/presigned/default.pdf`,
+			}),
+		);
+		return;
+	}
+	if (req.url?.startsWith('/presigned/')) {
+		res.writeHead(200, { 'Content-Type': 'application/pdf' });
+		res.end(Buffer.from('%PDF-1.4 test'));
+		return;
+	}
+	if (req.url === '/v1/render/preview') {
+		res.writeHead(200, { 'Content-Type': 'application/json' });
+		res.end(JSON.stringify({ html: '', totalPages: 1, environment: 'sandbox' }));
+		return;
+	}
+	if (req.url?.startsWith('/v1/documents/')) {
+		res.writeHead(200, { 'Content-Type': 'application/json' });
+		res.end(
+			JSON.stringify({
+				...sampleDescriptor,
+				presignedPdfUrl: `${baseUrl}/presigned/default.pdf`,
+			}),
+		);
+		return;
+	}
+	res.writeHead(404);
+	res.end();
 }
 
 beforeAll(async () => {
@@ -28,6 +98,13 @@ beforeAll(async () => {
 				headers: req.headers as Record<string, string>,
 				body,
 			};
+			if (req.url === '/v1/render' && req.method === 'POST') {
+				renderRequest = {
+					headers: req.headers as Record<string, string>,
+					body,
+				};
+				renderRequestBody = body;
+			}
 			mockHandler(req, res);
 		});
 	});
@@ -42,11 +119,37 @@ beforeAll(async () => {
 
 afterEach(() => {
 	mockHandler = defaultHandler;
+	renderRequest = undefined;
+	renderRequestBody = undefined;
 });
 
 afterAll(async () => {
 	await new Promise<void>((resolve) => server.close(() => resolve()));
 });
+
+/**
+ * Write a 200 descriptor JSON response on the given ServerResponse, pointing
+ * at the test server's `/presigned/ok.pdf` URL. Used by retry-success tests
+ * once their fail-counter has been exhausted.
+ */
+function respondDescriptor(res: ServerResponse) {
+	res.writeHead(200, { 'Content-Type': 'application/json' });
+	res.end(
+		JSON.stringify({
+			...sampleDescriptor,
+			presignedPdfUrl: `${baseUrl}/presigned/ok.pdf`,
+		}),
+	);
+}
+
+/**
+ * Write a 200 PDF response on the given ServerResponse. Used by retry-success
+ * tests to serve the presigned-URL fetch leg of the two-call render flow.
+ */
+function respondPdf(res: ServerResponse) {
+	res.writeHead(200, { 'Content-Type': 'application/pdf' });
+	res.end(Buffer.from('%PDF-1.4 ok'));
+}
 
 describe('PoliPage SDK', () => {
 	describe('constructor', () => {
@@ -66,7 +169,9 @@ describe('PoliPage SDK', () => {
 		it('returns a PDF Uint8Array', async () => {
 			const client = new PoliPage({ apiKey: 'pp_test_abc', baseUrl });
 			const pdf = await client.render.pdf({
-				template: '<div>{{ name }}</div>',
+				project: 'p',
+				template: 't',
+				version: '1.0.0',
 				data: { name: 'Test' },
 			});
 			expect(pdf).toBeInstanceOf(Uint8Array);
@@ -75,20 +180,22 @@ describe('PoliPage SDK', () => {
 
 		it('sends Authorization header with Bearer token', async () => {
 			const client = new PoliPage({ apiKey: 'pp_test_xyz', baseUrl });
-			await client.render.pdf({ template: '<p>hi</p>', data: {} });
-			expect(lastRequest.headers.authorization).toBe('Bearer pp_test_xyz');
+			await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
+			expect(renderRequest!.headers.authorization).toBe('Bearer pp_test_xyz');
 		});
 
 		it('sends template, data, format, and orientation', async () => {
 			const client = new PoliPage({ apiKey: 'pp_test_abc', baseUrl });
 			await client.render.pdf({
-				template: '<p>{{ x }}</p>',
+				project: 'p',
+				template: 't',
+				version: '1.0.0',
 				data: { x: 1 },
 				format: 'A5',
 				orientation: 'landscape',
 			});
-			const body = JSON.parse(lastRequest.body);
-			expect(body.template).toBe('<p>{{ x }}</p>');
+			const body = JSON.parse(renderRequestBody!);
+			expect(body.template).toBe('t');
 			expect(body.data).toEqual({ x: 1 });
 			expect(body.format).toBe('A5');
 			expect(body.orientation).toBe('landscape');
@@ -99,9 +206,10 @@ describe('PoliPage SDK', () => {
 			await client.render.pdf({
 				project: 'billing',
 				template: 'invoice',
+				version: '1.0.0',
 				data: { amount: 100 },
 			});
-			const body = JSON.parse(lastRequest.body);
+			const body = JSON.parse(renderRequestBody!);
 			expect(body.project).toBe('billing');
 			expect(body.template).toBe('invoice');
 		});
@@ -113,7 +221,7 @@ describe('PoliPage SDK', () => {
 			});
 
 			const client = new PoliPage({ apiKey: 'pp_test_abc', baseUrl });
-			await expect(client.render.pdf({ template: '<p>x</p>', data: {} })).rejects.toBeInstanceOf(
+			await expect(client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} })).rejects.toBeInstanceOf(
 				PoliPageError,
 			);
 		});
@@ -126,7 +234,7 @@ describe('PoliPage SDK', () => {
 
 			const client = new PoliPage({ apiKey: 'pp_test_bad', baseUrl });
 			try {
-				await client.render.pdf({ template: '<p>x</p>', data: {} });
+				await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
 				expect.fail('Should have thrown');
 			} catch (error) {
 				expect(error).toBeInstanceOf(PoliPageError);
@@ -146,7 +254,7 @@ describe('PoliPage SDK', () => {
 
 			const client = new PoliPage({ apiKey: 'pp_test_abc', baseUrl, maxRetries: 0 });
 			try {
-				await client.render.pdf({ template: '<p>x</p>', data: {} });
+				await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
 				expect.fail('Should have thrown');
 			} catch (error) {
 				expect((error as PoliPageError).requestId).toBe('req_abc123');
@@ -159,24 +267,13 @@ describe('PoliPage SDK', () => {
 				res.end('<html>upstream gone</html>');
 			});
 			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 0 });
-			await expect(client.render.pdf({ template: '<p>x</p>', data: {} })).rejects.toMatchObject({
+			await expect(client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} })).rejects.toMatchObject({
 				name: 'PoliPageError',
 				code: 'INTERNAL_ERROR',
 				status: 502,
 			});
 		});
 
-		it('rejects 2xx render response if Content-Type is not application/pdf', async () => {
-			setMockHandler((_req, res) => {
-				res.writeHead(200, { 'Content-Type': 'text/html' });
-				res.end('<html>oops</html>');
-			});
-			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 0 });
-			await expect(client.render.pdf({ template: '<p>x</p>', data: {} })).rejects.toMatchObject({
-				name: 'PoliPageError',
-				code: 'INTERNAL_ERROR',
-			});
-		});
 	});
 
 	describe('render.preview()', () => {
@@ -199,7 +296,7 @@ describe('PoliPage SDK', () => {
 			});
 
 			const client = new PoliPage({ apiKey: 'pp_test_abc', baseUrl });
-			await client.render.preview({ template: '<p>x</p>', data: {} });
+			await client.render.preview({ project: 'p', template: 't', version: '1.0.0', data: {} });
 			expect(lastRequest.path).toBe('/v1/render/preview');
 		});
 	});
@@ -207,45 +304,55 @@ describe('PoliPage SDK', () => {
 	describe('HTTP transport headers', () => {
 		it('sends User-Agent header in the form poli-page-sdk-node/<version>', async () => {
 			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
-			await client.render.pdf({ template: '<p>x</p>', data: {} });
-			const ua = lastRequest.headers['user-agent'];
+			await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
+			const ua = renderRequest!.headers['user-agent'];
 			expect(ua).toMatch(/^poli-page-sdk-node\/\d+\.\d+\.\d+/);
 		});
 
-		it('sends Accept: application/pdf for render', async () => {
+		it('sends Accept: application/json for render (descriptor endpoint returns JSON)', async () => {
 			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
-			await client.render.pdf({ template: '<p>x</p>', data: {} });
-			expect(lastRequest.headers.accept).toBe('application/pdf');
+			await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
+			expect(renderRequest!.headers.accept).toBe('application/json');
 		});
 
 		it('sends Accept: application/json for preview', async () => {
 			setMockHandler((_req, res) => {
 				res.writeHead(200, { 'Content-Type': 'application/json' });
-				res.end(JSON.stringify({ html: '', totalPages: 1 }));
+				res.end(JSON.stringify({ html: '', totalPages: 1, environment: 'sandbox' }));
 			});
 			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
-			await client.render.preview({ template: '<p>x</p>', data: {} });
+			await client.render.preview({ project: 'p', template: 't', version: '1.0.0', data: {} });
 			expect(lastRequest.headers.accept).toBe('application/json');
 		});
 
 		it('sends Content-Type: application/json on every POST', async () => {
 			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
-			await client.render.pdf({ template: '<p>x</p>', data: {} });
-			expect(lastRequest.headers['content-type']).toBe('application/json');
+			await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
+			expect(renderRequest!.headers['content-type']).toBe('application/json');
 		});
 	});
 
 	describe('retry logic', () => {
 		it('retries on 500 errors', async () => {
 			let attempts = 0;
-			setMockHandler((_req, res) => {
+			setMockHandler((req, res) => {
+				if (req.url?.startsWith('/presigned/')) {
+					res.writeHead(200, { 'Content-Type': 'application/pdf' });
+					res.end(Buffer.from('%PDF-1.4 ok'));
+					return;
+				}
 				attempts++;
 				if (attempts < 3) {
 					res.writeHead(500, { 'Content-Type': 'application/json' });
 					res.end(JSON.stringify({ code: 'internal_error' }));
 				} else {
-					res.writeHead(200, { 'Content-Type': 'application/pdf' });
-					res.end(Buffer.from('%PDF-1.4 ok'));
+					res.writeHead(200, { 'Content-Type': 'application/json' });
+					res.end(
+						JSON.stringify({
+							...sampleDescriptor,
+							presignedPdfUrl: `${baseUrl}/presigned/ok.pdf`,
+						}),
+					);
 				}
 			});
 
@@ -255,7 +362,7 @@ describe('PoliPage SDK', () => {
 				maxRetries: 3,
 				retryDelay: 10,
 			});
-			const pdf = await client.render.pdf({ template: '<p>x</p>', data: {} });
+			const pdf = await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
 			expect(attempts).toBe(3);
 			expect(pdf).toBeInstanceOf(Uint8Array);
 		});
@@ -274,22 +381,25 @@ describe('PoliPage SDK', () => {
 				maxRetries: 3,
 				retryDelay: 10,
 			});
-			await expect(client.render.pdf({ template: '<p>x</p>', data: {} })).rejects.toThrow();
+			await expect(client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} })).rejects.toThrow();
 			expect(attempts).toBe(1);
 		});
 
 		it('honors Retry-After header in seconds (uses it instead of exponential backoff)', async () => {
 			let attempts = 0;
 			const startTimes: number[] = [];
-			setMockHandler((_req, res) => {
+			setMockHandler((req, res) => {
+				if (req.url?.startsWith('/presigned/')) {
+					respondPdf(res);
+					return;
+				}
 				startTimes.push(Date.now());
 				attempts++;
 				if (attempts < 2) {
 					res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '0' });
 					res.end(JSON.stringify({ code: 'unavailable' }));
 				} else {
-					res.writeHead(200, { 'Content-Type': 'application/pdf' });
-					res.end(Buffer.from('%PDF-1.4 ok'));
+					respondDescriptor(res);
 				}
 			});
 			const client = new PoliPage({
@@ -299,7 +409,7 @@ describe('PoliPage SDK', () => {
 				retryDelay: 10_000, // would make exponential backoff at least 10s — but Retry-After: 0 should override
 			});
 			const t0 = Date.now();
-			await client.render.pdf({ template: '<p>x</p>', data: {} });
+			await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
 			const elapsed = Date.now() - t0;
 			expect(elapsed).toBeLessThan(500); // Retry-After: 0 → immediate retry
 		});
@@ -318,7 +428,7 @@ describe('PoliPage SDK', () => {
 			});
 
 			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 1 });
-			const promise = client.render.pdf({ template: '<p>x</p>', data: {} });
+			const promise = client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
 			// Suppress the unhandled rejection — the promise will reject in ~30s.
 			promise.catch(() => {});
 
@@ -338,7 +448,11 @@ describe('PoliPage SDK', () => {
 			// Integration: verify the SDK accepts HTTP-date format for Retry-After.
 			// Use a past-dated HTTP-date (0ms delay) so the test stays fast.
 			let attempts = 0;
-			setMockHandler((_req, res) => {
+			setMockHandler((req, res) => {
+				if (req.url?.startsWith('/presigned/')) {
+					respondPdf(res);
+					return;
+				}
 				attempts++;
 				if (attempts < 2) {
 					const immediateDate = new Date(Date.now() - 1_000).toUTCString();
@@ -348,8 +462,7 @@ describe('PoliPage SDK', () => {
 					});
 					res.end(JSON.stringify({ code: 'unavailable' }));
 				} else {
-					res.writeHead(200, { 'Content-Type': 'application/pdf' });
-					res.end(Buffer.from('%PDF-1.4 ok'));
+					respondDescriptor(res);
 				}
 			});
 			const client = new PoliPage({
@@ -359,25 +472,28 @@ describe('PoliPage SDK', () => {
 				retryDelay: 10_000, // big — past-dated Retry-After (0ms) should override
 			});
 			const t0 = Date.now();
-			await client.render.pdf({ template: '<p>x</p>', data: {} });
+			await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
 			expect(Date.now() - t0).toBeLessThan(500);
 			expect(attempts).toBe(2);
 		});
 
 		it('retries on 429 with Retry-After delay', async () => {
 			let attempts = 0;
-			setMockHandler((_req, res) => {
+			setMockHandler((req, res) => {
+				if (req.url?.startsWith('/presigned/')) {
+					respondPdf(res);
+					return;
+				}
 				attempts++;
 				if (attempts < 2) {
 					res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '0' });
 					res.end(JSON.stringify({ code: 'rate_limited' }));
 				} else {
-					res.writeHead(200, { 'Content-Type': 'application/pdf' });
-					res.end(Buffer.from('%PDF-1.4 ok'));
+					respondDescriptor(res);
 				}
 			});
 			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 2, retryDelay: 10 });
-			const pdf = await client.render.pdf({ template: '<p>x</p>', data: {} });
+			const pdf = await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
 			expect(attempts).toBe(2);
 			expect(pdf).toBeInstanceOf(Uint8Array);
 		});
@@ -385,14 +501,17 @@ describe('PoliPage SDK', () => {
 		it('treats past-dated Retry-After as immediate retry', async () => {
 			const pastDate = new Date(Date.now() - 60_000).toUTCString();
 			let attempts = 0;
-			setMockHandler((_req, res) => {
+			setMockHandler((req, res) => {
+				if (req.url?.startsWith('/presigned/')) {
+					respondPdf(res);
+					return;
+				}
 				attempts++;
 				if (attempts < 2) {
 					res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': pastDate });
 					res.end(JSON.stringify({ code: 'unavailable' }));
 				} else {
-					res.writeHead(200, { 'Content-Type': 'application/pdf' });
-					res.end(Buffer.from('%PDF-1.4 ok'));
+					respondDescriptor(res);
 				}
 			});
 			const client = new PoliPage({
@@ -402,7 +521,7 @@ describe('PoliPage SDK', () => {
 				retryDelay: 10_000, // big — should be skipped because Retry-After is present (even if past-dated)
 			});
 			const t0 = Date.now();
-			await client.render.pdf({ template: '<p>x</p>', data: {} });
+			await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
 			const elapsed = Date.now() - t0;
 			expect(elapsed).toBeLessThan(500);
 		});
@@ -412,19 +531,22 @@ describe('PoliPage SDK', () => {
 			const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
 
 			let attempts = 0;
-			setMockHandler((_req, res) => {
+			setMockHandler((req, res) => {
+				if (req.url?.startsWith('/presigned/')) {
+					respondPdf(res);
+					return;
+				}
 				attempts++;
 				if (attempts < 2) {
 					res.writeHead(503, { 'Content-Type': 'application/json' }); // no Retry-After
 					res.end(JSON.stringify({ code: 'unavailable' }));
 				} else {
-					res.writeHead(200, { 'Content-Type': 'application/pdf' });
-					res.end(Buffer.from('%PDF-1.4 ok'));
+					respondDescriptor(res);
 				}
 			});
 
 			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 2, retryDelay: 100 });
-			await client.render.pdf({ template: '<p>x</p>', data: {} });
+			await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
 
 			// Find the backoff delay among setTimeout calls (filter to range we expect)
 			const delays = setTimeoutSpy.mock.calls
@@ -443,19 +565,22 @@ describe('PoliPage SDK', () => {
 			const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
 
 			let attempts = 0;
-			setMockHandler((_req, res) => {
+			setMockHandler((req, res) => {
+				if (req.url?.startsWith('/presigned/')) {
+					respondPdf(res);
+					return;
+				}
 				attempts++;
 				if (attempts < 2) {
 					res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '0' });
 					res.end(JSON.stringify({ code: 'unavailable' }));
 				} else {
-					res.writeHead(200, { 'Content-Type': 'application/pdf' });
-					res.end(Buffer.from('%PDF-1.4 ok'));
+					respondDescriptor(res);
 				}
 			});
 
 			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 2 });
-			await client.render.pdf({ template: '<p>x</p>', data: {} });
+			await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
 
 			// The delay should be exactly 0 (server-explicit Retry-After: 0, no jitter)
 			const has0 = setTimeoutSpy.mock.calls.some((c) => c[1] === 0);
@@ -468,8 +593,8 @@ describe('PoliPage SDK', () => {
 	describe('Idempotency-Key', () => {
 		it('auto-generates an Idempotency-Key header in UUID v4 format', async () => {
 			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
-			await client.render.pdf({ template: '<p>x</p>', data: {} });
-			const key = lastRequest.headers['idempotency-key'];
+			await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
+			const key = renderRequest!.headers['idempotency-key'];
 			expect(key).toMatch(
 				/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
 			);
@@ -479,14 +604,23 @@ describe('PoliPage SDK', () => {
 			const keys: string[] = [];
 			let attempts = 0;
 			setMockHandler((req, res) => {
+				if (req.url?.startsWith('/presigned/')) {
+					respondPdf(res);
+					return;
+				}
 				keys.push(req.headers['idempotency-key'] as string);
 				attempts++;
 				if (attempts < 3) {
 					res.writeHead(503, { 'Content-Type': 'application/json' });
 					res.end(JSON.stringify({ code: 'unavailable' }));
 				} else {
-					res.writeHead(200, { 'Content-Type': 'application/pdf' });
-					res.end(Buffer.from('%PDF-1.4 ok'));
+					res.writeHead(200, { 'Content-Type': 'application/json' });
+					res.end(
+						JSON.stringify({
+							...sampleDescriptor,
+							presignedPdfUrl: `${baseUrl}/presigned/ok.pdf`,
+						}),
+					);
 				}
 			});
 			const client = new PoliPage({
@@ -495,15 +629,15 @@ describe('PoliPage SDK', () => {
 				maxRetries: 3,
 				retryDelay: 10,
 			});
-			await client.render.pdf({ template: '<p>x</p>', data: {} });
+			await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
 			expect(keys).toHaveLength(3);
 			expect(new Set(keys).size).toBe(1);
 		});
 
 		it('uses caller-provided idempotencyKey when set', async () => {
 			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
-			await client.render.pdf({ template: '<p>x</p>', data: {}, idempotencyKey: 'caller-key-123' });
-			expect(lastRequest.headers['idempotency-key']).toBe('caller-key-123');
+			await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {}, idempotencyKey: 'caller-key-123' });
+			expect(renderRequest!.headers['idempotency-key']).toBe('caller-key-123');
 		});
 	});
 
@@ -515,7 +649,7 @@ describe('PoliPage SDK', () => {
 			});
 			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 0 });
 			const controller = new AbortController();
-			const promise = client.render.pdf({ template: '<p>x</p>', data: {}, signal: controller.signal });
+			const promise = client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {}, signal: controller.signal });
 			setTimeout(() => controller.abort(), 50);
 			await expect(promise).rejects.toMatchObject({ name: 'PoliPageError', code: 'aborted' });
 		});
@@ -525,7 +659,7 @@ describe('PoliPage SDK', () => {
 			const controller = new AbortController();
 			controller.abort();
 			await expect(
-				client.render.pdf({ template: '<p>x</p>', data: {}, signal: controller.signal }),
+				client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {}, signal: controller.signal }),
 			).rejects.toMatchObject({ name: 'PoliPageError', code: 'aborted' });
 		});
 
@@ -534,7 +668,7 @@ describe('PoliPage SDK', () => {
 			const controller = new AbortController();
 			controller.abort();
 			try {
-				await client.render.pdf({ template: '<p>x</p>', data: {}, signal: controller.signal });
+				await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {}, signal: controller.signal });
 				expect.fail('Should have thrown');
 			} catch (err) {
 				expect((err as PoliPageError).status).toBeUndefined();
@@ -545,15 +679,15 @@ describe('PoliPage SDK', () => {
 	describe('render.pdfStream()', () => {
 		it('returns a ReadableStream', async () => {
 			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
-			const stream = await client.render.pdfStream({ template: '<p>x</p>', data: {} });
+			const stream = await client.render.pdfStream({ project: 'p', template: 't', version: '1.0.0', data: {} });
 			expect(stream).toBeInstanceOf(ReadableStream);
 		});
 
 		it('emits the same bytes as render()', async () => {
 			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
-			const bytes = await client.render.pdf({ template: '<p>x</p>', data: {} });
+			const bytes = await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
 
-			const stream = await client.render.pdfStream({ template: '<p>x</p>', data: {} });
+			const stream = await client.render.pdfStream({ project: 'p', template: 't', version: '1.0.0', data: {} });
 			const chunks: Uint8Array[] = [];
 			for await (const chunk of stream as unknown as AsyncIterable<Uint8Array>) {
 				chunks.push(chunk);
@@ -574,20 +708,10 @@ describe('PoliPage SDK', () => {
 			});
 			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 0 });
 			await expect(
-				client.render.pdfStream({ template: '<p>x</p>', data: {} }),
+				client.render.pdfStream({ project: 'p', template: 't', version: '1.0.0', data: {} }),
 			).rejects.toMatchObject({ name: 'PoliPageError', code: 'VALIDATION_ERROR' });
 		});
 
-		it('rejects 2xx pdfStream response if Content-Type is not application/pdf', async () => {
-			setMockHandler((_req, res) => {
-				res.writeHead(200, { 'Content-Type': 'text/html' });
-				res.end('<html>oops</html>');
-			});
-			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl, maxRetries: 0 });
-			await expect(
-				client.render.pdfStream({ template: '<p>x</p>', data: {} }),
-			).rejects.toMatchObject({ name: 'PoliPageError', code: 'INTERNAL_ERROR' });
-		});
 	});
 
 	describe('transport verb dispatch', () => {
@@ -660,16 +784,30 @@ describe('PoliPage SDK', () => {
 				baseUrl,
 				onRequest: (e) => events.push(e),
 			});
-			await client.render.pdf({ template: '<p>x</p>', data: {} });
+			await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
+			// onRequest fires only for SDK-transport calls (here, POST /v1/render).
+			// The presigned-URL fetch leg is a plain fetch and is not hooked.
 			expect(events).toHaveLength(1);
 			expect(events[0]).toMatchObject({ method: 'POST', attempt: 1 });
-			expect(events[0].url).toContain('/v1/render/pdf');
+			expect(events[0].url).toContain('/v1/render');
 		});
 
 		it('calls onResponse with status, requestId, durationMs', async () => {
-			setMockHandler((_req, res) => {
-				res.writeHead(200, { 'Content-Type': 'application/pdf', 'x-request-id': 'req_xyz' });
-				res.end(Buffer.from('%PDF-1.4 ok'));
+			setMockHandler((req, res) => {
+				if (req.url?.startsWith('/presigned/')) {
+					respondPdf(res);
+					return;
+				}
+				res.writeHead(200, {
+					'Content-Type': 'application/json',
+					'x-request-id': 'req_xyz',
+				});
+				res.end(
+					JSON.stringify({
+						...sampleDescriptor,
+						presignedPdfUrl: `${baseUrl}/presigned/ok.pdf`,
+					}),
+				);
 			});
 			const events: { status: number; requestId?: string; durationMs: number }[] = [];
 			const client = new PoliPage({
@@ -677,7 +815,8 @@ describe('PoliPage SDK', () => {
 				baseUrl,
 				onResponse: (e) => events.push(e),
 			});
-			await client.render.pdf({ template: '<p>x</p>', data: {} });
+			await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
+			// onResponse fires only for SDK-transport calls (here, POST /v1/render).
 			expect(events).toHaveLength(1);
 			expect(events[0].status).toBe(200);
 			expect(events[0].requestId).toBe('req_xyz');
@@ -687,14 +826,17 @@ describe('PoliPage SDK', () => {
 		it('calls onRetry with attempt, delayMs, reason on retried failures', async () => {
 			const events: { attempt: number; delayMs: number; reason: PoliPageError }[] = [];
 			let attempts = 0;
-			setMockHandler((_req, res) => {
+			setMockHandler((req, res) => {
+				if (req.url?.startsWith('/presigned/')) {
+					respondPdf(res);
+					return;
+				}
 				attempts++;
 				if (attempts < 2) {
 					res.writeHead(500, { 'Content-Type': 'application/json' });
 					res.end(JSON.stringify({ code: 'oops' }));
 				} else {
-					res.writeHead(200, { 'Content-Type': 'application/pdf' });
-					res.end(Buffer.from('%PDF-1.4 ok'));
+					respondDescriptor(res);
 				}
 			});
 			const client = new PoliPage({
@@ -704,7 +846,7 @@ describe('PoliPage SDK', () => {
 				retryDelay: 5,
 				onRetry: (e) => events.push(e),
 			});
-			await client.render.pdf({ template: '<p>x</p>', data: {} });
+			await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
 			expect(events).toHaveLength(1);
 			expect(events[0].attempt).toBe(2);
 			expect(events[0].reason).toBeInstanceOf(PoliPageError);
@@ -721,7 +863,7 @@ describe('PoliPage SDK', () => {
 				baseUrl,
 				onError: (err) => errors.push(err),
 			});
-			await expect(client.render.pdf({ template: '<p>x</p>', data: {} })).rejects.toBeInstanceOf(PoliPageError);
+			await expect(client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} })).rejects.toBeInstanceOf(PoliPageError);
 			expect(errors).toHaveLength(1);
 			expect(errors[0].code).toBe('VALIDATION_ERROR');
 		});
@@ -737,7 +879,7 @@ describe('PoliPage SDK', () => {
 					throw new Error('hook blew up');
 				},
 			});
-			const pdf = await client.render.pdf({ template: '<p>x</p>', data: {} });
+			const pdf = await client.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} });
 			expect(pdf).toBeInstanceOf(Uint8Array);
 		});
 	});

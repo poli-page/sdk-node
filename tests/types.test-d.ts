@@ -5,6 +5,7 @@ import type {
 	RenderInput,
 	RenderMetadata,
 	PreviewResult,
+	DocumentPreviewResult,
 	DocumentDescriptor,
 	Thumbnail,
 	ThumbnailOptions,
@@ -19,16 +20,34 @@ test('InlineModeInput requires template, forbids project', () => {
 	expectTypeOf<{ template: string; data: Record<string, unknown> }>().toMatchTypeOf<InlineModeInput>();
 });
 
-test('render.pdf rejects invalid combos at compile time', () => {
+test('render.pdf rejects inline mode at compile time', () => {
 	const c = new PoliPage({ apiKey: 'pp_test_x' });
-	// Valid inline mode:
+	// @ts-expect-error — inline mode not allowed on /v1/render-based methods
 	void c.render.pdf({ template: '<p>x</p>', data: {} });
 	// Valid project mode:
-	void c.render.pdf({ project: 'billing', template: 'invoice', data: {} });
-	// @ts-expect-error — project mode requires template
-	void c.render.pdf({ project: 'billing', data: {} });
-	// @ts-expect-error — at least template required
-	void c.render.pdf({ data: {} });
+	void c.render.pdf({ project: 'billing', template: 'invoice', version: '1.0.0', data: {} });
+});
+
+test('render.pdfStream rejects inline mode at compile time', () => {
+	const c = new PoliPage({ apiKey: 'pp_test_x' });
+	// @ts-expect-error — inline mode not allowed on /v1/render-based methods
+	void c.render.pdfStream({ template: '<p>x</p>', data: {} });
+	// Valid project mode:
+	void c.render.pdfStream({ project: 'billing', template: 'invoice', version: '1.0.0', data: {} });
+});
+
+test('render.document rejects inline mode at compile time', () => {
+	const c = new PoliPage({ apiKey: 'pp_test_x' });
+	// @ts-expect-error — inline mode not allowed on /v1/render-based methods
+	void c.render.document({ template: '<p>x</p>', data: {} });
+	// Valid project mode:
+	void c.render.document({ project: 'billing', template: 'invoice', version: '1.0.0', data: {} });
+});
+
+test('render.preview still accepts both modes', () => {
+	const c = new PoliPage({ apiKey: 'pp_test_x' });
+	void c.render.preview({ template: '<p>x</p>', data: {} });
+	void c.render.preview({ project: 'billing', template: 'invoice', data: {} });
 });
 
 test('render.pdf returns Promise<Uint8Array>', () => {
@@ -52,8 +71,12 @@ test('RenderInput has optional metadata field', () => {
 	expectTypeOf<RenderInput['metadata']>().toEqualTypeOf<RenderMetadata | undefined>();
 });
 
-test('PreviewResult.metadata is optional RenderMetadata', () => {
-	expectTypeOf<PreviewResult['metadata']>().toEqualTypeOf<RenderMetadata | undefined>();
+test('PreviewResult has html, totalPages, environment (no metadata echo)', () => {
+	expectTypeOf<PreviewResult>().toMatchTypeOf<{
+		html: string;
+		totalPages: number;
+		environment: 'sandbox' | 'live';
+	}>();
 });
 
 test('render.pdfStream returns Promise<ReadableStream<Uint8Array>>', () => {
@@ -111,9 +134,13 @@ test('client.documents.get returns Promise<DocumentDescriptor>', () => {
 	expectTypeOf(c.documents.get).returns.resolves.toMatchTypeOf<DocumentDescriptor>();
 });
 
-test('client.documents.preview returns Promise<PreviewResult>', () => {
+test('client.documents.preview returns DocumentPreviewResult (pageCount, not totalPages)', () => {
 	const c = new PoliPage({ apiKey: 'pp_test_x' });
-	expectTypeOf(c.documents.preview).returns.resolves.toMatchTypeOf<PreviewResult>();
+	expectTypeOf(c.documents.preview).returns.resolves.toMatchTypeOf<DocumentPreviewResult>();
+	expectTypeOf(c.documents.preview).returns.resolves.toMatchTypeOf<{
+		html: string;
+		pageCount: number;
+	}>();
 });
 
 test('client.documents.thumbnails options is required (not optional)', () => {
@@ -122,6 +149,14 @@ test('client.documents.thumbnails options is required (not optional)', () => {
 	void c.documents.thumbnails('doc_id');
 	// Valid call:
 	void c.documents.thumbnails('doc_id', { width: 320 });
+});
+
+test('ThumbnailOptions has no page (singular) — only pages (plural)', () => {
+	const c = new PoliPage({ apiKey: 'pp_test_x' });
+	// @ts-expect-error — `page` (singular) was retired; use `pages: [N]`
+	void c.documents.thumbnails('doc_id', { width: 320, page: 1 });
+	// Valid:
+	void c.documents.thumbnails('doc_id', { width: 320, pages: [1] });
 });
 
 test('client.documents.delete returns Promise<void>', () => {

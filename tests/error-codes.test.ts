@@ -69,19 +69,11 @@ async function expectCode(opts: {
 }
 
 describe('spec §7.2 error code propagation', () => {
-	it('propagates STORAGE_REQUIRED (403) from render.document on Free tier', async () => {
-		await expectCode({
-			status: 403,
-			code: 'STORAGE_REQUIRED',
-			invoke: (c) => c.render.document({ template: '<p>x</p>', data: {} }),
-		});
-	});
-
 	it('propagates PAYMENT_REQUIRED (402)', async () => {
 		await expectCode({
 			status: 402,
 			code: 'PAYMENT_REQUIRED',
-			invoke: (c) => c.render.pdf({ template: '<p>x</p>', data: {} }),
+			invoke: (c) => c.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} }),
 		});
 	});
 
@@ -89,7 +81,7 @@ describe('spec §7.2 error code propagation', () => {
 		await expectCode({
 			status: 403,
 			code: 'ORGANIZATION_CANCELLED',
-			invoke: (c) => c.render.pdf({ template: '<p>x</p>', data: {} }),
+			invoke: (c) => c.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} }),
 		});
 	});
 
@@ -97,7 +89,7 @@ describe('spec §7.2 error code propagation', () => {
 		await expectCode({
 			status: 410,
 			code: 'ORGANIZATION_PURGED',
-			invoke: (c) => c.render.pdf({ template: '<p>x</p>', data: {} }),
+			invoke: (c) => c.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} }),
 		});
 	});
 
@@ -121,7 +113,7 @@ describe('spec §7.2 error code propagation', () => {
 		await expectCode({
 			status: 429,
 			code: 'QUOTA_EXCEEDED',
-			invoke: (c) => c.render.pdf({ template: '<p>x</p>', data: {} }),
+			invoke: (c) => c.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} }),
 		});
 	});
 
@@ -129,7 +121,7 @@ describe('spec §7.2 error code propagation', () => {
 		await expectCode({
 			status: 429,
 			code: 'OVERAGE_CAP_EXCEEDED',
-			invoke: (c) => c.render.pdf({ template: '<p>x</p>', data: {} }),
+			invoke: (c) => c.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} }),
 		});
 	});
 
