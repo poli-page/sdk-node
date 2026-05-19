@@ -20,7 +20,6 @@ export type PageFormat =
 
 export type Orientation = 'portrait' | 'landscape';
 
-<<<<<<< HEAD
 /**
  * Free-form caller metadata. Forwarded to the API as-is and echoed back
  * on responses that support it. Not interpreted, indexed, or validated
@@ -31,8 +30,6 @@ export type Orientation = 'portrait' | 'landscape';
  */
 export type RenderMetadata = Record<string, string | number | boolean>;
 
-=======
->>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 interface BaseRenderInput {
 	/** Template data (variables, locale hints, etc.). Required. */
 	data: Record<string, unknown>;
@@ -42,15 +39,12 @@ interface BaseRenderInput {
 	orientation?: Orientation;
 	/** BCP 47 locale (e.g. `en-US`, `fr-FR`) for page numbers and formatting. */
 	locale?: string;
-<<<<<<< HEAD
 	/**
 	 * Caller-supplied metadata. Free-form key-value pairs, forwarded to the
 	 * API and echoed on `preview` and `document` responses. Not interpreted
 	 * by the SDK.
 	 */
 	metadata?: RenderMetadata;
-=======
->>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 	/** Optional caller cancellation. Composed with the SDK's internal timeout. */
 	signal?: AbortSignal;
 	/** Optional override for the auto-generated UUID v4 idempotency key. */
@@ -85,7 +79,6 @@ export type RenderInput = ProjectModeInput | InlineModeInput;
 export interface PreviewResult {
 	html: string;
 	totalPages: number;
-<<<<<<< HEAD
 	environment: 'sandbox' | 'live';
 }
 
@@ -166,27 +159,12 @@ export interface ThumbnailOptions {
 /**
  * A single page thumbnail returned by `documents.thumbnails`. Spec §6.3.
  */
-=======
-}
-
-export interface ThumbnailOptions {
-	width: number;
-	format?: 'png' | 'jpeg';
-	quality?: number;
-	page?: number;
-	pages?: number[];
-}
-
->>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 export interface Thumbnail {
 	page: number;
 	width: number;
 	height: number;
 	contentType: string;
-<<<<<<< HEAD
 	/** Base64-encoded image bytes. */
-=======
->>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 	data: string;
 }
 
@@ -219,7 +197,6 @@ export interface PoliPageOptions {
 	onRetry?: (e: RetryEvent) => void;
 	onError?: (err: PoliPageError) => void;
 }
-<<<<<<< HEAD
 
 /**
  * The render namespace exposed as `client.render`. Hosts the four
@@ -344,5 +321,3 @@ export interface DocumentsNamespace {
 	 */
 	delete(id: string): Promise<void>;
 }
-=======
->>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17

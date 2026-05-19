@@ -1,5 +1,4 @@
 import { expectTypeOf, test } from 'vitest';
-<<<<<<< HEAD
 import type {
 	ProjectModeInput,
 	InlineModeInput,
@@ -11,9 +10,6 @@ import type {
 	Thumbnail,
 	ThumbnailOptions,
 } from '../src/types.js';
-=======
-import type { ProjectModeInput, InlineModeInput } from '../src/types.js';
->>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 import { PoliPage } from '../src/index.js';
 
 test('ProjectModeInput requires project and template', () => {
@@ -24,7 +20,6 @@ test('InlineModeInput requires template, forbids project', () => {
 	expectTypeOf<{ template: string; data: Record<string, unknown> }>().toMatchTypeOf<InlineModeInput>();
 });
 
-<<<<<<< HEAD
 test('render.pdf rejects inline mode at compile time', () => {
 	const c = new PoliPage({ apiKey: 'pp_test_x' });
 	// @ts-expect-error — inline mode not allowed on /v1/render-based methods
@@ -172,21 +167,4 @@ test('client.documents.delete returns Promise<void>', () => {
 test('Thumbnail and ThumbnailOptions are re-exported', () => {
 	expectTypeOf<ThumbnailOptions>().toMatchTypeOf<{ width: number }>();
 	expectTypeOf<Thumbnail>().toMatchTypeOf<{ page: number; data: string }>();
-=======
-test('render() rejects invalid combos at compile time', () => {
-	const c = new PoliPage({ apiKey: 'pp_test_x' });
-	// Valid inline mode:
-	void c.render({ template: '<p>x</p>', data: {} });
-	// Valid project mode:
-	void c.render({ project: 'billing', template: 'invoice', data: {} });
-	// @ts-expect-error — project mode requires template
-	void c.render({ project: 'billing', data: {} });
-	// @ts-expect-error — at least template required
-	void c.render({ data: {} });
-});
-
-test('render returns Promise<Uint8Array>', () => {
-	const c = new PoliPage({ apiKey: 'pp_test_x' });
-	expectTypeOf(c.render).returns.resolves.toEqualTypeOf<Uint8Array>();
->>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 });
