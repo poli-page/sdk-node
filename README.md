@@ -22,6 +22,8 @@ Requires Node.js 20.18 or later.
 
 ## Quick start
 
+### Project mode — render a published template by slug
+
 ```ts
 import { PoliPage } from '@poli-page/sdk';
 

@@ -3,7 +3,11 @@ import { createWriteStream } from 'node:fs';
 import { dirname } from 'node:path';
 import { Writable } from 'node:stream';
 import type { PoliPage } from './index.js';
+<<<<<<< HEAD
 import type { ProjectModeInput } from './types.js';
+=======
+import type { RenderInput } from './types.js';
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 
 /**
  * Render a PDF and write it to disk. Streams response bytes directly to the
@@ -27,11 +31,19 @@ import type { ProjectModeInput } from './types.js';
  */
 export async function renderToFile(
 	client: PoliPage,
+<<<<<<< HEAD
 	input: ProjectModeInput,
 	outputPath: string,
 ): Promise<void> {
 	await mkdir(dirname(outputPath), { recursive: true });
 	const stream = await client.render.pdfStream(input);
+=======
+	input: RenderInput,
+	outputPath: string,
+): Promise<void> {
+	await mkdir(dirname(outputPath), { recursive: true });
+	const stream = await client.renderStream(input);
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 	const fileStream = createWriteStream(outputPath);
 	await stream.pipeTo(Writable.toWeb(fileStream) as WritableStream<Uint8Array>);
 }

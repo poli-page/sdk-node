@@ -3,6 +3,7 @@ type SdkInternalCode = 'invalid_options' | 'network_error' | 'timeout' | 'aborte
 
 /** @internal */
 type ApiCode =
+<<<<<<< HEAD
 	// auth
 	| 'MISSING_API_KEY'
 	| 'INVALID_API_KEY'
@@ -18,10 +19,18 @@ type ApiCode =
 	| 'DOCUMENT_NOT_FOUND'
 	| 'GONE'
 	// validation
+=======
+	| 'INVALID_API_KEY'
+	| 'MISSING_API_KEY'
+	| 'FORBIDDEN'
+	| 'NOT_FOUND'
+	| 'VERSION_NOT_FOUND'
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 	| 'VALIDATION_ERROR'
 	| 'MISSING_DATA'
 	| 'MISSING_PROJECT_OR_TEMPLATE'
 	| 'MISSING_TEMPLATE_SLUG'
+<<<<<<< HEAD
 	| 'INVALID_VERSION_FORMAT'
 	| 'VERSION_REQUIRED'
 	| 'INVALID_VERSION_FOR_KEY_ENV'
@@ -29,6 +38,8 @@ type ApiCode =
 	| 'QUOTA_EXCEEDED'
 	| 'OVERAGE_CAP_EXCEEDED'
 	// server
+=======
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 	| 'INTERNAL_ERROR';
 
 /**
@@ -48,7 +59,11 @@ export type PoliPageErrorCode = SdkInternalCode | ApiCode | (string & {});
  * import { PoliPage, PoliPageError } from '@poli-page/sdk';
  *
  * try {
+<<<<<<< HEAD
  *   await client.render.pdf({ project: 'billing', template: 'invoice', data: { ... } });
+=======
+ *   await client.render({ project: 'billing', template: 'invoice', data: { ... } });
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
  * } catch (err) {
  *   if (err instanceof PoliPageError) {
  *     if (err.isAuthError())      return refreshCredentials();

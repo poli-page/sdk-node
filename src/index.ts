@@ -11,6 +11,7 @@ export type {
 	ProjectModeInput,
 	InlineModeInput,
 	RenderInput,
+<<<<<<< HEAD
 	RenderMetadata,
 	RenderNamespace,
 	DocumentsNamespace,
@@ -19,12 +20,18 @@ export type {
 	Thumbnail,
 	ThumbnailOptions,
 	PreviewResult,
+=======
+	PreviewResult,
+	Thumbnail,
+	ThumbnailOptions,
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 	PoliPageOptions,
 	RequestEvent,
 	ResponseEvent,
 	RetryEvent,
 } from './types.js';
 
+<<<<<<< HEAD
 import type {
 	PoliPageOptions,
 	RequestEvent,
@@ -38,6 +45,12 @@ export { PoliPageError, type PoliPageErrorCode } from './error.js';
 import { PoliPageError } from './error.js';
 import { createRenderNamespace, type SdkContext } from './render.js';
 import { createDocumentsNamespace } from './documents.js';
+=======
+import type { RenderInput, PreviewResult, Thumbnail, ThumbnailOptions, PoliPageOptions, RequestEvent, ResponseEvent, RetryEvent } from './types.js';
+
+export { PoliPageError, type PoliPageErrorCode } from './error.js';
+import { PoliPageError } from './error.js';
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 import { parseRetryAfter, computeBackoff, parseErrorBody, buildHeaders } from './internal/http.js';
 
 type SendOnceResult =
@@ -50,7 +63,12 @@ const DEFAULT_RETRY_DELAY = 500;
 const DEFAULT_TIMEOUT = 60_000;
 
 /**
+<<<<<<< HEAD
  * Poli Page client. Entry point for the namespaced render API.
+=======
+ * Poli Page client. Single entry point for rendering PDFs, previewing
+ * paginated HTML, and generating page thumbnails.
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
  *
  * @example
  * ```ts
@@ -58,10 +76,16 @@ const DEFAULT_TIMEOUT = 60_000;
  *
  * const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });
  *
+<<<<<<< HEAD
  * const pdf = await client.render.pdf({
  *   project: 'billing',
  *   template: 'invoice',
  *   version: '1.0.0',
+=======
+ * const pdf = await client.render({
+ *   project: 'billing',
+ *   template: 'invoice',
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
  *   data: { invoiceNumber: 'INV-001', total: 1280 },
  * });
  * ```
@@ -93,6 +117,7 @@ export class PoliPage {
 		this.#onResponse = options.onResponse;
 		this.#onRetry = options.onRetry;
 		this.#onError = options.onError;
+<<<<<<< HEAD
 
 		const ctx: SdkContext = {
 			post: (path, body, signal, key) => this.#request('POST', path, body, signal, key),
@@ -138,6 +163,167 @@ export class PoliPage {
 			throw abortedError;
 		}
 
+=======
+	}
+
+	/**
+	 * Render a PDF and return a `ReadableStream` of its bytes. Calls `POST /v1/render/pdf`.
+	 *
+	 * Use this when you want to pipe the response straight to a destination
+	 * (HTTP response, S3 upload, file) without buffering the full PDF in memory.
+	 *
+	 * @example
+	 * ```ts
+	 * const stream = await client.renderStream({
+	 *   project: 'billing',
+	 *   template: 'invoice',
+	 *   data: { invoiceNumber: 'INV-001' },
+	 * });
+	 *
+	 * // In an HTTP handler, pipe directly to the response:
+	 * return new Response(stream, { headers: { 'content-type': 'application/pdf' } });
+	 * ```
+	 */
+	async renderStream(input: RenderInput): Promise<ReadableStream<Uint8Array>> {
+		const { signal, idempotencyKey, ...wireBody } = input;
+		const response = await this.#request('/v1/render/pdf', wireBody, signal, idempotencyKey);
+		const contentType = response.headers.get('content-type') ?? '';
+		if (!contentType.includes('application/pdf')) {
+			const requestId = response.headers.get('x-request-id') ?? undefined;
+			throw new PoliPageError(
+				`Expected application/pdf response, got ${contentType || 'no content-type'}`,
+				'INTERNAL_ERROR',
+				response.status,
+				requestId,
+			);
+		}
+		if (!response.body) {
+			throw new PoliPageError('Response has no body', 'INTERNAL_ERROR', response.status);
+		}
+		return response.body as ReadableStream<Uint8Array>;
+	}
+
+	/**
+	 * Render a PDF and return its raw bytes. Calls `POST /v1/render/pdf`.
+	 *
+	 * For large PDFs or when streaming is preferable (e.g. piping to S3 or an
+	 * HTTP response), use {@link PoliPage.renderStream} instead.
+	 *
+	 * @example
+	 * ```ts
+	 * const pdf = await client.render({
+	 *   project: 'billing',
+	 *   template: 'invoice',
+	 *   data: { invoiceNumber: 'INV-001', total: 1280 },
+	 * });
+	 * // pdf is a Uint8Array
+	 * ```
+	 *
+	 * @example Inline HTML mode
+	 * ```ts
+	 * const pdf = await client.render({
+	 *   template: '<h1>Hello {{ name }}</h1>',
+	 *   data: { name: 'World' },
+	 * });
+	 * ```
+	 */
+	async render(input: RenderInput): Promise<Uint8Array> {
+		const stream = await this.renderStream(input);
+		const reader = stream.getReader();
+		const chunks: Uint8Array[] = [];
+		let total = 0;
+		while (true) {
+			const { value, done } = await reader.read();
+			if (done) break;
+			chunks.push(value);
+			total += value.length;
+		}
+		const out = new Uint8Array(total);
+		let offset = 0;
+		for (const chunk of chunks) {
+			out.set(chunk, offset);
+			offset += chunk.length;
+		}
+		return out;
+	}
+
+	/**
+	 * Generate paginated HTML output. Calls `POST /v1/render/preview`.
+	 *
+	 * Useful for live preview in editor UIs or for asserting layout in tests
+	 * without producing a PDF.
+	 *
+	 * @example
+	 * ```ts
+	 * const { html, totalPages } = await client.preview({
+	 *   project: 'billing',
+	 *   template: 'invoice',
+	 *   data: { invoiceNumber: 'INV-001' },
+	 * });
+	 * console.log(`Rendered ${totalPages} page(s)`);
+	 * ```
+	 */
+	async preview(input: RenderInput): Promise<PreviewResult> {
+		const { signal, idempotencyKey, ...wireBody } = input;
+		const response = await this.#request('/v1/render/preview', wireBody, signal, idempotencyKey);
+		return response.json() as Promise<PreviewResult>;
+	}
+
+	/**
+	 * Generate page thumbnails as base64-encoded images.
+	 * Calls `POST /v1/render/thumbnails`.
+	 *
+	 * @example
+	 * ```ts
+	 * const thumbs = await client.thumbnails(
+	 *   { project: 'billing', template: 'invoice', data: { invoiceNumber: 'INV-001' } },
+	 *   { width: 320, format: 'png' },
+	 * );
+	 * for (const t of thumbs) {
+	 *   console.log(`page ${t.page}: ${t.width}x${t.height} ${t.contentType}`);
+	 * }
+	 * ```
+	 */
+	async thumbnails(input: RenderInput, options: ThumbnailOptions): Promise<Thumbnail[]> {
+		const { signal, idempotencyKey, ...inputBody } = input;
+		const body = { ...inputBody, thumbnails: options };
+		const response = await this.#request('/v1/render/thumbnails', body, signal, idempotencyKey);
+		const result = (await response.json()) as { thumbnails: Thumbnail[] };
+		return result.thumbnails;
+	}
+
+	#fireHook<T>(hook: ((e: T) => void) | undefined, event: T): void {
+		if (!hook) return;
+		try {
+			hook(event);
+		} catch {
+			// Hooks must not break the request.
+		}
+	}
+
+	async #request(
+		path: string,
+		body: object,
+		signal?: AbortSignal,
+		callerIdempotencyKey?: string,
+	): Promise<Response> {
+		const idempotencyKey = callerIdempotencyKey ?? globalThis.crypto.randomUUID();
+		return this.#runWithRetry(path, body, idempotencyKey, signal);
+	}
+
+	async #runWithRetry(
+		path: string,
+		body: object,
+		idempotencyKey: string,
+		signal: AbortSignal | undefined,
+	): Promise<Response> {
+		if (signal?.aborted) {
+			const abortedError = new PoliPageError('Request was aborted', 'aborted');
+			this.#fireHook(this.#onError, abortedError);
+			throw abortedError;
+		}
+
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 		let lastError: PoliPageError | undefined;
 		let nextRetryAfterMs: number | undefined;
 
@@ -152,7 +338,11 @@ export class PoliPage {
 				await this.#sleep(delay, signal);
 			}
 
+<<<<<<< HEAD
 			const result = await this.#sendOnce(method, path, body, idempotencyKey, attempt + 1, signal);
+=======
+			const result = await this.#sendOnce(path, body, idempotencyKey, attempt + 1, signal);
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 
 			if (result.ok) return result.response;
 
@@ -170,10 +360,16 @@ export class PoliPage {
 	}
 
 	async #sendOnce(
+<<<<<<< HEAD
 		method: 'GET' | 'POST' | 'DELETE',
 		path: string,
 		body: object | undefined,
 		idempotencyKey: string | undefined,
+=======
+		path: string,
+		body: object,
+		idempotencyKey: string,
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 		attempt: number,
 		signal: AbortSignal | undefined,
 	): Promise<SendOnceResult> {
@@ -184,7 +380,11 @@ export class PoliPage {
 			: timeoutController.signal;
 
 		this.#fireHook(this.#onRequest, {
+<<<<<<< HEAD
 			method,
+=======
+			method: 'POST',
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 			url: `${this.#baseUrl}${path}`,
 			attempt,
 		});
@@ -193,15 +393,24 @@ export class PoliPage {
 		let response: Response;
 		try {
 			response = await fetch(`${this.#baseUrl}${path}`, {
+<<<<<<< HEAD
 				method,
 				headers: buildHeaders(
 					method,
+=======
+				method: 'POST',
+				headers: buildHeaders(
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 					path,
 					this.#apiKey,
 					idempotencyKey,
 					`poli-page-sdk-node/${__SDK_VERSION__}`,
 				),
+<<<<<<< HEAD
 				body: method === 'POST' ? JSON.stringify(body) : undefined,
+=======
+				body: JSON.stringify(body),
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 				signal: composed,
 			});
 		} catch (err) {
@@ -213,7 +422,11 @@ export class PoliPage {
 			}
 			const aborted = err instanceof Error && err.name === 'AbortError';
 			const error = new PoliPageError(
+<<<<<<< HEAD
 				aborted ? `Request timed out after ${this.#timeout}ms` : err instanceof Error ? err.message : String(err),
+=======
+				aborted ? `Request timed out after ${this.#timeout}ms` : (err as Error).message,
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 				aborted ? 'timeout' : 'network_error',
 			);
 			return { ok: false, error, retryAfterMs: undefined, retryable: true };

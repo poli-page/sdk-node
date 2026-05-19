@@ -155,6 +155,7 @@ describe('parseErrorBody', () => {
 describe('buildHeaders', () => {
 	const ua = 'poli-page-sdk-node/1.0.0';
 
+<<<<<<< HEAD
 	it('always sets Accept: application/json (deployed SDK endpoints all return JSON)', () => {
 		const renderH = buildHeaders('POST', '/v1/render', 'pp_test_x', 'idem-1', ua);
 		expect(renderH.Accept).toBe('application/json');
@@ -166,20 +167,48 @@ describe('buildHeaders', () => {
 
 	it('always sets Content-Type: application/json', () => {
 		const h = buildHeaders('POST', '/v1/render/pdf', 'pp_test_x', 'idem-1', ua);
+=======
+	it('sets Accept: application/pdf for /v1/render/pdf', () => {
+		const h = buildHeaders('/v1/render/pdf', 'pp_test_x', 'idem-1', ua);
+		expect(h.Accept).toBe('application/pdf');
+	});
+
+	it('sets Accept: application/json for /v1/render/preview', () => {
+		const h = buildHeaders('/v1/render/preview', 'pp_test_x', 'idem-1', ua);
+		expect(h.Accept).toBe('application/json');
+	});
+
+	it('sets Accept: application/json for /v1/render/thumbnails', () => {
+		const h = buildHeaders('/v1/render/thumbnails', 'pp_test_x', 'idem-1', ua);
+		expect(h.Accept).toBe('application/json');
+	});
+
+	it('always sets Content-Type: application/json', () => {
+		const h = buildHeaders('/v1/render/pdf', 'pp_test_x', 'idem-1', ua);
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 		expect(h['Content-Type']).toBe('application/json');
 	});
 
 	it('sets Authorization with Bearer prefix', () => {
+<<<<<<< HEAD
 		const h = buildHeaders('POST', '/v1/render/pdf', 'pp_test_xyz', 'idem-1', ua);
+=======
+		const h = buildHeaders('/v1/render/pdf', 'pp_test_xyz', 'idem-1', ua);
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 		expect(h.Authorization).toBe('Bearer pp_test_xyz');
 	});
 
 	it('sets the supplied User-Agent verbatim', () => {
+<<<<<<< HEAD
 		const h = buildHeaders('POST', '/v1/render/pdf', 'pp_test_x', 'idem-1', 'custom-ua/9.9.9');
+=======
+		const h = buildHeaders('/v1/render/pdf', 'pp_test_x', 'idem-1', 'custom-ua/9.9.9');
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 		expect(h['User-Agent']).toBe('custom-ua/9.9.9');
 	});
 
 	it('sets the Idempotency-Key header from the argument', () => {
+<<<<<<< HEAD
 		const h = buildHeaders('POST', '/v1/render/pdf', 'pp_test_x', 'idem-abc-123', ua);
 		expect(h['Idempotency-Key']).toBe('idem-abc-123');
 	});
@@ -192,4 +221,9 @@ describe('buildHeaders', () => {
 		expect(h['User-Agent']).toBe(ua);
 		expect(h.Accept).toBe('application/json');
 	});
+=======
+		const h = buildHeaders('/v1/render/pdf', 'pp_test_x', 'idem-abc-123', ua);
+		expect(h['Idempotency-Key']).toBe('idem-abc-123');
+	});
+>>>>>>> 8dbd01e0b0ef53739b0dfe402e28b4b0bcaf9a17
 });
