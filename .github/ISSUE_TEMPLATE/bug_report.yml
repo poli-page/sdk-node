@@ -1,0 +1,60 @@
+name: Bug report
+description: Something in @poli-page/sdk isn't working as documented.
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please fill in as much as you can — minimal reproductions
+        get fixed fastest.
+
+  - type: input
+    id: sdk-version
+    attributes:
+      label: SDK version
+      description: Output of `npm ls @poli-page/sdk` (or your lockfile entry).
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime
+      description: Node.js / Cloudflare Workers / Vercel Edge / Deno / Bun, with version.
+      placeholder: "Node.js 22.10.0 on macOS 14.5"
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what did you observe instead?
+      placeholder: |
+        I called `client.render.pdf({ ... })` with …
+        Expected: a `Uint8Array` of PDF bytes.
+        Got: PoliPageError code=…
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: A code snippet (or repo link) that reproduces the issue. Strip secrets.
+      render: ts
+    validations:
+      required: true
+
+  - type: input
+    id: request-id
+    attributes:
+      label: Request ID (optional)
+      description: If the error came from the API, the `requestId` on `PoliPageError` helps us trace it.
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Logs, screenshots, hypotheses — anything you think helps.

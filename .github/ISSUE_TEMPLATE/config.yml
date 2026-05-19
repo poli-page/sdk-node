@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Platform documentation
+    url: https://docs.poli.page
+    about: How-to guides, API reference, and concepts for the Poli Page platform.
+  - name: SDK API reference
+    url: https://docs.poli.page/reference/sdk/node/
+    about: Auto-generated reference for every public symbol in @poli-page/sdk.
+  - name: Security vulnerability
+    url: mailto:security@poli.page
+    about: Report security issues privately. Do not open a public issue.

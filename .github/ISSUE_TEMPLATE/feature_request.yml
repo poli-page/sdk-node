@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest a new capability or improvement for @poli-page/sdk.
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea. Please describe the use case first — the SDK's public
+        surface is the contract for every official Poli Page SDK, so additions need
+        to be motivated by real user pain.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: What are you doing today (or trying to do) that the SDK makes harder than it should?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API or behavior
+      description: How would the change look from a caller's perspective?
+      render: ts
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: Workarounds you tried, other SDKs that do this well, etc.
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Cross-SDK impact
+      description: Changes to the public surface affect every official Poli Page SDK, not just Node.
+      options:
+        - label: I'm requesting a change to the Node SDK only (e.g. ergonomic helper, type, sub-export).
+        - label: I'm requesting a change that should land across every official SDK.

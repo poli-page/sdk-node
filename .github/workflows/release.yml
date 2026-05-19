@@ -1,0 +1,120 @@
+name: Release
+
+# Manual-only release workflow. Publishes to npm with Sigstore provenance
+# attestation (npm --provenance). This is the recommended path for first-class
+# supply-chain transparency; scripts/publish.sh remains as a local fallback.
+#
+# One-time setup before this workflow can publish:
+#   1. Create an npm automation token with publish rights to @poli-page/sdk
+#      and add it as the repository secret NPM_TOKEN.
+#   2. (Optional, recommended) Configure npm Trusted Publisher for this repo
+#      so NPM_TOKEN is no longer needed.
+#
+# Per release:
+#   1. Bump version in package.json, move [Unreleased] in CHANGELOG.md.
+#   2. Commit (`chore(release): X.Y.Z`) and push to main.
+#   3. Run this workflow via the GitHub Actions UI and enter the version.
+#      The workflow refuses to run if package.json doesn't match.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (must match package.json exactly, e.g. 1.0.0 or 2.0.0-rc.1)"
+        required: true
+        type: string
+      tag:
+        description: "npm dist-tag"
+        required: true
+        default: "latest"
+        type: choice
+        options:
+          - latest
+          - next
+
+permissions:
+  contents: write   # for creating the git tag
+  id-token: write   # for npm provenance via OIDC
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Verify input version matches package.json
+        run: |
+          set -euo pipefail
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [[ "$PKG_VERSION" != "${{ inputs.version }}" ]]; then
+            echo "Refusing to publish: input version (${{ inputs.version }}) does not match package.json ($PKG_VERSION)." >&2
+            exit 1
+          fi
+          echo "Releasing @poli-page/sdk@$PKG_VERSION to dist-tag '${{ inputs.tag }}'."
+
+      - name: Verify tag does not yet exist
+        run: |
+          set -euo pipefail
+          if git rev-parse "v${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "Refusing to publish: tag v${{ inputs.version }} already exists." >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Type tests
+        run: pnpm test:types
+
+      - name: Build
+        run: pnpm build
+
+      - name: Validate published types & manifest (attw + publint)
+        run: pnpm lint:pack
+
+      - name: Pack and show contents
+        run: |
+          set -euo pipefail
+          TARBALL="$(pnpm pack | tail -n 1)"
+          echo "Tarball: $TARBALL"
+          echo "Size: $(du -h "$TARBALL" | cut -f1)"
+          tar -tzf "$TARBALL"
+
+      - name: Publish to npm with provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm publish --access public --no-git-checks --provenance --tag ${{ inputs.tag }}
+
+      - name: Tag the release commit
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ inputs.version }}"
+          git push origin "v${{ inputs.version }}"

@@ -1,0 +1,8 @@
+# Default owners for everything in this repo. Reviewers are auto-requested
+# on every PR. Update this list (or add team handles like @poli-page/sdk-maintainers)
+# once GitHub teams are set up.
+*       @poli-page
+
+# CI + release infrastructure is sensitive — require an explicit review.
+/.github/workflows/   @poli-page
+/scripts/             @poli-page

@@ -6,13 +6,28 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+defaults:
+  run:
+    # bash is available on Windows runners via Git Bash; this keeps every
+    # step (including the install-smoke heredocs) portable across OSes.
+    shell: bash
+
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         node-version: [20, 22, 24]
+        include:
+          # Windows verification on the current LTS. Catches path/EOL/shell
+          # surprises without paying for a full OS × Node matrix.
+          - os: windows-latest
+            node-version: 22
     steps:
       - uses: actions/checkout@v4
 
@@ -50,6 +65,9 @@ jobs:
 
       - name: Bundle-size budget (size-limit)
         run: pnpm size
+
+      - name: Verify registry signatures of installed packages
+        run: npm audit signatures
 
       - name: Install smoke (ESM + CJS from packed tarball)
         run: |
