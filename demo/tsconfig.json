@@ -1,0 +1,9 @@
+{
+	"extends": "../tsconfig.demos.json",
+	"include": [
+		"../src/global.d.ts",
+		"_shared.mjs",
+		"node/esm-demo.mjs",
+		"node/cjs-demo.cjs"
+	]
+}
