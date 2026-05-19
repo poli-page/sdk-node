@@ -19,11 +19,12 @@ export default {
 	async fetch(request, env) {
 		const client = new PoliPage({
 			apiKey: env.POLI_PAGE_API_KEY,
-			baseUrl: 'https://api-develop.poli.page',
+			baseUrl: env.POLI_PAGE_BASE_URL,
 		});
 
-		// For render.pdf/pdfStream — must use project mode.
-		// getting-started/welcome is auto-provisioned in every org.
+		// Every render call uses project mode — required by render.pdf/
+		// pdfStream/document. getting-started/welcome is auto-provisioned
+		// in every org.
 		const projectInput = {
 			project: 'getting-started',
 			template: 'welcome',
@@ -31,29 +32,27 @@ export default {
 			data: { name: 'Edge Demo' },
 		};
 
-		// For render.preview — inline mode is allowed here. Workers can't
-		// readFileSync, so we use a simple inline template for this showcase.
-		const inlineInput = {
-			template: `<div class="p-8">
-  <h1 class="text-3xl font-bold">Hello {{ name }} (preview)</h1>
-  <p class="mt-4">Rendered from a Cloudflare Worker — no node:* imports needed.</p>
-</div>`,
-			data: { name: 'Edge Demo' },
-		};
-
-		// Run all SDK paths in parallel. `allSettled` lets us collect
-		// every outcome (success or failure) so the report shows what
-		// happened on each step independently.
-		const [renderRes, streamRes, previewRes, errorRes] = await Promise.allSettled([
+		// First wave: run the independent SDK paths in parallel. `allSettled`
+		// lets us collect every outcome (success or failure) so the report
+		// shows what happened on each step independently.
+		const [renderRes, streamRes, docRes, errorRes] = await Promise.allSettled([
 			client.render.pdf(projectInput),
 			collectStream(client.render.pdfStream(projectInput)),
-			client.render.preview(inlineInput),
-			// Step 4 is supposed to fail — version 'banana' triggers INVALID_VERSION_FORMAT (400).
+			client.render.document(projectInput),
+			// Step 5 is supposed to fail — version 'banana' triggers INVALID_VERSION_FORMAT (400).
 			// We invert the framing in the report: rejection is the success.
 			client.render.pdf({ project: 'getting-started', template: 'welcome', version: 'banana', data: {} }),
 		]);
 
-		return new Response(reportHtml({ renderRes, streamRes, previewRes, errorRes }), {
+		// Second wave: documents.preview needs the id from render.document,
+		// so it can't go in the first parallel batch. If render.document
+		// failed we record that as the preview's failure too.
+		const previewRes =
+			docRes.status === 'fulfilled'
+				? (await Promise.allSettled([client.documents.preview(docRes.value.documentId)]))[0]
+				: { status: 'rejected', reason: new Error('skipped — render.document failed; no documentId') };
+
+		return new Response(reportHtml({ renderRes, streamRes, docRes, previewRes, errorRes }), {
 			headers: { 'content-type': 'text/html; charset=utf-8' },
 		});
 	},
@@ -115,7 +114,7 @@ function errorBlock(err) {
 // Report page
 // ─────────────────────────────────────────────────────────────────────────────
 
-function reportHtml({ renderRes, streamRes, previewRes, errorRes }) {
+function reportHtml({ renderRes, streamRes, docRes, previewRes, errorRes }) {
 	// Step 1: render.pdf() → PDF bytes. Offer a download via data URI.
 	const renderSection =
 		renderRes.status === 'fulfilled'
@@ -132,16 +131,25 @@ function reportHtml({ renderRes, streamRes, previewRes, errorRes }) {
           href="data:application/pdf;base64,${toBase64(streamRes.value)}">Download stream.pdf</a>`
 			: `<p class="fail">✗ failed</p>${errorBlock(streamRes.reason)}`;
 
-	// Step 3: render.preview() → engine HTML output. Render it inside an iframe
-	// via srcdoc so it stays sandboxed from the report page.
+	// Step 3: render.document() → stored document descriptor. Show the
+	// documentId (what you'd persist in your DB) and a link to the
+	// presigned PDF URL (valid for a few minutes).
+	const docSection =
+		docRes.status === 'fulfilled'
+			? `<p class="ok">✔ stored — <code>documentId: ${esc(docRes.value.documentId)}</code></p>
+       <a class="btn" href="${esc(docRes.value.presignedPdfUrl)}" target="_blank" rel="noopener">Open presigned PDF</a>`
+			: `<p class="fail">✗ failed</p>${errorBlock(docRes.reason)}`;
+
+	// Step 4: documents.preview(id) → stored document HTML. Render it inside
+	// an iframe via srcdoc so it stays sandboxed from the report page.
 	const previewSection =
 		previewRes.status === 'fulfilled'
-			? `<p class="ok">✔ ${previewRes.value.totalPages} page(s),
+			? `<p class="ok">✔ ${previewRes.value.pageCount} page(s),
        ${previewRes.value.html.length} chars of HTML</p>
        <iframe class="preview" sandbox srcdoc="${esc(previewRes.value.html)}"></iframe>`
 			: `<p class="fail">✗ failed</p>${errorBlock(previewRes.reason)}`;
 
-	// Step 4: error handling. Inverted — the demo passes when the SDK throws
+	// Step 5: error handling. Inverted — the demo passes when the SDK throws
 	// a PoliPageError for the deliberately invalid version string.
 	const errorSection =
 		errorRes.status === 'rejected' && errorRes.reason instanceof PoliPageError
@@ -188,16 +196,19 @@ function reportHtml({ renderRes, streamRes, previewRes, errorRes }) {
     Edge, Deno, and Bun.
   </p>
 
-  <h2>[1/4] render.pdf() — PDF bytes in memory</h2>
+  <h2>[1/5] render.pdf() — PDF bytes in memory</h2>
   ${renderSection}
 
-  <h2>[2/4] render.pdfStream() — ReadableStream of PDF bytes</h2>
+  <h2>[2/5] render.pdfStream() — ReadableStream of PDF bytes</h2>
   ${streamSection}
 
-  <h2>[3/4] render.preview() — engine HTML output (no PDF rasterization)</h2>
+  <h2>[3/5] render.document() — store the document, return the descriptor</h2>
+  ${docSection}
+
+  <h2>[4/5] documents.preview(id) — stored document HTML (no engine work)</h2>
   ${previewSection}
 
-  <h2>[4/4] error handling — DEMO ONLY (we trigger an error on purpose)</h2>
+  <h2>[5/5] error handling — DEMO ONLY (we trigger an error on purpose)</h2>
   <div class="intentional">
     <strong>This step is intentional.</strong> The SDK is sent an invalid version
     string (<code>version: 'banana'</code>), the API returns 400

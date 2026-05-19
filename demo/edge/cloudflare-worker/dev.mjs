@@ -25,24 +25,30 @@ import { spawn } from 'node:child_process';
 import { connect } from 'node:net';
 import { platform } from 'node:os';
 
-import { c, ensureApiKey } from '../../_shared.mjs';
+import { c, ensureApiKey, resolveBaseUrl } from '../../_shared.mjs';
 
 const PORT = 8787;
 const URL = `http://localhost:${PORT}`;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 1. Resolve the API key (env → demo/.env → prompt-and-persist)
+// 1. Resolve the API key (env → demo/.env → prompt-and-persist) and baseUrl
 // ─────────────────────────────────────────────────────────────────────────────
 const apiKey = await ensureApiKey();
+const baseUrl = resolveBaseUrl();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. Spawn `wrangler dev` with the key passed as a CLI binding
+// 2. Spawn `wrangler dev` with the key + baseUrl passed as CLI bindings
 // ─────────────────────────────────────────────────────────────────────────────
 console.log(c.dim('  starting wrangler...\n'));
 
 const wrangler = spawn(
 	'wrangler',
-	['dev', '--port', String(PORT), '--var', `POLI_PAGE_API_KEY:${apiKey}`],
+	[
+		'dev',
+		'--port', String(PORT),
+		'--var', `POLI_PAGE_API_KEY:${apiKey}`,
+		'--var', `POLI_PAGE_BASE_URL:${baseUrl}`,
+	],
 	{ stdio: 'inherit', shell: platform() === 'win32' },
 );
 

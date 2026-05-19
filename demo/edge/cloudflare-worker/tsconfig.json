@@ -1,0 +1,22 @@
+{
+	// Standalone tsconfig — deliberately does NOT extend ../../tsconfig.demos.json
+	// or ../../tsconfig.json. Wrangler's bundler (esbuild) walks up from
+	// worker.mjs looking for the nearest tsconfig and honors its `paths`. If
+	// it picked up the demos config, `@poli-page/sdk` would resolve to
+	// `src/index.ts` (the source-of-truth path for typecheck) instead of the
+	// built `dist/index.js`, bypassing tsup's `define` substitution for
+	// `__SDK_VERSION__` and breaking every SDK call at runtime. Keeping this
+	// file boundary-empty makes esbuild stop here and fall back to the
+	// installed package's `exports` map, which is exactly what we want — the
+	// whole point of this demo is to validate the published artifact on edge.
+	"compilerOptions": {
+		"target": "es2022",
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"strict": false,
+		"allowJs": true,
+		"checkJs": false,
+		"noEmit": true
+	},
+	"include": ["worker.mjs", "dev.mjs"]
+}

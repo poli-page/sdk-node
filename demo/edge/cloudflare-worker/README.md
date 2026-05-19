@@ -6,14 +6,13 @@ The report covers:
 
 | Step | Method | What you see |
 |---|---|---|
-| 1 | `render()` | byte count + download link to the PDF |
-| 2 | `renderStream()` | byte count + download link |
-| 3 | `renderToFile()` | skipped — Node-only sub-export |
-| 4 | `preview()` | inline iframe rendering the engine's HTML |
-| 5 | `thumbnails()` | grid of inline `<img>` page images |
-| 6 | error handling | a deliberate 400, caught and inspected |
+| 1 | `render.pdf()` | byte count + download link to the PDF |
+| 2 | `render.pdfStream()` | byte count + download link |
+| 3 | `render.document()` | `documentId` of the stored document + presigned PDF link |
+| 4 | `documents.preview(id)` | inline iframe rendering the stored document's HTML |
+| 5 | error handling | a deliberate 400, caught and inspected |
 
-All five SDK calls run in parallel (`Promise.allSettled`) so the page renders in roughly the time of the slowest single call.
+The independent calls (`render.pdf`, `render.pdfStream`, `render.document`, and the deliberate-error call) run in parallel via `Promise.allSettled`. The `documents.preview(id)` call necessarily waits for `render.document` to land first (it needs the id). `renderToFile` is intentionally absent — it's a Node-only sub-export and would defeat the point of an edge-runtime demo.
 
 ## Run
 
@@ -28,7 +27,7 @@ That single command:
 2. Starts `wrangler dev` on `localhost:8787`, passing the key as a CLI binding (`--var POLI_PAGE_API_KEY:…`). There's no `.dev.vars` file in this project — the key resolution lives in `demo/_shared.mjs`, shared with the Node demos.
 3. Auto-opens the report page in your default browser as soon as the worker is ready.
 
-You'll see the report page with all six steps inline. The fact that `wrangler dev` boots without a `nodejs_compat` warning is the proof that the SDK is genuinely isomorphic.
+You'll see the report page with all five steps inline. The fact that `wrangler dev` boots without a `nodejs_compat` warning is the proof that the SDK is genuinely isomorphic.
 
 ## Deploy (optional)
 

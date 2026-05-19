@@ -38,6 +38,9 @@ Thumbs.db
 /implementation-plan-*.md
 /templates-design.md
 /docs/superpowers/
+/CONTRIBUTING.md
+/MIGRATION.md
+/SECURITY.md
 
 # Claude Code local state
 .claude/

@@ -100,6 +100,22 @@ function appendToEnvFile(path, key, value) {
 }
 
 /**
+ * Resolve the Poli Page base URL for the demo. Resolution order:
+ *
+ *   1. `process.env.POLI_PAGE_BASE_URL` (host shell — wins for CI).
+ *   2. `demo/.env` parsed `POLI_PAGE_BASE_URL`.
+ *   3. Default: `https://api-develop.poli.page` (the develop environment).
+ *
+ * Never prompts — the default is fine for everyone.
+ */
+export function resolveBaseUrl() {
+	if (process.env.POLI_PAGE_BASE_URL) return process.env.POLI_PAGE_BASE_URL;
+	const fromFile = readEnvFile(ENV_FILE).POLI_PAGE_BASE_URL;
+	if (fromFile) return fromFile;
+	return 'https://api-develop.poli.page';
+}
+
+/**
  * Make sure we have a POLI_PAGE_API_KEY for the demo. Resolution order:
  *
  *   1. `process.env.POLI_PAGE_API_KEY` (host shell — wins for CI).

@@ -61,7 +61,7 @@ const { html, totalPages, environment } = await client.render.preview({
 console.log(`Rendered ${totalPages} page(s) in ${environment} mode`);
 ```
 
-**`render.pdf`, `render.pdfStream`, and `render.document` require project mode** — they need a published template version for traceability. The deployed API rejects inline mode on these endpoints; the SDK enforces project mode at compile time.
+**`render.pdf`, `render.pdfStream`, and `render.document` require project mode** — `project` + `template`, optionally pinned to a specific `version` (omit to render the current draft). Inline HTML is only accepted by `render.preview`. The SDK enforces this at compile time.
 
 ### Write a PDF to disk
 
@@ -288,7 +288,6 @@ Node.js 20.18 or later.
 - SDK API reference: [docs.poli.page/reference/sdk/node](https://docs.poli.page/reference/sdk/node/)
 - Sign up & generate API keys: [app.poli.page](https://app.poli.page)
 - Issues: [github.com/poli-page/sdk-node/issues](https://github.com/poli-page/sdk-node/issues)
-- Security: see [SECURITY.md](SECURITY.md)
 
 ## License
 

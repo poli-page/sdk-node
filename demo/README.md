@@ -16,7 +16,7 @@ The first invocation builds the SDK, installs the demo's deps, then runs. Subseq
 
 ## Which demo for which use case?
 
-Pick the demo that matches **your target runtime**, not just the runtime you're typing in right now. All three hit the same API and exercise the same five public methods — the difference is *how the SDK is loaded and run*, which is what determines whether your integration will work end-to-end.
+Pick the demo that matches **your target runtime**, not just the runtime you're typing in right now. All three hit the same API and exercise the same public methods — the difference is *how the SDK is loaded and run*, which is what determines whether your integration will work end-to-end.
 
 | Your situation | Run | What it proves |
 |---|---|---|
@@ -81,7 +81,7 @@ Each run produces four output files:
 | `render.pdf` | PDF bytes (in-memory, `client.render.pdf()`) |
 | `stream.pdf` | PDF bytes (streamed, `client.render.pdfStream()`) |
 | `file.pdf` | PDF bytes (streamed-to-disk, `renderToFile()`) |
-| `preview.html` | Engine HTML output (`client.render.preview()`) — open in any browser |
+| `preview.html` | Engine HTML output (`client.documents.preview(id)`, after storing the document via `client.render.document()`) — open in any browser |
 
 The three PDFs are byte-identical (modulo creation timestamps) — that's the cross-method consistency check. To verify:
 
@@ -109,10 +109,7 @@ The worker has **no `nodejs_compat` flag** — its clean boot is the runtime pro
 ```
 demo/
 ├── README.md                    ← (this file)
-├── templates/                   ← real templates, copied from the platform repo
-│   └── invoice/
-│       ├── invoice.html         #   Angular-style template with @if/@for,
-│       └── invoice.json         #     poli-* chrome, format-responsive Tailwind
+├── _shared.mjs                  ← key + base-URL resolution shared by all demos
 ├── node/                        ← plain Node.js (≥ 20.18)
 │   ├── package.json
 │   ├── esm-demo.mjs             #   ESM — uses `import`
@@ -124,6 +121,8 @@ demo/
         ├── wrangler.toml
         └── worker.mjs
 ```
+
+The demos use the `getting-started/welcome/1.0.0` project template that's auto-provisioned in every Poli Page org — no template files ship with the demos.
 
 ## Running the demos directly (without the root-level scripts)
 
@@ -147,8 +146,8 @@ pnpm run dev
 
 These demos are also the canonical reference when implementing other Poli Page SDKs (Python, PHP, Go, etc.). Each language's demo should:
 
-- Walk the same five methods in the same order: `render` → `renderStream` → `renderToFile` (or equivalent) → `preview` → `thumbnails`.
-- Use the same shared template (`demo/templates/invoice/`) so cross-language outputs can be diffed for parity.
+- Walk the same methods in the same order: `render.pdf` → `render.pdfStream` → `renderToFile` (or equivalent, where the language supports it) → `render.document` → `documents.preview(id)` → error handling.
+- Use the auto-provisioned `getting-started/welcome/1.0.0` project template so the demo works out of the box for any newcomer with a fresh API key — no template files in-tree, no project setup needed.
 - Show error handling at the bottom — trigger a real API error, catch the language's error type, expose `code`/`status`/`requestId`/predicate helpers.
 - Prompt for the API key when `POLI_PAGE_API_KEY` isn't set, with the same instructional copy as the Node demo.
 
