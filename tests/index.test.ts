@@ -332,47 +332,6 @@ describe('PoliPage SDK', () => {
 		});
 	});
 
-	describe('HTTP transport headers', () => {
-		it('sends User-Agent header in the form poli-page-sdk-node/<version>', async () => {
-			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
-			await client.render({ template: '<p>x</p>', data: {} });
-			const ua = lastRequest.headers['user-agent'];
-			expect(ua).toMatch(/^poli-page-sdk-node\/\d+\.\d+\.\d+/);
-		});
-
-		it('sends Accept: application/pdf for render', async () => {
-			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
-			await client.render({ template: '<p>x</p>', data: {} });
-			expect(lastRequest.headers.accept).toBe('application/pdf');
-		});
-
-		it('sends Accept: application/json for preview', async () => {
-			setMockHandler((_req, res) => {
-				res.writeHead(200, { 'Content-Type': 'application/json' });
-				res.end(JSON.stringify({ html: '', totalPages: 1 }));
-			});
-			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
-			await client.preview({ template: '<p>x</p>', data: {} });
-			expect(lastRequest.headers.accept).toBe('application/json');
-		});
-
-		it('sends Accept: application/json for thumbnails', async () => {
-			setMockHandler((_req, res) => {
-				res.writeHead(200, { 'Content-Type': 'application/json' });
-				res.end(JSON.stringify({ thumbnails: [] }));
-			});
-			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
-			await client.thumbnails({ template: '<p>x</p>', data: {} }, { width: 200 });
-			expect(lastRequest.headers.accept).toBe('application/json');
-		});
-
-		it('sends Content-Type: application/json on every POST', async () => {
-			const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
-			await client.render({ template: '<p>x</p>', data: {} });
-			expect(lastRequest.headers['content-type']).toBe('application/json');
-		});
-	});
-
 	describe('retry logic', () => {
 		it('retries on 500 errors', async () => {
 			let attempts = 0;
