@@ -213,7 +213,7 @@ export class PoliPage {
 			}
 			const aborted = err instanceof Error && err.name === 'AbortError';
 			const error = new PoliPageError(
-				aborted ? `Request timed out after ${this.#timeout}ms` : (err as Error).message,
+				aborted ? `Request timed out after ${this.#timeout}ms` : err instanceof Error ? err.message : String(err),
 				aborted ? 'timeout' : 'network_error',
 			);
 			return { ok: false, error, retryAfterMs: undefined, retryable: true };

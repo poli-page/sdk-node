@@ -46,7 +46,7 @@ function attachDownloadPdf(raw: RawDocumentDescriptor): DocumentDescriptor {
 				response = await fetch(raw.presignedPdfUrl, { signal: options?.signal });
 			} catch (err) {
 				throw new PoliPageError(
-					(err as Error).message,
+					err instanceof Error ? err.message : String(err),
 					'DOWNLOAD_FAILED',
 				);
 			}
@@ -114,7 +114,7 @@ export async function renderPdfStream(
 		response = await fetch(doc.presignedPdfUrl, { signal: input.signal });
 	} catch (err) {
 		throw new PoliPageError(
-			(err as Error).message,
+			err instanceof Error ? err.message : String(err),
 			'DOWNLOAD_FAILED',
 		);
 	}
