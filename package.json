@@ -52,6 +52,7 @@
 		"lint:fix": "eslint . --fix",
 		"lint:pack": "attw --pack . --profile node16 && publint --strict",
 		"size": "size-limit",
+		"check": "npm run lint && npm run typecheck && npm test && npm run test:types && npm run build && npm run lint:pack && npm run size && sh -c '[ -n \"$SKIP_INTEGRATION\" ] || npm run test:integration'",
 		"docs": "typedoc",
 		"demo": "npm run demo:esm",
 		"demo:esm": "npm run build:esm && npm --prefix demo/node install && npm --prefix demo/node run demo:esm",
