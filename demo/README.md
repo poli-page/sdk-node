@@ -34,17 +34,17 @@ Notes:
 
 ## Step 1 — Get an API key (you'll need this every time)
 
-Every demo talks to the Poli Page API, which requires an API key. **You only need a `pp_test_*` key** — test keys hit the develop environment, never bill, and never send real documents.
+Every demo talks to the Poli Page API, which requires an API key. **You only need a `pp_test_*` key** — test keys never bill, and never send real documents.
 
 ### How to create one
 
-1. Sign in at **https://app-develop.poli.page**.
+1. Sign in at **https://app.poli.page**.
 2. Go to your organization's API keys page:
    ```
-   https://app-develop.poli.page/orgs/{YOUR_ORG}/keys
+   https://app.poli.page/orgs/{YOUR_ORG}/keys
    ```
-   Replace `{YOUR_ORG}` with your **organization slug** — you can see it in the URL whenever you're inside your dashboard. For example, if your dashboard URL is `https://app-develop.poli.page/orgs/acme/dashboard`, your slug is `acme` and the keys page is at `https://app-develop.poli.page/orgs/acme/keys`.
-3. Click **Create key**, choose the **develop** environment, and copy the value (starts with `pp_test_`).
+   Replace `{YOUR_ORG}` with your **organization slug** — you can see it in the URL whenever you're inside your dashboard. For example, if your dashboard URL is `https://app.poli.page/orgs/acme/dashboard`, your slug is `acme` and the keys page is at `https://app.poli.page/orgs/acme/keys`.
+3. Click **Create key** and copy the value (starts with `pp_test_`).
 
 ### One canonical place for the key — `.env` at the SDK repo root
 

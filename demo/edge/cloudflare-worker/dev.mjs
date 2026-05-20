@@ -17,7 +17,7 @@
  *
  * Trade-off worth knowing: passing the key via `--var` means the value
  * is visible in `ps` while wrangler runs. Acceptable for `pp_test_*`
- * keys against develop; never use this approach for `pp_live_*` keys.
+ * (test) keys; never use this approach for `pp_live_*` keys.
  * Production deploys use `wrangler secret put POLI_PAGE_API_KEY`.
  */
 

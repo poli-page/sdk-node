@@ -104,7 +104,7 @@ function appendToEnvFile(path, key, value) {
  *
  *   1. `process.env.POLI_PAGE_BASE_URL` (host shell — wins for CI).
  *   2. `demo/.env` parsed `POLI_PAGE_BASE_URL`.
- *   3. Default: `https://api-develop.poli.page` (the develop environment).
+ *   3. Default: `https://api.poli.page`.
  *
  * Never prompts — the default is fine for everyone.
  */
@@ -112,7 +112,7 @@ export function resolveBaseUrl() {
 	if (process.env.POLI_PAGE_BASE_URL) return process.env.POLI_PAGE_BASE_URL;
 	const fromFile = readEnvFile(ENV_FILE).POLI_PAGE_BASE_URL;
 	if (fromFile) return fromFile;
-	return 'https://api-develop.poli.page';
+	return 'https://api.poli.page';
 }
 
 /**
@@ -141,17 +141,17 @@ export async function ensureApiKey() {
 	console.log(c.bold(c.yellow('   No POLI_PAGE_API_KEY found.')));
 	console.log(rule);
 	console.log('');
-	console.log('   This demo needs a develop-environment test key (' + c.cyan('pp_test_*') + ') to');
+	console.log('   This demo needs a test key (' + c.cyan('pp_test_*') + ') to');
 	console.log('   talk to the Poli Page API. Test keys never bill or send real');
 	console.log('   documents.');
 	console.log('');
 	console.log(c.bold('   How to get one:'));
-	console.log('     1. Sign in at ' + c.cyan('https://app-develop.poli.page'));
+	console.log('     1. Sign in at ' + c.cyan('https://app.poli.page'));
 	console.log('     2. Go to your organization\'s API keys page:');
-	console.log('          ' + c.cyan('https://app-develop.poli.page/orgs/{YOUR_ORG}/keys'));
+	console.log('          ' + c.cyan('https://app.poli.page/orgs/{YOUR_ORG}/keys'));
 	console.log(c.dim('        (replace {YOUR_ORG} with your org slug — visible in the'));
 	console.log(c.dim('         dashboard URL when you\'re inside your organization)'));
-	console.log('     3. Click "Create key", choose the ' + c.bold('develop') + ' environment, copy');
+	console.log('     3. Click "Create key" and copy');
 	console.log('        the value (starts with ' + c.cyan('pp_test_') + ').');
 	console.log('');
 	console.log('   Paste it below — we\'ll save it to ' + c.cyan('.env') + ' (repo root) so');

@@ -6,7 +6,7 @@ import { PoliPage, PoliPageError } from '../../src/index.js';
 import { renderToFile } from '../../src/node.js';
 
 const apiKey = process.env.POLI_PAGE_API_KEY;
-const baseUrl = process.env.POLI_PAGE_BASE_URL ?? 'https://api-develop.poli.page';
+const baseUrl = process.env.POLI_PAGE_BASE_URL ?? 'https://api.poli.page';
 
 // Integration tests use the `getting-started/welcome/1.0.0` template that
 // every Poli Page org gets provisioned automatically — works out of the box
@@ -17,7 +17,7 @@ const version = process.env.POLI_PAGE_TEST_VERSION ?? '1.0.0';
 
 const describeIfKey = apiKey ? describe : describe.skip;
 
-describeIfKey('integration: develop API', () => {
+describeIfKey('integration: API', () => {
 	it('renders a real PDF (project mode, %PDF magic bytes, > 1KB)', async () => {
 		const client = new PoliPage({ apiKey: apiKey!, baseUrl });
 		const pdf = await client.render.pdf({

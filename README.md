@@ -143,14 +143,6 @@ The mode is determined by the API key prefix:
 
 All prefixes hit the same endpoint (`https://api.poli.page`). The SDK passes the key through as a Bearer token and never inspects the prefix — pick whichever fits your deploy model.
 
-For the develop environment:
-```ts
-const client = new PoliPage({
-  apiKey: process.env.POLI_PAGE_API_KEY!,
-  baseUrl: 'https://api-develop.poli.page',
-});
-```
-
 ## Methods
 
 | Method | Returns | Description |

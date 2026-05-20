@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { PoliPage, PoliPageError } from '../../src/index.js';
 
 const apiKey = process.env.POLI_PAGE_API_KEY;
-const baseUrl = process.env.POLI_PAGE_BASE_URL ?? 'https://api-develop.poli.page';
+const baseUrl = process.env.POLI_PAGE_BASE_URL ?? 'https://api.poli.page';
 
 // Integration tests use the `getting-started/welcome/1.0.0` template that
 // every Poli Page org gets provisioned automatically — works out of the box
