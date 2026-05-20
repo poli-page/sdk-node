@@ -18,8 +18,8 @@ The independent calls (`render.pdf`, `render.pdfStream`, `render.document`, and 
 
 ```bash
 cd demo/edge/cloudflare-worker
-pnpm install
-pnpm run dev
+npm install
+npm run dev
 ```
 
 That single command:
@@ -33,5 +33,5 @@ You'll see the report page with all five steps inline. The fact that `wrangler d
 
 ```bash
 wrangler secret put POLI_PAGE_API_KEY
-pnpm run deploy
+npm run deploy
 ```

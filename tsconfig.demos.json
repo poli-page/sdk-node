@@ -10,7 +10,7 @@
 		// untyped parameters.
 		"noImplicitAny": false,
 		// Map the bare specifiers used by the demos to the local SDK source.
-		// This way `pnpm typecheck:demos` doesn't depend on a built dist/.
+		// This way `npm run typecheck:demos` doesn't depend on a built dist/.
 		"paths": {
 			"@poli-page/sdk": ["./src/index.ts"],
 			"@poli-page/sdk/node": ["./src/node.ts"]

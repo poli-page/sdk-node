@@ -14,8 +14,6 @@ Official Node.js SDK for [Poli Page](https://poli.page) — render polished PDFs
 
 ```bash
 npm install @poli-page/sdk
-# or
-pnpm add @poli-page/sdk
 ```
 
 Requires Node.js 20.18 or later.
@@ -84,9 +82,9 @@ await renderToFile(
 The repo ships three end-to-end demos that exercise every public method against the real API:
 
 ```bash
-pnpm demo        # Node ESM — start here
-pnpm demo:cjs    # Node CommonJS (verifies the dual exports map)
-pnpm demo:edge   # Cloudflare Worker (proof of edge-runtime support)
+npm run demo        # Node ESM — start here
+npm run demo:cjs    # Node CommonJS (verifies the dual exports map)
+npm run demo:edge   # Cloudflare Worker (proof of edge-runtime support)
 ```
 
 First run prompts for a `pp_test_*` key and saves it to `.env`. Subsequent runs are silent. Pick by target runtime — see [`demo/README.md`](demo/README.md#which-demo-for-which-use-case) for the full decision guide and what each demo proves.

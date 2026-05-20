@@ -8,7 +8,7 @@ on:
       - 'README.md'
       - 'typedoc.json'
       - 'package.json'
-      - 'pnpm-lock.yaml'
+      - 'package-lock.json'
       - '.github/workflows/docs.yml'
   release:
     types: [published]
@@ -29,22 +29,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
       - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+          cache: npm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Build TypeDoc site
-        run: pnpm docs
+        run: npm run docs
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

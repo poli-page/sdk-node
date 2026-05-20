@@ -6,7 +6,7 @@ const pkg = JSON.parse(readFileSync('./package.json', 'utf8')) as { version: str
 export default defineConfig({
 	entry: ['src/index.ts', 'src/node.ts'],
 	format: ['esm', 'cjs'],
-	// DTS is emitted by tsc (see `pnpm build`) so we get `.d.ts.map`
+	// DTS is emitted by tsc (see `npm run build`) so we get `.d.ts.map`
 	// declaration maps — tsup's rollup-based DTS bundler does not emit them.
 	dts: false,
 	clean: true,

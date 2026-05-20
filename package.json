@@ -3,7 +3,6 @@
 	"version": "1.0.0",
 	"description": "Poli Page SDK for Node.js — render PDFs from HTML templates via the Poli Page API",
 	"type": "module",
-	"packageManager": "pnpm@10.33.2",
 	"main": "./dist/index.cjs",
 	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -42,7 +41,7 @@
 		"build": "tsup && tsc -p tsconfig.build.json && node scripts/emit-dcts.mjs",
 		"build:esm": "tsup --format esm",
 		"build:cjs": "tsup --format cjs",
-		"typecheck": "tsc --noEmit && pnpm typecheck:demos",
+		"typecheck": "tsc --noEmit && npm run typecheck:demos",
 		"typecheck:demos": "tsc -p tsconfig.demos.json --noEmit",
 		"test": "vitest run",
 		"test:types": "vitest run --typecheck",
@@ -54,14 +53,15 @@
 		"lint:pack": "attw --pack . --profile node16 && publint --strict",
 		"size": "size-limit",
 		"docs": "typedoc",
-		"demo": "pnpm run demo:esm",
-		"demo:esm": "pnpm run build:esm && pnpm --dir demo/node install && pnpm --dir demo/node run demo:esm",
-		"demo:cjs": "pnpm run build:cjs && pnpm --dir demo/node install && pnpm --dir demo/node run demo:cjs",
-		"demo:edge": "pnpm run build:esm && pnpm --dir demo/edge/cloudflare-worker install && pnpm --dir demo/edge/cloudflare-worker run dev",
+		"demo": "npm run demo:esm",
+		"demo:esm": "npm run build:esm && npm --prefix demo/node install && npm --prefix demo/node run demo:esm",
+		"demo:cjs": "npm run build:cjs && npm --prefix demo/node install && npm --prefix demo/node run demo:cjs",
+		"demo:edge": "npm run build:esm && npm --prefix demo/edge/cloudflare-worker install && npm --prefix demo/edge/cloudflare-worker run dev",
 		"release": "./scripts/publish.sh",
 		"release:dry-run": "./scripts/publish.sh --dry-run",
-		"prepublishOnly": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
-		"prepare": "simple-git-hooks"
+		"prepublishOnly": "npm run lint && npm run typecheck && npm test && npm run build",
+		"prepare": "simple-git-hooks",
+		"postinstall": "patch-package"
 	},
 	"keywords": [
 		"pdf",
@@ -87,13 +87,7 @@
 		"access": "public"
 	},
 	"simple-git-hooks": {
-		"pre-push": "pnpm lint && pnpm typecheck && pnpm test && sh -c '[ -n \"$SKIP_INTEGRATION\" ] || pnpm test:integration'"
-	},
-	"pnpm": {
-		"onlyBuiltDependencies": [
-			"esbuild",
-			"simple-git-hooks"
-		]
+		"pre-push": "npm run lint && npm run typecheck && npm test && sh -c '[ -n \"$SKIP_INTEGRATION\" ] || npm run test:integration'"
 	},
 	"size-limit": [
 		{
@@ -114,6 +108,7 @@
 		"@types/node": "^20.19.0",
 		"@vitest/coverage-v8": "^4.1.5",
 		"eslint": "^10.2.1",
+		"patch-package": "^8.0.1",
 		"publint": "^0.3.18",
 		"simple-git-hooks": "^2.13.1",
 		"size-limit": "^12.1.0",

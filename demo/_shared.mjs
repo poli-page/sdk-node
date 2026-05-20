@@ -25,7 +25,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Disable colors when stdout isn't a TTY (e.g. piped to a file) and respect
-// the conventional NO_COLOR env var. `pnpm demo > log.txt` stays clean.
+// the conventional NO_COLOR env var. `npm run demo > log.txt` stays clean.
 export const useColor = process.stdout.isTTY && process.env.NO_COLOR !== '1';
 
 const ansi = (code) => (s) => (useColor ? `\x1b[${code}m${s}\x1b[0m` : String(s));

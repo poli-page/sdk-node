@@ -2,7 +2,7 @@
 Thanks for the PR! A few quick notes before submitting:
 - Keep the title in Conventional Commits style (feat: / fix: / docs: / refactor: / test: / chore:).
 - For breaking changes, prefix with `feat!:` or `fix!:` and call them out below.
-- Run `pnpm lint && pnpm typecheck && pnpm test` locally — the pre-push hook does this too.
+- Run `npm run lint && npm run typecheck && npm test` locally — the pre-push hook does this too.
 -->
 
 ## Summary
@@ -18,10 +18,10 @@ Thanks for the PR! A few quick notes before submitting:
 
 ## Verification
 
-- [ ] `pnpm lint`
-- [ ] `pnpm typecheck`
-- [ ] `pnpm test`
-- [ ] `pnpm lint:pack` (if the manifest, exports, or build changed)
+- [ ] `npm run lint`
+- [ ] `npm run typecheck`
+- [ ] `npm test`
+- [ ] `npm run lint:pack` (if the manifest, exports, or build changed)
 - [ ] Updated `CHANGELOG.md` under `[Unreleased]`
 - [ ] Updated `MIGRATION.md` (breaking changes only)
 

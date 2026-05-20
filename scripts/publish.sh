@@ -8,10 +8,10 @@
 # What it does, in order:
 #   1. Pre-flight: on main, clean tree, tag doesn't already exist.
 #   2. Verify: lint, typecheck, unit tests (integration if API key is set).
-#   3. Build: pnpm build.
-#   4. Pack: pnpm pack — show tarball contents and size.
+#   3. Build: npm run build.
+#   4. Pack: npm pack — show tarball contents and size.
 #   5. Confirm with the user before publishing.
-#   6. Publish: pnpm publish --access public.
+#   6. Publish: npm publish --access public.
 #   7. Tag: create v<version> locally (does NOT push — that's manual).
 #
 # Usage:
@@ -83,14 +83,14 @@ ok "tag v$VERSION does not exist yet"
 
 # ─── 3. verify ──────────────────────────────────────────────────────────────
 step "Lint, typecheck, unit tests"
-pnpm lint
-pnpm typecheck
-pnpm test
+npm run lint
+npm run typecheck
+npm test
 ok "all checks passed"
 
 if [[ -n "${POLI_PAGE_API_KEY:-}" ]]; then
 	step "Integration tests (POLI_PAGE_API_KEY is set)"
-	pnpm test:integration
+	npm run test:integration
 	ok "integration tests passed"
 else
 	echo "  ${dim}(POLI_PAGE_API_KEY not set — skipping integration tests)${reset}"
@@ -98,12 +98,12 @@ fi
 
 # ─── 4. build ───────────────────────────────────────────────────────────────
 step "Build"
-pnpm build
+npm run build
 ok "built dist/"
 
 # ─── 5. pack + inspect ──────────────────────────────────────────────────────
 step "Pack"
-TARBALL=$(pnpm pack | tail -n 1)
+TARBALL=$(npm pack | tail -n 1)
 ok "packed: $TARBALL"
 echo
 echo "  ${dim}Tarball contents:${reset}"
@@ -124,7 +124,7 @@ fi
 
 # ─── 7. publish ─────────────────────────────────────────────────────────────
 if [[ $DRY_RUN -eq 1 ]]; then
-	step "Dry run — would have run: pnpm publish --access public"
+	step "Dry run — would have run: npm publish --access public"
 	rm -f "$TARBALL"
 	echo
 	echo "  ${green}${bold}✔ Dry run complete${reset}"
@@ -132,7 +132,7 @@ if [[ $DRY_RUN -eq 1 ]]; then
 fi
 
 step "Publish to npm"
-pnpm publish --access public
+npm publish --access public
 ok "published $NAME@$VERSION"
 
 # ─── 8. tag (local only — push manually) ────────────────────────────────────
@@ -146,5 +146,5 @@ rm -f "$TARBALL"
 
 echo
 echo "  ${green}${bold}✔ Released ${NAME}@${VERSION}${reset}"
-echo "  ${dim}verify with:${reset} ${cyan}pnpm view ${NAME}@${VERSION}${reset}"
+echo "  ${dim}verify with:${reset} ${cyan}npm view ${NAME}@${VERSION}${reset}"
 echo

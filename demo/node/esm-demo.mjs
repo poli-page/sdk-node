@@ -2,7 +2,7 @@
 /**
  * @poli-page/sdk — Node.js ESM demo
  *
- * Run:  POLI_PAGE_API_KEY=pp_test_... pnpm run demo:esm
+ * Run:  POLI_PAGE_API_KEY=pp_test_... npm run demo:esm
  *
  * Walks through every public method of the SDK and writes the results to
  * `output-esm/`. Uses the `getting-started/welcome/1.0.0` template that's

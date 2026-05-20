@@ -9,7 +9,7 @@
  * step. One request = a tour of the whole public API.
  *
  * Run locally:
- *   pnpm run dev               # predev prompts for the API key if needed
+ *   npm run dev                # predev prompts for the API key if needed
  *   open http://localhost:8787 # in a browser
  */
 

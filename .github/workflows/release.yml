@@ -47,16 +47,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
       - name: Setup Node 22
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+          cache: npm
           registry-url: https://registry.npmjs.org
 
       - name: Verify input version matches package.json
@@ -78,30 +73,30 @@ jobs:
           fi
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Lint
-        run: pnpm lint
+        run: npm run lint
 
       - name: Typecheck
-        run: pnpm typecheck
+        run: npm run typecheck
 
       - name: Test
-        run: pnpm test
+        run: npm test
 
       - name: Type tests
-        run: pnpm test:types
+        run: npm run test:types
 
       - name: Build
-        run: pnpm build
+        run: npm run build
 
       - name: Validate published types & manifest (attw + publint)
-        run: pnpm lint:pack
+        run: npm run lint:pack
 
       - name: Pack and show contents
         run: |
           set -euo pipefail
-          TARBALL="$(pnpm pack | tail -n 1)"
+          TARBALL="$(npm pack | tail -n 1)"
           echo "Tarball: $TARBALL"
           echo "Size: $(du -h "$TARBALL" | cut -f1)"
           tar -tzf "$TARBALL"
@@ -109,7 +104,7 @@ jobs:
       - name: Publish to npm with provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: pnpm publish --access public --no-git-checks --provenance --tag ${{ inputs.tag }}
+        run: npm publish --access public --provenance --tag ${{ inputs.tag }}
 
       - name: Tag the release commit
         run: |

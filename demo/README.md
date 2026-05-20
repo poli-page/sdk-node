@@ -6,10 +6,10 @@ Small, self-contained programs that exercise the SDK end-to-end against a real P
 
 ```bash
 # from the repo root
-pnpm demo               # runs the Node ESM demo (default)
-pnpm demo:esm           # same — explicit
-pnpm demo:cjs           # the CommonJS demo
-pnpm demo:edge          # boots the Cloudflare Worker demo with `wrangler dev`
+npm run demo            # runs the Node ESM demo (default)
+npm run demo:esm        # same — explicit
+npm run demo:cjs        # the CommonJS demo
+npm run demo:edge       # boots the Cloudflare Worker demo with `wrangler dev`
 ```
 
 The first invocation builds the SDK, installs the demo's deps, then runs. Subsequent runs skip what's already cached.
@@ -20,11 +20,11 @@ Pick the demo that matches **your target runtime**, not just the runtime you're 
 
 | Your situation | Run | What it proves |
 |---|---|---|
-| Modern Node.js service (`"type": "module"`, `.mjs`, ESM `import`) | `pnpm demo:esm` | The default ESM resolution path — same one you get from `import { PoliPage } from '@poli-page/sdk'`. **Start here if you're unsure.** |
-| Node.js codebase using CommonJS (`require`, `.cjs`, older bundlers, ts-node default) | `pnpm demo:cjs` | The CJS resolution path through the dual exports map, including `require('@poli-page/sdk/node')` for `renderToFile`. |
-| Edge runtime — Cloudflare Workers, Vercel Edge, Deno Deploy, or Bun | `pnpm demo:edge` | Boots inside `wrangler dev` with **no `nodejs_compat` flag**, confirming the main entry uses only Web Platform APIs (`fetch`, `ReadableStream`, `AbortSignal`, `globalThis.crypto`). |
+| Modern Node.js service (`"type": "module"`, `.mjs`, ESM `import`) | `npm run demo:esm` | The default ESM resolution path — same one you get from `import { PoliPage } from '@poli-page/sdk'`. **Start here if you're unsure.** |
+| Node.js codebase using CommonJS (`require`, `.cjs`, older bundlers, ts-node default) | `npm run demo:cjs` | The CJS resolution path through the dual exports map, including `require('@poli-page/sdk/node')` for `renderToFile`. |
+| Edge runtime — Cloudflare Workers, Vercel Edge, Deno Deploy, or Bun | `npm run demo:edge` | Boots inside `wrangler dev` with **no `nodejs_compat` flag**, confirming the main entry uses only Web Platform APIs (`fetch`, `ReadableStream`, `AbortSignal`, `globalThis.crypto`). |
 | Validating an SDK upgrade before rolling out | All three | Catches regressions across every resolution path the package ships. |
-| Porting the SDK to another language (Python, PHP, Go, …) | `pnpm demo:esm` | Canonical reference. Walks the public methods in the order other-language demos should mirror. See *Notes for SDK porters* below. |
+| Porting the SDK to another language (Python, PHP, Go, …) | `npm run demo:esm` | Canonical reference. Walks the public methods in the order other-language demos should mirror. See *Notes for SDK porters* below. |
 
 Notes:
 
@@ -70,8 +70,8 @@ The Cloudflare Worker demo passes the resolved key to `wrangler dev` via `--var 
 ### Node (ESM and CJS)
 
 ```bash
-pnpm demo:esm    # writes to demo/node/output-esm/
-pnpm demo:cjs    # writes to demo/node/output-cjs/
+npm run demo:esm    # writes to demo/node/output-esm/
+npm run demo:cjs    # writes to demo/node/output-cjs/
 ```
 
 Each run produces four output files:
@@ -93,7 +93,7 @@ diff <(pdftotext demo/node/output-esm/render.pdf -) <(pdftotext demo/node/output
 ### Cloudflare Worker (edge)
 
 ```bash
-pnpm demo:edge
+npm run demo:edge
 ```
 
 This boots `wrangler dev` on `localhost:8787`. In another terminal:
@@ -126,20 +126,20 @@ The demos use the `getting-started/welcome/1.0.0` project template that's auto-p
 
 ## Running the demos directly (without the root-level scripts)
 
-The root-level `pnpm demo*` scripts are convenience wrappers. You can also run any demo directly:
+The root-level `npm run demo*` scripts are convenience wrappers. You can also run any demo directly:
 
 ```bash
 # Node demos
 cd demo/node
-pnpm install
-pnpm run demo:esm
-pnpm run demo:cjs
+npm install
+npm run demo:esm
+npm run demo:cjs
 
 # Cloudflare Worker
 cd demo/edge/cloudflare-worker
-pnpm install
+npm install
 echo "POLI_PAGE_API_KEY=pp_test_..." > .dev.vars
-pnpm run dev
+npm run dev
 ```
 
 ## Notes for SDK porters

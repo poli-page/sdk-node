@@ -2,7 +2,7 @@
 /**
  * @poli-page/sdk — Node.js CommonJS demo
  *
- * Run:  POLI_PAGE_API_KEY=pp_test_... pnpm run demo:cjs
+ * Run:  POLI_PAGE_API_KEY=pp_test_... npm run demo:cjs
  *
  * Same walkthrough as `esm-demo.mjs`, written for CommonJS consumers.
  * Uses the `getting-started/welcome/1.0.0` template that's auto-provisioned
