@@ -9,7 +9,6 @@ type ApiCode =
 	// billing / lifecycle
 	| 'PAYMENT_REQUIRED'
 	| 'FORBIDDEN'
-	| 'STORAGE_REQUIRED'
 	| 'ORGANIZATION_CANCELLED'
 	| 'ORGANIZATION_PURGED'
 	// not found / gone
