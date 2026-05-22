@@ -61,8 +61,7 @@
 		"release": "./scripts/publish.sh",
 		"release:dry-run": "./scripts/publish.sh --dry-run",
 		"prepublishOnly": "npm run lint && npm run typecheck && npm test && npm run build",
-		"prepare": "simple-git-hooks",
-		"postinstall": "patch-package"
+		"prepare": "patch-package && simple-git-hooks"
 	},
 	"keywords": [
 		"pdf",

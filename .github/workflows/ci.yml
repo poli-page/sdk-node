@@ -68,6 +68,12 @@ jobs:
         run: npm run size
 
       - name: Verify registry signatures of installed packages
+        # .npmrc's min-release-age=3 (a supply-chain guard for installs) makes
+        # npm 11.6+'s audit-signatures fail with ETARGET when any installed
+        # package was published in the last 3 days. Disable it just here —
+        # audit signatures only queries registry metadata, no install happens.
+        env:
+          NPM_CONFIG_MIN_RELEASE_AGE: 0
         run: npm audit signatures
 
       - name: Install smoke (ESM + CJS from packed tarball)

@@ -21,6 +21,7 @@
 
 import { readdir, readFile, writeFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const DIST = new URL('../dist/', import.meta.url);
 
@@ -33,7 +34,9 @@ async function walk(dir) {
 		if (entry.isDirectory()) {
 			out.push(...(await walk(child)));
 		} else {
-			out.push(child.pathname);
+			// fileURLToPath produces a proper Windows path (D:\...) — child.pathname
+			// returns /D:/... which fs APIs misinterpret on Windows.
+			out.push(fileURLToPath(child));
 		}
 	}
 	return out;
