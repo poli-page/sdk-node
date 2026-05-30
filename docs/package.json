@@ -10,9 +10,9 @@
     "preview": "astro preview"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.30.0",
+    "@astrojs/starlight": "^0.39.2",
     "@poli-page/starlight-preset": "file:../../sdk-docs-preset",
-    "astro": "^5.0.0"
+    "astro": "^6.4.2"
   },
   "devDependencies": {
     "tsx": "^4.19.0"

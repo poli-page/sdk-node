@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import { unified } from '@astrojs/markdown-remark';
 import {
   polipagePreset,
   enforcePageShape,
@@ -10,7 +11,9 @@ export default defineConfig({
   site: 'https://poli-page.github.io',
   base: '/sdk-node',
   markdown: {
-    remarkPlugins: [enforcePageShape, canonicalSlugs],
+    processor: unified({
+      remarkPlugins: [enforcePageShape, canonicalSlugs],
+    }),
   },
   integrations: [
     starlight(
