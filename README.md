@@ -8,7 +8,7 @@
 
 Official Node.js SDK for [Poli Page](https://poli.page) — render polished PDFs from HTML templates via the Poli Page API.
 
-→ API reference (auto-generated from source): **https://docs.poli.page/reference/sdk/node/**
+→ **Documentation**: https://poli-page.github.io/sdk-node/
 
 ## Install
 
@@ -211,7 +211,7 @@ try {
 }
 ```
 
-→ Full error reference: https://docs.poli.page/reference/sdk/node/classes/index.PoliPageError.html
+→ Full error reference: https://poli-page.github.io/sdk-node/reference/errors/
 
 ## Cancellation
 
@@ -244,7 +244,7 @@ const client = new PoliPage({
 
 The SDK retries on **5xx**, **429**, **network errors**, and **timeouts**. Backoff is exponential (`retryDelay × 2^N`) with jitter, capped by `Retry-After` when the server provides it. Every call sends an auto-generated `Idempotency-Key` (UUID v4); pass `idempotencyKey` in the input to override.
 
-→ Full retry semantics: https://docs.poli.page/reference/sdk/node/classes/index.PoliPage.html#render
+→ Full retry semantics: https://poli-page.github.io/sdk-node/production/retries-and-idempotency/
 
 ## TypeScript
 
@@ -275,7 +275,7 @@ Node.js 20.18 or later.
 ## Documentation & support
 
 - Platform docs: [docs.poli.page](https://docs.poli.page)
-- SDK API reference: [docs.poli.page/reference/sdk/node](https://docs.poli.page/reference/sdk/node/)
+- SDK documentation: [poli-page.github.io/sdk-node](https://poli-page.github.io/sdk-node/)
 - Sign up & generate API keys: [app.poli.page](https://app.poli.page)
 - Issues: [github.com/poli-page/sdk-node/issues](https://github.com/poli-page/sdk-node/issues)
 
