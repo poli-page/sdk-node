@@ -1,0 +1,20 @@
+{
+  "name": "@poli-page/sdk-node-docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "extract": "tsx ../scripts/extract-api/main.ts",
+    "build": "npm run extract && astro build",
+    "dev": "npm run extract && astro dev",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.30.0",
+    "@poli-page/starlight-preset": "file:../../sdk-docs-preset",
+    "astro": "^5.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}
