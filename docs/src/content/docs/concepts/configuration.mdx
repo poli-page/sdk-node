@@ -1,0 +1,35 @@
+---
+title: Configuration
+description: Per-client options for timeouts, retries, and observability hooks.
+---
+
+The `PoliPage` constructor accepts an options object. Every field is optional except `apiKey`. Defaults match the canonical SDK behavior shared by every Poli Page SDK.
+
+## Available options
+
+- `apiKey` (required) — your `pp_test_` or `pp_live_` key.
+- `baseUrl` — override the API endpoint. Defaults to `https://api.poli.page`.
+- `timeout` — per-request timeout in milliseconds. Defaults to `60_000`.
+- `maxRetries` — maximum retry attempts for retryable errors. Defaults to `2` (three total attempts).
+- `retryDelay` — initial retry backoff in milliseconds. Defaults to `500`. Doubles each attempt.
+- `onRequest` / `onResponse` / `onRetry` / `onError` — observability hooks. Never block, never mutate requests.
+
+## Example
+
+```ts
+import { PoliPage } from '@poli-page/sdk';
+
+const client = new PoliPage({
+  apiKey: process.env.POLI_PAGE_API_KEY!,
+  timeout: 30_000,
+  maxRetries: 3,
+  retryDelay: 250,
+  onRequest: (event) => console.log(`→ ${event.method} ${event.url}`),
+  onResponse: (event) => console.log(`← ${event.status} in ${event.durationMs}ms`),
+});
+```
+
+## See also
+- [Authentication](../authentication/)
+- [Observability](../../production/observability/)
+- [Retries and idempotency](../../production/retries-and-idempotency/)

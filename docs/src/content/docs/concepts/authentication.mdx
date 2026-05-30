@@ -1,0 +1,46 @@
+---
+title: Authentication
+description: How the Poli Page SDK authenticates with the API using test or live keys.
+---
+
+import ApiKeyCallout from '@poli-page/starlight-preset/components/ApiKeyCallout.astro';
+
+The Poli Page Node.js SDK authenticates every request with a bearer token. The key prefix determines which environment the request hits.
+
+## API keys
+
+<ApiKeyCallout />
+
+Pass the key to the client constructor:
+
+```ts
+const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });
+```
+
+The SDK never reads `process.env.POLI_PAGE_API_KEY` implicitly. You always pass the key in.
+
+## Custom base URL
+
+To target the develop environment (or a self-hosted gateway), override `baseUrl`:
+
+```ts
+const client = new PoliPage({
+  apiKey: process.env.POLI_PAGE_API_KEY!,
+  baseUrl: 'https://api-develop.poli.page',
+});
+```
+
+## Example
+
+```ts
+import { PoliPage } from '@poli-page/sdk';
+
+const client = new PoliPage({
+  apiKey: process.env.POLI_PAGE_API_KEY!,
+  baseUrl: process.env.POLI_PAGE_BASE_URL ?? 'https://api.poli.page',
+});
+```
+
+## See also
+- [Configuration](../configuration/)
+- [Errors](../../production/errors/)
