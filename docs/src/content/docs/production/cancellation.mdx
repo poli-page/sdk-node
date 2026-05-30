@@ -1,0 +1,63 @@
+---
+title: Cancellation
+description: How to cancel in-flight requests with AbortSignal.
+---
+
+Every render and document method accepts an `AbortSignal` via the input's `signal` field. Aborting cancels the underlying `fetch` call; the SDK throws a `PoliPageError` with `code: 'aborted'`.
+
+## Pass a signal
+
+```ts
+const controller = new AbortController();
+
+const promise = client.render.pdf({
+  project: 'billing',
+  template: 'invoice',
+  data: { invoiceNumber: 'INV-001' },
+  signal: controller.signal,
+});
+
+// Cancel after 5 seconds.
+setTimeout(() => controller.abort(), 5_000);
+
+try {
+  const pdf = await promise;
+} catch (err) {
+  if (err instanceof PoliPageError && err.code === 'aborted') {
+    console.log('cancelled');
+  } else {
+    throw err;
+  }
+}
+```
+
+## Cancellation vs timeout
+
+`timeout` (the constructor option) is enforced internally with an `AbortSignal` the SDK constructs. Your caller-supplied `signal` is composed with the internal one — whichever fires first wins, so caller cancellation always wins on or before the SDK timeout.
+
+`aborted` errors are **not retried**. The SDK assumes the caller meant it.
+
+## Example
+
+```ts
+import { PoliPage, PoliPageError } from '@poli-page/sdk';
+
+const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });
+const controller = new AbortController();
+
+const t = setTimeout(() => controller.abort(), 10_000);
+try {
+  const pdf = await client.render.pdf({
+    project: 'billing',
+    template: 'invoice',
+    data: { invoiceNumber: 'INV-001' },
+    signal: controller.signal,
+  });
+} finally {
+  clearTimeout(t);
+}
+```
+
+## See also
+- [Configuration](../../concepts/configuration/)
+- [Errors](../errors/)

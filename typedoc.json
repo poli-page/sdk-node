@@ -2,20 +2,12 @@
 	"$schema": "https://typedoc.org/schema.json",
 	"entryPoints": ["src/index.ts", "src/node.ts"],
 	"entryPointStrategy": "expand",
-	"out": "docs-site",
 	"name": "@poli-page/sdk",
 	"includeVersion": true,
-	"readme": "README.md",
 	"excludePrivate": true,
 	"excludeInternal": true,
 	"excludeProtected": false,
 	"excludeExternals": true,
 	"hideGenerator": true,
-	"intentionallyNotExported": ["SdkInternalCode", "ApiCode"],
-	"navigationLinks": {
-		"npm": "https://www.npmjs.com/package/@poli-page/sdk",
-		"GitHub": "https://github.com/poli-page/sdk-node",
-		"Poli Page docs": "https://docs.poli.page"
-	},
-	"sourceLinkTemplate": "https://github.com/poli-page/sdk-node/blob/main/{path}#L{line}"
+	"intentionallyNotExported": ["SdkInternalCode", "ApiCode"]
 }
