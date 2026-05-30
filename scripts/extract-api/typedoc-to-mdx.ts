@@ -9,7 +9,7 @@ title: Client
 description: The PoliPage class — the only entry point to the Node.js SDK.
 ---
 
-import MethodSignature from '@poli-page/starlight-preset/components/MethodSignature.astro';
+import MethodSignature from '@preset/components/MethodSignature.astro';
 
 <MethodSignature lang="ts" code={\`new PoliPage(options: PoliPageOptions)\`} />
 

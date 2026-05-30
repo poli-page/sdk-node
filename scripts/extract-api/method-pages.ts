@@ -135,9 +135,9 @@ sidebar:
   label: ${target.displayName}
 ---
 
-import MethodSignature from '@poli-page/starlight-preset/components/MethodSignature.astro';
-import ParamsTable from '@poli-page/starlight-preset/components/ParamsTable.astro';
-import ErrorTable from '@poli-page/starlight-preset/components/ErrorTable.astro';
+import MethodSignature from '@preset/components/MethodSignature.astro';
+import ParamsTable from '@preset/components/ParamsTable.astro';
+import ErrorTable from '@preset/components/ErrorTable.astro';
 
 <MethodSignature lang="ts" code={\`${signature}\`} />
 

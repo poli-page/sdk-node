@@ -4,7 +4,7 @@ title: Runtime support
 description: Supported Node.js versions and operating systems for @poli-page/sdk v${packageVersion}.
 ---
 
-import RuntimeMatrix from '@poli-page/starlight-preset/components/RuntimeMatrix.astro';
+import RuntimeMatrix from '@preset/components/RuntimeMatrix.astro';
 
 The Node.js SDK is built and tested against the matrix below.
 

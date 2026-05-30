@@ -10,8 +10,8 @@
     "preview": "astro preview"
   },
   "dependencies": {
+    "@astrojs/markdown-remark": "^7.2.0",
     "@astrojs/starlight": "^0.39.2",
-    "@poli-page/starlight-preset": "file:../../sdk-docs-preset",
     "astro": "^6.4.2"
   },
   "devDependencies": {

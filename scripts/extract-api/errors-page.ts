@@ -52,7 +52,7 @@ title: Errors
 description: All error codes raised by PoliPageError, grouped by source.
 ---
 
-import ErrorTable from '@poli-page/starlight-preset/components/ErrorTable.astro';
+import ErrorTable from '@preset/components/ErrorTable.astro';
 
 Every failure thrown by the SDK is an instance of \`PoliPageError\` with a \`code\`. SDK-internal codes are lowercase; codes from the API are uppercase.
 
