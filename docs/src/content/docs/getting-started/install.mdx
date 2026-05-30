@@ -1,0 +1,32 @@
+---
+title: Install
+description: How to install the Poli Page Node.js SDK with npm, pnpm, or yarn.
+---
+
+The Poli Page Node.js SDK ships as `@poli-page/sdk` on npm. It supports both ESM and CJS, and requires Node 20.18 or later.
+
+## Install with your package manager
+
+```bash
+npm install @poli-page/sdk
+# or
+pnpm add @poli-page/sdk
+# or
+yarn add @poli-page/sdk
+```
+
+## Node version
+
+The SDK targets Node 20.18 and tests against Node 20.x, 22.x, and 24.x on Linux, macOS, and Windows. See [runtime support](../../reference/runtime-support/) for the full matrix.
+
+## Example
+
+```ts
+import { PoliPage } from '@poli-page/sdk';
+
+const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });
+```
+
+## See also
+- [Quick start](../quick-start/)
+- [Configuration](../../concepts/configuration/)
