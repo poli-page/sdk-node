@@ -1,0 +1,43 @@
+---
+title: Observability
+description: Hooks for logging requests, responses, retries, and errors without coupling to a logger.
+---
+
+The SDK exposes four optional hooks on the constructor: `onRequest`, `onResponse`, `onRetry`, and `onError`. They give you the raw signal needed to instrument the SDK with whatever logger or tracing library you use, without baking a dependency into the SDK itself.
+
+## The hooks
+
+- `onRequest(event)` — fires before each HTTP request leaves. `event.method`, `event.url`, `event.attempt`.
+- `onResponse(event)` — fires when a response arrives. `event.status`, `event.durationMs`, `event.requestId`.
+- `onRetry(event)` — fires when the SDK decides to retry. `event.reason` is the `PoliPageError`; `event.delayMs`, `event.attempt`.
+- `onError(err)` — fires when a request fails terminally (after retries are exhausted).
+
+All hooks are fire-and-forget. The SDK does not await them and does not let them mutate request behavior.
+
+## Tracing
+
+For OpenTelemetry, start a span in `onRequest` and end it in `onResponse`. The `event.url` plus `event.attempt` gives you enough to attribute the span correctly.
+
+## Example
+
+```ts
+import { PoliPage } from '@poli-page/sdk';
+
+const client = new PoliPage({
+  apiKey: process.env.POLI_PAGE_API_KEY!,
+  onRequest: (event) => console.log(`→ ${event.method} ${event.url} attempt=${event.attempt}`),
+  onResponse: (event) => console.log(`← ${event.status} ${event.durationMs}ms reqId=${event.requestId ?? ''}`),
+  onRetry: (event) => console.warn(`↻ retry in ${event.delayMs}ms: ${event.reason.code}`),
+  onError: (err) => console.error(`✗ ${err.code} ${err.requestId ?? ''}: ${err.message}`),
+});
+
+await client.render.pdf({
+  project: 'billing',
+  template: 'invoice',
+  data: { invoiceNumber: 'INV-001' },
+});
+```
+
+## See also
+- [Configuration](../../concepts/configuration/)
+- [Errors](../errors/)
