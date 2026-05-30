@@ -3,7 +3,16 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
 	{
-		ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'demo/**', 'docs-site/**', 'scripts/**'],
+		ignores: [
+			'dist/**',
+			'node_modules/**',
+			'coverage/**',
+			'demo/**',
+			'docs-site/**',
+			'docs/**',
+			'examples/**',
+			'scripts/**',
+		],
 	},
 	js.configs.recommended,
 	...tseslint.configs.recommendedTypeChecked,
