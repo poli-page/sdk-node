@@ -246,9 +246,13 @@ The SDK retries on **5xx**, **429**, **network errors**, and **timeouts**. Backo
 
 → Full retry semantics: https://poli-page.github.io/sdk-node/production/retries-and-idempotency/
 
-## TypeScript
+## Type system
 
 Full type definitions ship with the package. `RenderInput` is a discriminated union — invalid combos (e.g. `project` without `template`) fail at compile time.
+
+## Concurrency & thread-safety
+
+The client is safe to share across all async operations in a single Node process. Construct it once at startup; parallel calls to `render` are independent and share the underlying fetch connection pool. The client carries no per-request mutable state, so a single instance per process is the expected pattern.
 
 ## Runtime support
 
