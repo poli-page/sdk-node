@@ -74,6 +74,12 @@ export async function renderDocument(
 	ctx: SdkContext,
 	input: ProjectModeInput,
 ): Promise<DocumentDescriptor> {
+	if (!input.project) {
+		throw new PoliPageError(
+			'project is required for render.document / render.pdf / render.pdfStream',
+			'PROJECT_REQUIRED_FOR_DOCUMENT',
+		);
+	}
 	const { signal, idempotencyKey, ...wireBody } = input;
 	const response = await ctx.post('/v1/render', wireBody, signal, idempotencyKey);
 	const raw = (await response.json()) as RawDocumentDescriptor;

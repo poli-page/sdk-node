@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
 import {
 	renderPdf,
@@ -488,6 +488,22 @@ describe('renderDocument', () => {
 			code: 'DOWNLOAD_FAILED',
 			status: 403,
 		});
+	});
+
+	it('throws PROJECT_REQUIRED_FOR_DOCUMENT and never calls ctx.post when project is empty', async () => {
+		const postSpy = vi.fn<SdkContext['post']>();
+		const ctx: SdkContext = {
+			post: postSpy,
+			get: vi.fn(),
+			delete: vi.fn(),
+		};
+		await expect(
+			renderDocument(ctx, { project: '', template: 'invoice', data: {} }),
+		).rejects.toMatchObject({
+			name: 'PoliPageError',
+			code: 'PROJECT_REQUIRED_FOR_DOCUMENT',
+		});
+		expect(postSpy).not.toHaveBeenCalled();
 	});
 });
 
