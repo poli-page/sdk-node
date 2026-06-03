@@ -45,14 +45,23 @@ export function parseErrorBody(
 	status: number,
 ): { code: string; message: string } {
 	try {
-		const json = JSON.parse(body) as { code?: string; message?: string; error?: string };
-		const code = json.code ?? json.message ?? json.error ?? 'unknown_error';
-		const message = json.message ?? `API error (${status}): ${code}`;
+		const json = JSON.parse(body) as {
+			code?: string;
+			detail?: string;
+			title?: string;
+			message?: string;
+			error?: string;
+		};
+		// RFC 7807: prefer `detail` (specific reason) over `title` (generic name)
+		// over the legacy `message` field; fall back to a canned status string.
+		// The code is verbatim from the API — never inferred from message.
+		const code = json.code ?? json.error ?? 'unknown_error';
+		const message = json.detail ?? json.title ?? json.message ?? `HTTP ${status}`;
 		return { code, message };
 	} catch {
 		return {
 			code: 'INTERNAL_ERROR',
-			message: `API error ${status}: response body was not valid JSON`,
+			message: `HTTP ${status}: response body was not valid JSON`,
 		};
 	}
 }

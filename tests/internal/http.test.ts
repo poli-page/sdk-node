@@ -114,21 +114,21 @@ describe('parseErrorBody', () => {
 		expect(result).toEqual({ code: 'VALIDATION_ERROR', message: 'data is required' });
 	});
 
-	it('falls back to message as code when code is absent', () => {
+	it('code stays unknown_error when only message is present (no code stealing)', () => {
 		const result = parseErrorBody('{"message":"something broke"}', 400);
-		expect(result).toEqual({ code: 'something broke', message: 'something broke' });
+		expect(result).toEqual({ code: 'unknown_error', message: 'something broke' });
 	});
 
-	it('falls back to error field as code when code and message absent', () => {
+	it('falls back to error field as code', () => {
 		const result = parseErrorBody('{"error":"oops"}', 400);
-		expect(result).toEqual({ code: 'oops', message: 'API error (400): oops' });
+		expect(result).toEqual({ code: 'oops', message: 'HTTP 400' });
 	});
 
 	it('returns unknown_error code when JSON has no recognised fields', () => {
 		const result = parseErrorBody('{}', 400);
 		expect(result).toEqual({
 			code: 'unknown_error',
-			message: 'API error (400): unknown_error',
+			message: 'HTTP 400',
 		});
 	});
 
@@ -136,8 +136,27 @@ describe('parseErrorBody', () => {
 		const result = parseErrorBody('not json', 502);
 		expect(result).toEqual({
 			code: 'INTERNAL_ERROR',
-			message: 'API error 502: response body was not valid JSON',
+			message: 'HTTP 502: response body was not valid JSON',
 		});
+	});
+
+	it('uses RFC 7807 detail as message', () => {
+		const result = parseErrorBody(
+			'{"code":"authentication_failed","detail":"Forbidden","title":"Authentication failed"}',
+			401,
+		);
+		expect(result).toEqual({ code: 'authentication_failed', message: 'Forbidden' });
+	});
+
+	it('falls back to title when detail is absent', () => {
+		const result = parseErrorBody('{"code":"forbidden","title":"Access denied"}', 403);
+		expect(result).toEqual({ code: 'forbidden', message: 'Access denied' });
+	});
+
+	it('does not synthesise an "API error (NNN)" prefix', () => {
+		const result = parseErrorBody('{"code":"THUMBNAILS_NOT_AVAILABLE"}', 403);
+		expect(result.message).not.toContain('API error');
+		expect(result.message).toBe('HTTP 403');
 	});
 
 	it('returns INTERNAL_ERROR for HTML error pages', () => {

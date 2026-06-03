@@ -46,4 +46,38 @@ describe('PoliPageError', () => {
 		expect(err).toBeInstanceOf(PoliPageError);
 		expect(err.name).toBe('PoliPageError');
 	});
+
+	describe('toPayload', () => {
+		it('uses API status for status-bearing exceptions', () => {
+			const err = new PoliPageError('Forbidden', 'authentication_failed', 401, 'req_abc');
+			expect(err.toPayload()).toEqual({
+				code: 'authentication_failed',
+				message: 'Forbidden',
+				status: 401,
+				requestId: 'req_abc',
+			});
+		});
+
+		it('uses 503 for network_error', () => {
+			const err = new PoliPageError('dns', 'network_error');
+			expect(err.toPayload().status).toBe(503);
+			expect(err.status).toBeUndefined();
+		});
+
+		it('uses 504 for timeout', () => {
+			const err = new PoliPageError('slow', 'timeout');
+			expect(err.toPayload().status).toBe(504);
+			expect(err.status).toBeUndefined();
+		});
+
+		it('requestId is null when absent', () => {
+			const err = new PoliPageError('dns', 'network_error');
+			expect(err.toPayload().requestId).toBeNull();
+		});
+
+		it('status is null for bare error without status or transport code', () => {
+			const err = new PoliPageError('cancelled', 'aborted');
+			expect(err.toPayload().status).toBeNull();
+		});
+	});
 });

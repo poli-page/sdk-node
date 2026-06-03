@@ -153,4 +153,26 @@ export class PoliPageError extends Error {
 		if (this.status === 429) return true;
 		return false;
 	}
+
+	/**
+	 * Canonical wire payload for framework integrations:
+	 * `{ code, message, status, requestId }`. `status` surfaces 503 for
+	 * connection failures (`code: 'network_error'`), 504 for timeouts, and
+	 * the API status otherwise. The `status` property on the exception
+	 * itself stays unchanged — only the payload surfaces 503/504, so
+	 * existing callers reading `err.status` are unaffected.
+	 */
+	toPayload(): { code: PoliPageErrorCode; message: string; status: number | null; requestId: string | null } {
+		let status: number | null = this.status ?? null;
+		if (status === null) {
+			if (this.code === 'timeout') status = 504;
+			else if (this.code === 'network_error') status = 503;
+		}
+		return {
+			code: this.code,
+			message: this.message,
+			status,
+			requestId: this.requestId ?? null,
+		};
+	}
 }
