@@ -152,4 +152,12 @@ describe('spec §7.2 error code propagation', () => {
 			}),
 		});
 	});
+
+	it('propagates PROJECT_REQUIRED_FOR_DOCUMENT (400)', async () => {
+		await expectCode({
+			status: 400,
+			code: 'PROJECT_REQUIRED_FOR_DOCUMENT',
+			invoke: (c) => c.render.pdf({ project: 'p', template: 't', data: {} }),
+		});
+	});
 });
