@@ -8,6 +8,7 @@ import {
 	createRenderNamespace,
 	type SdkContext,
 } from '../src/render.js';
+import { PoliPage } from '../src/index.js';
 
 let server: Server;
 let baseUrl: string;
@@ -502,6 +503,7 @@ describe('renderDocument', () => {
 		).rejects.toMatchObject({
 			name: 'PoliPageError',
 			code: 'PROJECT_REQUIRED_FOR_DOCUMENT',
+			status: undefined,
 		});
 		expect(postSpy).not.toHaveBeenCalled();
 	});
@@ -527,6 +529,19 @@ describe('createRenderNamespace', () => {
 		});
 		expect(pdf).toBeInstanceOf(Uint8Array);
 		expect(renderRequestBody).toBeDefined();
+	});
+
+	it('throws PROJECT_REQUIRED_FOR_DOCUMENT via public client.render.document when project is empty', async () => {
+		const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
+		await expect(
+			client.render.document({ project: '', template: 'invoice', data: {} }),
+		).rejects.toMatchObject({
+			name: 'PoliPageError',
+			code: 'PROJECT_REQUIRED_FOR_DOCUMENT',
+			status: undefined,
+		});
+		// Guard fires before the HTTP layer — the mock server must not have been hit.
+		expect(renderRequestBody).toBeUndefined();
 	});
 
 	it('routes document through /v1/render (no auto-download)', async () => {
