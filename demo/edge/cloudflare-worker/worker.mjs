@@ -4,9 +4,11 @@
  * Proves the SDK's main entry is truly isomorphic — no `node:*` imports,
  * runs unmodified on Workers, Vercel Edge, Deno, and Bun.
  *
- * GET / returns an HTML report that exercises every SDK method (except
- * `renderToFile`, which is deliberately Node-only) and a deliberate error
- * step. One request = a tour of the whole public API.
+ * GET / returns an HTML report that exercises every SDK method, mirroring
+ * the 10-step canonical demo in `demo/node/esm-demo.mjs`. Step 3 (the
+ * filesystem helper `renderToFile`) is intentionally skipped — edge runtimes
+ * have no filesystem — but the slot stays numbered so the report reads
+ * parallel to the Node demos.
  *
  * Run locally:
  *   npm run dev                # predev prompts for the API key if needed
@@ -35,26 +37,55 @@ export default {
 		// First wave: run the independent SDK paths in parallel. `allSettled`
 		// lets us collect every outcome (success or failure) so the report
 		// shows what happened on each step independently.
-		const [renderRes, streamRes, docRes, errorRes] = await Promise.allSettled([
+		const [renderRes, streamRes, renderPreviewRes, docRes, errorRes] = await Promise.allSettled([
 			client.render.pdf(projectInput),
 			collectStream(client.render.pdfStream(projectInput)),
+			client.render.preview(projectInput),
 			client.render.document(projectInput),
-			// Step 5 is supposed to fail — version 'banana' triggers INVALID_VERSION_FORMAT (400).
+			// Step 10 is supposed to fail — version 'banana' triggers INVALID_VERSION_FORMAT (400).
 			// We invert the framing in the report: rejection is the success.
 			client.render.pdf({ project: 'getting-started', template: 'welcome', version: 'banana', data: {} }),
 		]);
 
-		// Second wave: documents.preview needs the id from render.document,
-		// so it can't go in the first parallel batch. If render.document
-		// failed we record that as the preview's failure too.
-		const previewRes =
-			docRes.status === 'fulfilled'
-				? (await Promise.allSettled([client.documents.preview(docRes.value.documentId)]))[0]
-				: { status: 'rejected', reason: new Error('skipped — render.document failed; no documentId') };
+		// Second wave: the documents.* steps need the id from render.document.
+		// If render.document failed, every dependent step is recorded as a
+		// skip with that reason. We run them sequentially (get → thumbnails →
+		// preview → delete) so delete happens last and doesn't invalidate the
+		// preceding reads.
+		let getRes;
+		let thumbsRes;
+		let storedPreviewRes;
+		let deleteRes;
+		if (docRes.status === 'fulfilled') {
+			const id = docRes.value.documentId;
+			getRes = (await Promise.allSettled([client.documents.get(id)]))[0];
+			thumbsRes = (await Promise.allSettled([
+				client.documents.thumbnails(id, { width: 320, format: 'png' }),
+			]))[0];
+			storedPreviewRes = (await Promise.allSettled([client.documents.preview(id)]))[0];
+			deleteRes = (await Promise.allSettled([client.documents.delete(id)]))[0];
+		} else {
+			const skip = { status: 'rejected', reason: new Error('skipped — render.document failed; no documentId') };
+			getRes = skip;
+			thumbsRes = skip;
+			storedPreviewRes = skip;
+			deleteRes = skip;
+		}
 
-		return new Response(reportHtml({ renderRes, streamRes, docRes, previewRes, errorRes }), {
-			headers: { 'content-type': 'text/html; charset=utf-8' },
-		});
+		return new Response(
+			reportHtml({
+				renderRes,
+				streamRes,
+				renderPreviewRes,
+				docRes,
+				getRes,
+				thumbsRes,
+				storedPreviewRes,
+				deleteRes,
+				errorRes,
+			}),
+			{ headers: { 'content-type': 'text/html; charset=utf-8' } },
+		);
 	},
 };
 
@@ -114,7 +145,17 @@ function errorBlock(err) {
 // Report page
 // ─────────────────────────────────────────────────────────────────────────────
 
-function reportHtml({ renderRes, streamRes, docRes, previewRes, errorRes }) {
+function reportHtml({
+	renderRes,
+	streamRes,
+	renderPreviewRes,
+	docRes,
+	getRes,
+	thumbsRes,
+	storedPreviewRes,
+	deleteRes,
+	errorRes,
+}) {
 	// Step 1: render.pdf() → PDF bytes. Offer a download via data URI.
 	const renderSection =
 		renderRes.status === 'fulfilled'
@@ -131,25 +172,63 @@ function reportHtml({ renderRes, streamRes, docRes, previewRes, errorRes }) {
           href="data:application/pdf;base64,${toBase64(streamRes.value)}">Download stream.pdf</a>`
 			: `<p class="fail">✗ failed</p>${errorBlock(streamRes.reason)}`;
 
-	// Step 3: render.document() → stored document descriptor. Show the
-	// documentId (what you'd persist in your DB) and a link to the
-	// presigned PDF URL (valid for a few minutes).
+	// Step 4: render.preview() → paginated HTML. Show in a sandboxed iframe.
+	const renderPreviewSection =
+		renderPreviewRes.status === 'fulfilled'
+			? `<p class="ok">✔ ${renderPreviewRes.value.totalPages} page(s),
+       ${renderPreviewRes.value.html.length} chars of HTML, env=${esc(renderPreviewRes.value.environment)}</p>
+       <iframe class="preview" sandbox srcdoc="${esc(renderPreviewRes.value.html)}"></iframe>`
+			: `<p class="fail">✗ failed</p>${errorBlock(renderPreviewRes.reason)}`;
+
+	// Step 5: render.document() → stored document descriptor.
 	const docSection =
 		docRes.status === 'fulfilled'
-			? `<p class="ok">✔ stored — <code>documentId: ${esc(docRes.value.documentId)}</code></p>
+			? `<p class="ok">✔ stored — <code>documentId: ${esc(docRes.value.documentId)}</code>,
+       ${docRes.value.pageCount} page(s), ${docRes.value.sizeBytes} bytes</p>
        <a class="btn" href="${esc(docRes.value.presignedPdfUrl)}" target="_blank" rel="noopener">Open presigned PDF</a>`
 			: `<p class="fail">✗ failed</p>${errorBlock(docRes.reason)}`;
 
-	// Step 4: documents.preview(id) → stored document HTML. Render it inside
-	// an iframe via srcdoc so it stays sandboxed from the report page.
-	const previewSection =
-		previewRes.status === 'fulfilled'
-			? `<p class="ok">✔ ${previewRes.value.pageCount} page(s),
-       ${previewRes.value.html.length} chars of HTML</p>
-       <iframe class="preview" sandbox srcdoc="${esc(previewRes.value.html)}"></iframe>`
-			: `<p class="fail">✗ failed</p>${errorBlock(previewRes.reason)}`;
+	// Step 6: documents.get(id) → refreshed descriptor.
+	const getSection =
+		getRes.status === 'fulfilled'
+			? `<p class="ok">✔ refreshed presigned URL valid until <code>${esc(getRes.value.expiresAt)}</code></p>`
+			: `<p class="skip">✗ skipped or failed</p>${errorBlock(getRes.reason)}`;
 
-	// Step 5: error handling. Inverted — the demo passes when the SDK throws
+	// Step 7: documents.thumbnails(id) → per-page PNGs. Tier-gated: soft-skip
+	// on THUMBNAILS_NOT_AVAILABLE (Free tier).
+	let thumbsSection;
+	if (thumbsRes.status === 'fulfilled') {
+		const figures = thumbsRes.value
+			.map(
+				(t) => `<figure>
+          <img alt="page ${t.page}" src="data:${esc(t.contentType)};base64,${esc(t.data)}">
+          <figcaption>page ${t.page} — ${t.width}×${t.height}</figcaption>
+        </figure>`,
+			)
+			.join('');
+		thumbsSection = `<p class="ok">✔ ${thumbsRes.value.length} thumbnail(s)</p>
+       <div class="thumbs">${figures}</div>`;
+	} else if (thumbsRes.reason instanceof PoliPageError && thumbsRes.reason.code === 'THUMBNAILS_NOT_AVAILABLE') {
+		thumbsSection = `<p class="skip">skipped — THUMBNAILS_NOT_AVAILABLE (Starter+ feature, not on Free)</p>`;
+	} else {
+		thumbsSection = `<p class="fail">✗ failed</p>${errorBlock(thumbsRes.reason)}`;
+	}
+
+	// Step 8: documents.preview(id) → stored HTML preview.
+	const storedPreviewSection =
+		storedPreviewRes.status === 'fulfilled'
+			? `<p class="ok">✔ ${storedPreviewRes.value.pageCount} page(s),
+       ${storedPreviewRes.value.html.length} chars of HTML</p>
+       <iframe class="preview" sandbox srcdoc="${esc(storedPreviewRes.value.html)}"></iframe>`
+			: `<p class="fail">✗ failed</p>${errorBlock(storedPreviewRes.reason)}`;
+
+	// Step 9: documents.delete(id) → void on success.
+	const deleteSection =
+		deleteRes.status === 'fulfilled'
+			? `<p class="ok">✔ soft-deleted</p>`
+			: `<p class="fail">✗ failed</p>${errorBlock(deleteRes.reason)}`;
+
+	// Step 10: error handling. Inverted — the demo passes when the SDK throws
 	// a PoliPageError for the deliberately invalid version string.
 	const errorSection =
 		errorRes.status === 'rejected' && errorRes.reason instanceof PoliPageError
@@ -196,19 +275,34 @@ function reportHtml({ renderRes, streamRes, docRes, previewRes, errorRes }) {
     Edge, Deno, and Bun.
   </p>
 
-  <h2>[1/5] render.pdf() — PDF bytes in memory</h2>
+  <h2>[1/10] render.pdf() — PDF bytes in memory</h2>
   ${renderSection}
 
-  <h2>[2/5] render.pdfStream() — ReadableStream of PDF bytes</h2>
+  <h2>[2/10] render.pdfStream() — ReadableStream of PDF bytes</h2>
   ${streamSection}
 
-  <h2>[3/5] render.document() — store the document, return the descriptor</h2>
+  <h2>[3/10] renderToFile() — skipped on edge runtimes</h2>
+  <p class="skip">skipped — edge runtimes have no filesystem; renderToFile is a Node-only helper exported from <code>@poli-page/sdk/node</code>.</p>
+
+  <h2>[4/10] render.preview() — paginated HTML</h2>
+  ${renderPreviewSection}
+
+  <h2>[5/10] render.document() — store the document, return the descriptor</h2>
   ${docSection}
 
-  <h2>[4/5] documents.preview(id) — stored document HTML (no engine work)</h2>
-  ${previewSection}
+  <h2>[6/10] documents.get(id) — refresh descriptor</h2>
+  ${getSection}
 
-  <h2>[5/5] error handling — DEMO ONLY (we trigger an error on purpose)</h2>
+  <h2>[7/10] documents.thumbnails(id) — page images (Starter+ tier)</h2>
+  ${thumbsSection}
+
+  <h2>[8/10] documents.preview(id) — stored document HTML (no engine work)</h2>
+  ${storedPreviewSection}
+
+  <h2>[9/10] documents.delete(id) — soft-delete</h2>
+  ${deleteSection}
+
+  <h2>[10/10] error handling — DEMO ONLY (we trigger an error on purpose)</h2>
   <div class="intentional">
     <strong>This step is intentional.</strong> The SDK is sent an invalid version
     string (<code>version: 'banana'</code>), the API returns 400

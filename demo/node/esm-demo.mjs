@@ -11,14 +11,16 @@
  *
  * Open the generated files to confirm everything works:
  *
- *   - output-esm/render.pdf   (from client.render.pdf())
- *   - output-esm/stream.pdf   (from client.render.pdfStream())
- *   - output-esm/file.pdf     (from renderToFile())
- *   - output-esm/preview.html (from client.documents.preview(id), after
- *                              storing the document via client.render.document())
+ *   - output-esm/render.pdf               (client.render.pdf)
+ *   - output-esm/stream.pdf               (client.render.pdfStream)
+ *   - output-esm/file.pdf                 (renderToFile)
+ *   - output-esm/render_preview.html      (client.render.preview)
+ *   - output-esm/documents_preview.html   (client.documents.preview, after storing)
+ *   - output-esm/thumbs/page_<n>.png      (client.documents.thumbnails, Starter+ tier)
  *
- * Note: thumbnails are available against stored documents via
- * client.documents.thumbnails() — that requires Starter+ tier. See README.
+ * Step 10 deliberately triggers a 400 to exercise the error-handling story —
+ * the demo catches PoliPageError and prints the exposed fields. The script
+ * does NOT crash there.
  */
 
 import { PoliPage, PoliPageError } from '@poli-page/sdk';
@@ -60,7 +62,7 @@ const client = new PoliPage({
 	onRetry: (e) => console.log(c.yellow('  ↻'), c.dim(`retrying after ${e.delayMs}ms: ${e.reason.code}`)),
 });
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 10;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. render.pdf() — fetch PDF bytes into memory
@@ -112,35 +114,92 @@ console.log(`  wrote ${filePath}`);
 console.log(`  ${c.dim('open:')} ${fileLink(filePath)}`);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. render.document() — render and store the document, return its descriptor
+// 4. render.preview() — paginated HTML for an editor / review UI
+//    Use when: rendering a live editor, snapshot tests in CI, side-by-side
+//    diff of template changes. The engine returns the HTML in-memory without
+//    storing a document. Returns { html, totalPages, environment }.
+// ─────────────────────────────────────────────────────────────────────────────
+step(4, TOTAL_STEPS, 'render.preview() — paginated HTML');
+const renderPreview = await client.render.preview(projectInput);
+const renderPreviewPath = join(OUT_DIR, 'render_preview.html');
+writeFileSync(renderPreviewPath, renderPreview.html);
+console.log(`  ${c.bold(renderPreview.totalPages)} page(s), ${renderPreview.html.length} chars, env=${renderPreview.environment}`);
+console.log(`  ${c.dim('open:')} ${fileLink(renderPreviewPath)}`);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. render.document() — render and store the document, return its descriptor
 //    Use when: you want the document persisted server-side for later access
 //    (preview, thumbnails, re-download) without auto-fetching the PDF bytes.
 //    Returns a DocumentDescriptor — persist `documentId` in your DB.
 // ─────────────────────────────────────────────────────────────────────────────
-step(4, TOTAL_STEPS, 'render.document() — store the document, return the descriptor');
+step(5, TOTAL_STEPS, 'render.document() — store the document, return the descriptor');
 const doc = await client.render.document(projectInput);
 console.log(`  ${c.dim('documentId:')} ${c.bold(doc.documentId)}`);
+console.log(`  ${c.dim('pageCount:')} ${doc.pageCount}  ${c.dim('sizeBytes:')} ${doc.sizeBytes}`);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5. documents.preview(id) — get the stored document's paginated HTML
+// 6. documents.get(id) — refresh the descriptor (fresh presigned URL)
+//    Use when: the presigned URL on the original descriptor has expired
+//    (~15-minute TTL) and you need a new one. Same shape as render.document().
+// ─────────────────────────────────────────────────────────────────────────────
+step(6, TOTAL_STEPS, 'documents.get(id) — refresh descriptor');
+const fetched = await client.documents.get(doc.documentId);
+console.log(`  ${c.dim('refreshed presigned URL valid until:')} ${fetched.expiresAt}`);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 7. documents.thumbnails(id, options) — per-page PNG images
+//    Use when: building a thumbnail strip, document picker, OG image.
+//    Tier-gated on the API side: Free returns 403 THUMBNAILS_NOT_AVAILABLE.
+//    Demo soft-skips on that code so the script stays useful on Free keys.
+// ─────────────────────────────────────────────────────────────────────────────
+step(7, TOTAL_STEPS, 'documents.thumbnails(id) — page images (Starter+ tier)');
+try {
+	const thumbs = await client.documents.thumbnails(doc.documentId, { width: 320, format: 'png' });
+	const thumbDir = join(OUT_DIR, 'thumbs');
+	mkdirSync(thumbDir, { recursive: true });
+	for (const thumb of thumbs) {
+		const thumbPath = join(thumbDir, `page_${thumb.page}.png`);
+		writeFileSync(thumbPath, Buffer.from(thumb.data, 'base64'));
+		console.log(`  wrote page_${thumb.page}.png (${thumb.width}x${thumb.height})`);
+	}
+	console.log(`  ${c.dim('open:')} ${fileLink(thumbDir)}`);
+} catch (err) {
+	if (err instanceof PoliPageError && err.code === 'THUMBNAILS_NOT_AVAILABLE') {
+		console.log(`  ${c.yellow('skipped')} — ${err.code} (Starter+ feature, not on Free)`);
+	} else {
+		throw err;
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 8. documents.preview(id) — get the stored document's paginated HTML
 //    Use when: rendering a live editor over a stored document, building a
 //    review UI, snapshot tests in CI. No counter increments — the engine
 //    performs no work on this call. Returns { html, pageCount }.
 // ─────────────────────────────────────────────────────────────────────────────
-step(5, TOTAL_STEPS, 'documents.preview(id) — stored document HTML (no engine work)');
+step(8, TOTAL_STEPS, 'documents.preview(id) — stored document HTML (no engine work)');
 const preview = await client.documents.preview(doc.documentId);
-const previewPath = join(OUT_DIR, 'preview.html');
+const previewPath = join(OUT_DIR, 'documents_preview.html');
 writeFileSync(previewPath, preview.html);
 console.log(`  ${c.bold(preview.pageCount)} page(s), ${preview.html.length} chars`);
 console.log(`  ${c.dim('open:')} ${fileLink(previewPath)}`);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 6. Error handling — DELIBERATELY trigger a failure, then catch it.
+// 9. documents.delete(id) — soft-delete the stored document
+//    Use when: cleaning up demo / test runs, GDPR-style erasure. The document
+//    is hidden from subsequent reads; re-delete returns a Gone error.
+// ─────────────────────────────────────────────────────────────────────────────
+step(9, TOTAL_STEPS, 'documents.delete(id) — soft-delete');
+await client.documents.delete(doc.documentId);
+console.log(`  ${c.green('✔')} deleted ${doc.documentId}`);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 10. Error handling — DELIBERATELY trigger a failure, then catch it.
 //    Every failure — API errors, network failures, timeouts, caller aborts —
 //    surfaces as `PoliPageError`. Inspect `code`, `status`, `requestId`, or
 //    use the predicate helpers (isAuthError, isRateLimitError, isRetryable…).
 // ─────────────────────────────────────────────────────────────────────────────
-step(6, TOTAL_STEPS, 'error handling — DEMO ONLY (we trigger an error on purpose)');
+step(10, TOTAL_STEPS, 'error handling — DEMO ONLY (we trigger an error on purpose)');
 console.log(c.yellow('  ⚠  This step is intentional — the SDK is about to throw, but the'));
 console.log(c.yellow('     demo will catch and inspect it. ') + c.bold('The demo is NOT crashing.'));
 console.log(c.dim('     (We send an invalid version string, expecting the API to return 400 INVALID_VERSION_FORMAT.)'));
