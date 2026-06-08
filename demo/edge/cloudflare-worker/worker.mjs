@@ -194,8 +194,9 @@ function reportHtml({
 			? `<p class="ok">✔ refreshed presigned URL valid until <code>${esc(getRes.value.expiresAt)}</code></p>`
 			: `<p class="skip">✗ skipped or failed</p>${errorBlock(getRes.reason)}`;
 
-	// Step 7: documents.thumbnails(id) → per-page PNGs. Tier-gated: soft-skip
-	// on THUMBNAILS_NOT_AVAILABLE (Free tier).
+	// Step 7: documents.thumbnails(id) → per-page PNGs. Tier-gated: Free keys
+	// are rejected with 402 PAYMENT_REQUIRED or 403 FORBIDDEN /
+	// THUMBNAILS_NOT_AVAILABLE depending on the gating layer.
 	let thumbsSection;
 	if (thumbsRes.status === 'fulfilled') {
 		const figures = thumbsRes.value
@@ -208,8 +209,13 @@ function reportHtml({
 			.join('');
 		thumbsSection = `<p class="ok">✔ ${thumbsRes.value.length} thumbnail(s)</p>
        <div class="thumbs">${figures}</div>`;
-	} else if (thumbsRes.reason instanceof PoliPageError && thumbsRes.reason.code === 'THUMBNAILS_NOT_AVAILABLE') {
-		thumbsSection = `<p class="skip">skipped — THUMBNAILS_NOT_AVAILABLE (Starter+ feature, not on Free)</p>`;
+	} else if (
+		thumbsRes.reason instanceof PoliPageError
+		&& (thumbsRes.reason.code === 'THUMBNAILS_NOT_AVAILABLE'
+			|| thumbsRes.reason.status === 402
+			|| thumbsRes.reason.status === 403)
+	) {
+		thumbsSection = `<p class="skip">skipped — ${esc(thumbsRes.reason.code)} (HTTP ${thumbsRes.reason.status}) — Starter+ tier feature</p>`;
 	} else {
 		thumbsSection = `<p class="fail">✗ failed</p>${errorBlock(thumbsRes.reason)}`;
 	}

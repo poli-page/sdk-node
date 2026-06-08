@@ -164,8 +164,14 @@ try {
 	}
 	console.log(`  ${c.dim('open:')} ${fileLink(thumbDir)}`);
 } catch (err) {
-	if (err instanceof PoliPageError && err.code === 'THUMBNAILS_NOT_AVAILABLE') {
-		console.log(`  ${c.yellow('skipped')} — ${err.code} (Starter+ feature, not on Free)`);
+	// Tier-gated: Free keys are rejected with 402 PAYMENT_REQUIRED or 403
+	// FORBIDDEN / THUMBNAILS_NOT_AVAILABLE depending on the gating layer.
+	// Soft-skip any of those so the demo keeps running on Free.
+	if (
+		err instanceof PoliPageError
+		&& (err.code === 'THUMBNAILS_NOT_AVAILABLE' || err.status === 402 || err.status === 403)
+	) {
+		console.log(`  ${c.yellow('skipped')} — ${err.code} (HTTP ${err.status}) — Starter+ tier feature`);
 	} else {
 		throw err;
 	}
