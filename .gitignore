@@ -53,3 +53,8 @@ Thumbs.db
 # Claude Code local state
 .claude/
 .superpowers/
+CLAUDE.md
+docs/plan/
+docs/spec/
+sdk-*-plan.md
+sdk-*-specifications.md

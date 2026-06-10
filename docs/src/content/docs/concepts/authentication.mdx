@@ -19,17 +19,6 @@ const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });
 
 The SDK never reads `process.env.POLI_PAGE_API_KEY` implicitly. You always pass the key in.
 
-## Custom base URL
-
-To target the develop environment (or a self-hosted gateway), override `baseUrl`:
-
-```ts
-const client = new PoliPage({
-  apiKey: process.env.POLI_PAGE_API_KEY!,
-  baseUrl: 'https://api-develop.poli.page',
-});
-```
-
 ## Example
 
 ```ts
@@ -37,7 +26,6 @@ import { PoliPage } from '@poli-page/sdk';
 
 const client = new PoliPage({
   apiKey: process.env.POLI_PAGE_API_KEY!,
-  baseUrl: process.env.POLI_PAGE_BASE_URL ?? 'https://api.poli.page',
 });
 ```
 
