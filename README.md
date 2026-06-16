@@ -9,7 +9,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-node/ci.yml?branch=main&label=CI&style=flat)](https://github.com/poli-page/sdk-node/actions/workflows/ci.yml)
 [![CodeQL](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-node/codeql.yml?branch=main&label=CodeQL&style=flat)](https://github.com/poli-page/sdk-node/actions/workflows/codeql.yml)
 [![coverage](https://codecov.io/gh/poli-page/sdk-node/branch/main/graph/badge.svg)](https://codecov.io/gh/poli-page/sdk-node)
-[![install size](https://img.shields.io/packagephobia/install/@poli-page/sdk?style=flat)](https://packagephobia.com/result?p=@poli-page/sdk)
+[![install size](https://packagephobia.com/badge?p=@poli-page/sdk)](https://packagephobia.com/result?p=@poli-page/sdk)
 [![bundle size](https://img.shields.io/bundlephobia/minzip/@poli-page/sdk?style=flat&label=bundle)](https://bundlephobia.com/package/@poli-page/sdk)
 [![docs](https://img.shields.io/badge/docs-online-brightgreen?style=flat)](https://poli-page.github.io/sdk-node/)
 
