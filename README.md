@@ -7,7 +7,7 @@
 [![Coverage](https://img.shields.io/codecov/c/github/poli-page/sdk-node?style=flat&logo=codecov&logoColor=ffffff&label=Coverage)](https://codecov.io/gh/poli-page/sdk-node)
 [![Node](https://img.shields.io/node/v/@poli-page/sdk?style=flat&logo=nodedotjs&logoColor=ffffff&label=Node)](https://nodejs.org/)
 [![Types](https://img.shields.io/npm/types/@poli-page/sdk?style=flat&logo=nodedotjs&logoColor=ffffff&label=Types)](https://www.npmjs.com/package/@poli-page/sdk)
-[![Install size](https://img.shields.io/packagephobia/install/@poli-page%2Fsdk?style=flat&logo=nodedotjs&logoColor=ffffff&label=Install%20size)](https://packagephobia.com/result?p=@poli-page/sdk)
+[![Install size](https://img.shields.io/npm/unpacked-size/@poli-page/sdk?style=flat&logo=nodedotjs&logoColor=ffffff&label=Install%20size)](https://www.npmjs.com/package/@poli-page/sdk)
 [![Bundle](https://img.shields.io/bundlephobia/minzip/@poli-page/sdk?style=flat&logo=nodedotjs&logoColor=ffffff&label=Bundle)](https://bundlephobia.com/package/@poli-page/sdk)
 [![Deps](https://img.shields.io/badge/Deps-up%20to%20date-brightgreen?style=flat&logo=nodedotjs&logoColor=ffffff)](https://github.com/poli-page/sdk-node/network/dependencies)
 [![Docs](https://img.shields.io/badge/Docs-online-brightgreen?style=flat&logo=readthedocs&logoColor=ffffff)](https://poli-page.github.io/sdk-node/)
