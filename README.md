@@ -4,7 +4,7 @@
 [![Downloads](https://img.shields.io/npm/dm/@poli-page/sdk?style=flat&logo=nodedotjs&logoColor=ffffff&label=Downloads)](https://www.npmjs.com/package/@poli-page/sdk)
 [![Ci](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-node/ci.yml?branch=main&style=flat&logo=githubactions&logoColor=ffffff&label=Ci)](https://github.com/poli-page/sdk-node/actions/workflows/ci.yml)
 [![Codeql](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-node/codeql.yml?branch=main&style=flat&logo=github&logoColor=ffffff&label=Codeql)](https://github.com/poli-page/sdk-node/actions/workflows/codeql.yml)
-[![Coverage](https://img.shields.io/badge/Coverage-tested-brightgreen?style=flat&logo=codecov&logoColor=ffffff)](https://codecov.io/gh/poli-page/sdk-node)
+[![Coverage](https://img.shields.io/codecov/c/github/poli-page/sdk-node/main?style=flat&logo=codecov&logoColor=ffffff&label=Coverage)](https://codecov.io/gh/poli-page/sdk-node)
 [![Node](https://img.shields.io/node/v/@poli-page/sdk?style=flat&logo=nodedotjs&logoColor=ffffff&label=Node)](https://nodejs.org/)
 [![Types](https://img.shields.io/npm/types/@poli-page/sdk?style=flat&logo=nodedotjs&logoColor=ffffff&label=Types)](https://www.npmjs.com/package/@poli-page/sdk)
 [![Install size](https://img.shields.io/npm/unpacked-size/@poli-page/sdk?style=flat&logo=nodedotjs&logoColor=ffffff&label=Install%20size)](https://www.npmjs.com/package/@poli-page/sdk)
