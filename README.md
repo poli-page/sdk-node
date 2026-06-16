@@ -1,10 +1,17 @@
 # Poli Page SDK for Node.js
 
-[![npm version](https://img.shields.io/npm/v/@poli-page/sdk.svg)](https://www.npmjs.com/package/@poli-page/sdk)
-[![CI](https://github.com/poli-page/sdk-node/actions/workflows/ci.yml/badge.svg)](https://github.com/poli-page/sdk-node/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/@poli-page/sdk.svg?style=flat-square)](https://www.npmjs.com/package/@poli-page/sdk)
+[![npm downloads](https://img.shields.io/npm/dm/@poli-page/sdk.svg?style=flat-square)](https://www.npmjs.com/package/@poli-page/sdk)
+[![types](https://img.shields.io/npm/types/@poli-page/sdk.svg?style=flat-square)](https://www.npmjs.com/package/@poli-page/sdk)
+[![license](https://img.shields.io/npm/l/@poli-page/sdk.svg?style=flat-square)](LICENSE)
+[![node](https://img.shields.io/node/v/@poli-page/sdk.svg?style=flat-square)](https://nodejs.org/)
+
+[![CI](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-node/ci.yml?branch=main&label=CI&style=flat-square)](https://github.com/poli-page/sdk-node/actions/workflows/ci.yml)
+[![CodeQL](https://img.shields.io/github/actions/workflow/status/poli-page/sdk-node/codeql.yml?branch=main&label=CodeQL&style=flat-square)](https://github.com/poli-page/sdk-node/actions/workflows/codeql.yml)
+[![coverage](https://img.shields.io/codecov/c/github/poli-page/sdk-node?style=flat-square)](https://codecov.io/gh/poli-page/sdk-node)
 [![install size](https://packagephobia.com/badge?p=@poli-page/sdk)](https://packagephobia.com/result?p=@poli-page/sdk)
-[![license](https://img.shields.io/npm/l/@poli-page/sdk.svg)](LICENSE)
-[![node](https://img.shields.io/node/v/@poli-page/sdk.svg)](https://nodejs.org/)
+[![bundle size](https://img.shields.io/bundlephobia/minzip/@poli-page/sdk?style=flat-square&label=bundle)](https://bundlephobia.com/package/@poli-page/sdk)
+[![docs](https://img.shields.io/badge/docs-online-brightgreen?style=flat-square)](https://poli-page.github.io/sdk-node/)
 
 Official Node.js SDK for [Poli Page](https://poli.page) — render polished PDFs from HTML templates via the Poli Page API.
 

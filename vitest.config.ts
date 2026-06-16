@@ -14,5 +14,12 @@ export default defineConfig({
 			enabled: true,
 			include: ['tests/**/*.test-d.ts'],
 		},
+		coverage: {
+			provider: 'v8',
+			include: ['src/**/*.ts'],
+			exclude: ['src/**/*.d.ts'],
+			reporter: ['text', 'lcov', 'json-summary'],
+			reportsDirectory: './coverage',
+		},
 	},
 });
