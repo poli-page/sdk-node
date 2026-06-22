@@ -32,7 +32,12 @@ Requires Node.js 20.18 or later.
 ```ts
 import { PoliPage } from '@poli-page/sdk';
 
-const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });
+const client = new PoliPage({
+  apiKey: process.env.POLI_PAGE_API_KEY!,
+  // baseUrl is configurable — defaults to the production host below.
+  // Point it at develop/staging when you're not targeting prod.
+  baseUrl: process.env.POLI_PAGE_BASE_URL ?? 'https://api.poli.page',
+});
 
 const pdf = await client.render.pdf({
   project: 'getting-started',
@@ -42,6 +47,20 @@ const pdf = await client.render.pdf({
 });
 // pdf is a Uint8Array
 ```
+
+> **Heads up — the host is configurable.** Without `baseUrl`, the SDK targets
+> the production default `https://api.poli.page`. Set `baseUrl` to hit a
+> different environment, e.g.:
+>
+> ```ts
+> const client = new PoliPage({
+>   apiKey: process.env.POLI_PAGE_API_KEY!,
+>   baseUrl: 'https://api.develop.poli.page', // develop / staging vs prod
+> });
+> ```
+>
+> The SDK does **not** read environment variables at runtime — resolve the host
+> in your own app code (as shown above) and pass it in explicitly.
 
 Every Poli Page org comes pre-provisioned with a `getting-started/welcome` template, so the snippet above runs as-is the moment you have an API key — no project setup needed. For your own templates, swap the slugs once you've pushed a version with the `poli` CLI:
 
@@ -148,7 +167,7 @@ The mode is determined by the API key prefix:
 - `pp_live_…` → live mode (billed, production rate limits)
 - `pp_sa_…` → service-account keys; environment matches the SA's configuration (sandbox or live)
 
-All prefixes hit the same endpoint (`https://api.poli.page`). The SDK passes the key through as a Bearer token and never inspects the prefix — pick whichever fits your deploy model.
+All prefixes hit the same endpoint — the production default `https://api.poli.page`, or whatever you pass as `baseUrl` (see [Configuration](#configuration)) to target a develop/staging host. The SDK passes the key through as a Bearer token and never inspects the prefix — pick whichever fits your deploy model.
 
 ## Methods
 
