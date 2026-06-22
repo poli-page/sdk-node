@@ -1,49 +1,33 @@
 name: Release
 
-# Manual-only release workflow. Publishes to npm with Sigstore provenance
-# attestation (npm --provenance). This is the recommended path for first-class
-# supply-chain transparency; scripts/publish.sh remains as a local fallback.
+# Tag-triggered release. Push a tag `vX.Y.Z` to run checks, then (after manual
+# approval on the `npm-publish` environment) publish to npm via OIDC Trusted
+# Publishing with Sigstore provenance, and create the GitHub Release.
 #
-# One-time setup before this workflow can publish:
-#   1. Create an npm automation token with publish rights to @poli-page/sdk
-#      and add it as the repository secret NPM_TOKEN.
-#   2. (Optional, recommended) Configure npm Trusted Publisher for this repo
-#      so NPM_TOKEN is no longer needed.
+# Flow:
+#   1. Bump version in package.json + move CHANGELOG [Unreleased] -> [X.Y.Z]; push to main.
+#   2. git tag vX.Y.Z && git push origin vX.Y.Z
+#   3. `verify` runs all checks on the tagged commit.
+#   4. `publish` waits for a required reviewer (you) to approve, then publishes.
 #
-# Per release:
-#   1. Bump version in package.json, move [Unreleased] in CHANGELOG.md.
-#   2. Commit (`chore(release): X.Y.Z`) and push to main.
-#   3. Run this workflow via the GitHub Actions UI and enter the version.
-#      The workflow refuses to run if package.json doesn't match.
+# Auth: npm Trusted Publisher must be configured for THIS repo + workflow file
+# (release.yml) + environment (npm-publish). No NPM_TOKEN secret is used.
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to publish (must match package.json exactly, e.g. 1.0.0 or 2.0.0-rc.1)"
-        required: true
-        type: string
-      tag:
-        description: "npm dist-tag"
-        required: true
-        default: "latest"
-        type: choice
-        options:
-          - latest
-          - next
+  push:
+    tags:
+      - "v*.*.*"
 
 permissions:
-  contents: write   # for creating the git tag
-  id-token: write   # for npm provenance via OIDC
+  contents: read
 
 defaults:
   run:
     shell: bash
 
 jobs:
-  publish:
+  verify:
     runs-on: ubuntu-latest
-    environment: npm-publish
     steps:
       - uses: actions/checkout@v6
 
@@ -54,31 +38,45 @@ jobs:
           cache: npm
           registry-url: https://registry.npmjs.org
 
-      - name: Verify input version matches package.json
+      - name: Derive version from tag
+        id: ver
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Tag $TAG -> version $VERSION"
+
+      - name: Guard A — tag matches package.json
         run: |
           set -euo pipefail
           PKG_VERSION="$(node -p "require('./package.json').version")"
-          if [[ "$PKG_VERSION" != "${{ inputs.version }}" ]]; then
-            echo "Refusing to publish: input version (${{ inputs.version }}) does not match package.json ($PKG_VERSION)." >&2
+          if [[ "$PKG_VERSION" != "${{ steps.ver.outputs.version }}" ]]; then
+            echo "::error::package.json ($PKG_VERSION) does not match tag (${{ steps.ver.outputs.version }})"
+            echo "Refusing: bump package.json to ${{ steps.ver.outputs.version }} (or retag) before releasing." >&2
             exit 1
           fi
-          echo "Releasing @poli-page/sdk@$PKG_VERSION to dist-tag '${{ inputs.tag }}'."
+          echo "package.json matches tag ($PKG_VERSION) — OK."
 
-      - name: Verify tag does not yet exist
+      - name: Guard B — version not already on npm
+        env:
+          NPM_CONFIG_MIN_RELEASE_AGE: 0
         run: |
           set -euo pipefail
-          if git rev-parse "v${{ inputs.version }}" >/dev/null 2>&1; then
-            echo "Refusing to publish: tag v${{ inputs.version }} already exists." >&2
+          V="${{ steps.ver.outputs.version }}"
+          if npm view "@poli-page/sdk@$V" version >/dev/null 2>&1; then
+            echo "::error::@poli-page/sdk@$V already exists on npm"
+            echo "Refusing: that version is already published." >&2
             exit 1
           fi
+          echo "@poli-page/sdk@$V is not yet published — OK."
 
       - name: Install dependencies
         run: npm ci
 
       - name: Apply patches (patch-package)
-        # .npmrc sets ignore-scripts=true to block dep install scripts, which
-        # also skips our own postinstall. Run patch-package explicitly so the
-        # @arethetypeswrong/core multi-chunk-gunzip patch lands before attw.
+        # .npmrc sets ignore-scripts=true, which also skips our postinstall.
+        # Run patch-package explicitly so the @arethetypeswrong/core patch lands.
         run: npx patch-package
 
       - name: Lint
@@ -103,19 +101,75 @@ jobs:
         run: |
           set -euo pipefail
           TARBALL="$(npm pack | tail -n 1)"
-          echo "Tarball: $TARBALL"
-          echo "Size: $(du -h "$TARBALL" | cut -f1)"
+          echo "Tarball: $TARBALL ($(du -h "$TARBALL" | cut -f1))"
           tar -tzf "$TARBALL"
 
-      - name: Publish to npm with provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance --tag ${{ inputs.tag }}
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      contents: write   # create the GitHub Release
+      id-token: write   # OIDC for npm provenance + Trusted Publishing
+    steps:
+      - uses: actions/checkout@v6
 
-      - name: Tag the release commit
+      - name: Setup Node 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Upgrade npm (OIDC Trusted Publishing needs >= 11.5)
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply patches (patch-package)
+        run: npx patch-package
+
+      - name: Build
+        run: npm run build
+
+      - name: Compute dist-tag
+        id: disttag
         run: |
           set -euo pipefail
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag "v${{ inputs.version }}"
-          git push origin "v${{ inputs.version }}"
+          V="${GITHUB_REF_NAME#v}"
+          if [[ "$V" == *-* ]]; then TAG=next; else TAG=latest; fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Publishing $V to dist-tag $TAG"
+
+      - name: Publish to npm with provenance
+        run: npm publish --access public --provenance --tag "${{ steps.disttag.outputs.tag }}"
+
+      - name: Extract release notes from CHANGELOG
+        run: |
+          set -euo pipefail
+          V="${{ steps.disttag.outputs.version }}"
+          # Print lines between "## [V]" and the next "## [" heading.
+          awk -v ver="$V" '
+            $0 ~ "^## \\[" ver "\\]" {flag=1; next}
+            flag && /^## \[/ {flag=0}
+            flag {print}
+          ' CHANGELOG.md > RELEASE_NOTES.md
+          if [[ ! -s RELEASE_NOTES.md ]]; then
+            echo "See CHANGELOG.md for details." > RELEASE_NOTES.md
+          fi
+          echo "----- notes -----"; cat RELEASE_NOTES.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          V="${{ steps.disttag.outputs.version }}"
+          PRERELEASE=""
+          if [[ "${{ steps.disttag.outputs.tag }}" == "next" ]]; then PRERELEASE="--prerelease"; fi
+          gh release create "v$V" \
+            --title "v$V" \
+            --notes-file RELEASE_NOTES.md \
+            $PRERELEASE
