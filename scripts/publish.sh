@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# scripts/publish.sh — manual release of @poli-page/sdk to npm.
+# scripts/publish.sh — local break-glass release of @poli-page/sdk to npm.
 #
-# This is the ONLY supported publishing path. There is no CI workflow
-# that auto-publishes — by design. Run this script from your machine
-# when you're ready to ship a new version.
+# NOT the canonical path. The canonical release is the tag-triggered workflow
+# .github/workflows/release.yml: push a vX.Y.Z tag, approve the `npm-publish`
+# environment, and CI publishes via OIDC Trusted Publishing with provenance.
+#
+# Use THIS script only as a fallback when GitHub Actions or npm OIDC is
+# unavailable. It requires a local `npm login` and does NOT emit provenance.
 #
 # What it does, in order:
 #   1. Pre-flight: on main, clean tree, tag doesn't already exist.
