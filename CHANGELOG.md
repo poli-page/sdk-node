@@ -8,7 +8,7 @@ Breaking changes between major versions are summarized in [MIGRATION.md](MIGRATI
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-05-13
+## [0.9.0] - 2026-06-22
 
 ### BREAKING
 
@@ -63,7 +63,7 @@ Breaking changes between major versions are summarized in [MIGRATION.md](MIGRATI
 
 ## [0.1.0] - 2026-04-26
 
-> **Note**: `0.1.0` was published briefly and unpublished from npm. No live users — treat `1.0.0` as the starting point. The list below is preserved for historical reference.
+> **Note**: `0.1.0` was published to npm as an early placeholder (no live users). `0.9.0` is the first real release of the namespaced surface — treat it as the starting point. The list below is preserved for historical reference.
 
 ### Added
 
