@@ -77,6 +77,12 @@ jobs:
         run: npm run lint:pack
 
       - name: Bundle-size budget (size-limit)
+        # size-limit 13 dropped Node 20 (engines ^22.18.0 || ^24 || >=26; it
+        # imports `glob` from node:fs/promises, added in Node 22). The budget
+        # measures built artifact bytes, which don't vary by runtime, so skip
+        # the tool on Node 20 rather than hold the dev dep back — the SDK
+        # itself still supports Node >=20.18.0 and every other step proves it.
+        if: matrix.node-version != 20
         run: npm run size
 
       - name: Verify registry signatures of installed packages
