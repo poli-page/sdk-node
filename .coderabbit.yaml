@@ -1,0 +1,92 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit config for poli-page repos. PRs here are mostly opened and fixed by automated agents
+# (the poli-page auto loop and issue pipeline), which read CodeRabbit's findings and its commit status.
+language: en-US
+early_access: false
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  allow_author_approval: true
+  # The summary goes in the walkthrough, never in the PR description: the merge gate reads the description.
+  high_level_summary: false
+  high_level_summary_in_walkthrough: true
+  review_status: true
+  review_details: false
+  # The loop decides "reviewed this head" from the CodeRabbit commit status ("Review completed").
+  review_progress: true
+  commit_status: true
+  fail_commit_status: false
+  collapse_walkthrough: true
+  changed_files_summary: true
+  sequence_diagrams: true
+  estimate_code_review_effort: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  suggested_labels: true
+  # PR labels are the closed issues' labels; CodeRabbit only suggests.
+  auto_apply_labels: false
+  suggested_reviewers: true
+  auto_assign_reviewers: false
+  in_progress_fortune: false
+  poem: false
+  enable_prompt_for_ai_agents: true
+  abort_on_close: true
+  disable_cache: false
+  slop_detection:
+    enabled: true
+    include_all_authors: false
+  auto_review:
+    enabled: true
+    drafts: false
+    # Every push of a fix round must be reviewed, and never auto-paused (the loop allows up to 5 rounds).
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 0
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+  path_filters:
+    - "!package-lock.json"
+    - "!**/package-lock.json"
+    - "!dist/**"
+    - "!coverage/**"
+    - "!docs/dist/**"
+    - "!docs/.astro/**"
+    - "!docs/src/content/docs/reference/**"
+    - "!docs/src/preset/canonical-*.json"
+  path_instructions:
+    - path: "src/**/*.ts"
+      instructions: >-
+        Public SDK surface (exports of src/index.ts and src/node.ts): it must match the other
+        poli-page SDKs and the API spec; flag any breaking change (renamed or removed export,
+        changed signature or default) unless the major version is bumped. Keep it strict
+        TypeScript with no `any`, and runtime-agnostic outside src/node.ts (no Node-only imports in
+        the isomorphic entry point).
+    - path: "src/error.ts"
+      instructions: >-
+        Every failure must surface as PoliPageError with a `code`. API errors follow the
+        `{ error: { code } }` response shape; SDK-internal codes are invalid_options, network_error,
+        timeout and aborted. New API codes belong in the ApiCode union.
+    - path: "src/internal/**"
+      instructions: >-
+        HTTP, retry and idempotency logic: check that only safe or idempotent requests are retried,
+        that AbortSignal cancellation and timeouts are honored, and that API keys are never logged
+        or included in error messages.
+    - path: "tests/**"
+      instructions: >-
+        Every public method needs unit tests covering success and error paths (vitest). Keep
+        tests/types.test-d.ts and tests/isomorphism.test.ts in sync with API changes. Integration
+        tests must read credentials from the environment only.
+    - path: "{examples,demo}/**"
+      instructions: >-
+        Sample code that customers copy: read the API key from an env var (never hardcode it), use
+        the public `@poli-page/sdk` API idiomatically, and keep it consistent with the README and
+        docs.
+    - path: "docs/src/content/**"
+      instructions: >-
+        Documentation must match the actual public API and error codes; code samples should compile
+        against the current SDK.
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns: []
