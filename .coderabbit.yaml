@@ -65,7 +65,7 @@ reviews:
     - path: "src/error.ts"
       instructions: >-
         Every failure must surface as PoliPageError with a `code`. API errors follow the
-        `{ error: { code } }` response shape; SDK-internal codes are invalid_options, network_error,
+        `{ error: CODE_STRING, detail?, issues? } (flat, API spec §4.1)` response shape; SDK-internal codes are invalid_options, network_error,
         timeout and aborted. New API codes belong in the ApiCode union.
     - path: "src/internal/**"
       instructions: >-
