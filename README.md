@@ -262,7 +262,7 @@ The SDK retries on **5xx**, **429**, **network errors**, and **timeouts**. Backo
 
 ## Type system
 
-Full type definitions ship with the package. `RenderInput` is the one input type of every render method: `project`, `template` and `data` are required, and a field the API does not accept (such as `version`) fails at compile time.
+Full type definitions ship with the package. `RenderInput` is the one input type of every render method: `project`, `template` and `data` are required. A field the API does not accept (such as `version`) fails at compile time in an object literal; passed through a variable, it compiles but the SDK never sends it.
 
 ## Concurrency & thread-safety
 

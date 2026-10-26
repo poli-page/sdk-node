@@ -1,4 +1,4 @@
-// Demonstrates: client.render.pdfStream(input) — project mode only.
+// Demonstrates: client.render.pdfStream(input) — a ReadableStream of PDF bytes.
 import { PoliPage } from '@poli-page/sdk';
 
 const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });

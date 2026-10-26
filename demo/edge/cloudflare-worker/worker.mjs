@@ -11,7 +11,8 @@
  * parallel to the Node demos.
  *
  * GET /errors/not-found runs the `not-found` step alone and answers with the
- * caught error's `toPayload()` body and status (404 TEMPLATE_NOT_FOUND).
+ * caught error's `toPayload()` body and status (404 TEMPLATE_NOT_FOUND); any
+ * other outcome answers 500 and names it.
  *
  * Run locally:
  *   npm run dev                # predev prompts for the API key if needed
@@ -31,9 +32,9 @@ export default {
 			try {
 				await renderNotFound(client);
 			} catch (err) {
+				if (isTemplateNotFound(err)) return Response.json(err.toPayload(), { status: 404 });
 				if (!(err instanceof PoliPageError)) throw err;
-				const payload = err.toPayload();
-				return Response.json(payload, { status: payload.status ?? 500 });
+				return new Response(`unexpected: expected 404 TEMPLATE_NOT_FOUND, got ${err.status ?? '(no status)'} ${err.code}`, { status: 500 });
 			}
 			return new Response('unexpected: rendering a template that does not exist succeeded', { status: 500 });
 		}
@@ -109,6 +110,11 @@ export default {
  */
 function renderNotFound(client) {
 	return client.render.pdf({ project: 'getting-started', template: 'does-not-exist', data: {} });
+}
+
+/** True for the error the `not-found` step expects: 404 TEMPLATE_NOT_FOUND. */
+function isTemplateNotFound(err) {
+	return err instanceof PoliPageError && err.code === 'TEMPLATE_NOT_FOUND' && err.status === 404;
 }
 
 /** Drain a ReadableStream<Uint8Array> into a single Uint8Array. */
@@ -242,14 +248,14 @@ function reportHtml({
 			? `<p class="ok">✔ soft-deleted</p>`
 			: `<p class="fail">✗ failed</p>${errorBlock(deleteRes.reason)}`;
 
-	// Step 9: not-found. Inverted — the demo passes when the SDK throws a
-	// PoliPageError for the template that does not exist.
+	// Step 9: not-found. Inverted — the demo passes when the SDK throws
+	// 404 TEMPLATE_NOT_FOUND for the template that does not exist.
 	const errorSection =
-		errorRes.status === 'rejected' && errorRes.reason instanceof PoliPageError
+		errorRes.status === 'rejected' && isTemplateNotFound(errorRes.reason)
 			? `<p class="ok">✔ Error caught successfully — the SDK exposed:</p>
        ${errorBlock(errorRes.reason)}`
 			: errorRes.status === 'rejected'
-				? `<p class="fail">✗ Threw, but not a PoliPageError</p>${errorBlock(errorRes.reason)}`
+				? `<p class="fail">✗ Threw, but not 404 TEMPLATE_NOT_FOUND</p>${errorBlock(errorRes.reason)}`
 				: `<p class="fail">✗ Unexpected: the call succeeded but should have failed.</p>`;
 
 	return `<!doctype html>

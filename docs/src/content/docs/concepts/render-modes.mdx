@@ -19,7 +19,7 @@ const pdf = await client.render.pdf({
 - `format`, `orientation`, `locale`, `metadata` — optional; an unset field is not sent.
 - `signal`, `idempotencyKey` — per-call options; not part of the request body.
 
-The SDK sends only these fields. A field the API does not know, such as `version`, is a compile-time error in TypeScript and is never sent from untyped JavaScript.
+The SDK sends only these fields. A field the API does not know, such as `version`, is a compile-time error in a TypeScript object literal; passed through a variable, or from untyped JavaScript, it compiles and is dropped, never sent.
 
 ## Which copy is rendered
 

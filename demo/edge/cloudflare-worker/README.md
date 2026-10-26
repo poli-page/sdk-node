@@ -16,7 +16,7 @@ The report covers:
 | 8 | `documents.delete(id)` | soft-delete confirmation |
 | 9 | `not-found` | a deliberate `404 TEMPLATE_NOT_FOUND` (template `does-not-exist`), caught and inspected |
 
-`GET /errors/not-found` runs the `not-found` step alone and answers with the caught error's `toPayload()` body (`code`, `message`, `status`, `requestId`) and status `404`.
+`GET /errors/not-found` runs the `not-found` step alone and answers with the caught error's `toPayload()` body (`code`, `message`, `status`, `requestId`) and status `404`. Any other outcome (another error, or no error) answers `500` and names it.
 
 The independent first-wave calls (`render.pdf`, `render.pdfStream`, `render.document`, `not-found`) run in parallel via `Promise.allSettled`. The `documents.*` calls necessarily run after `render.document` lands — they need its `documentId` — and are issued sequentially so `delete` happens last. Step 3 stays numbered so the report reads parallel to the Node demos; `renderToFile` is intentionally absent because it's a Node-only sub-export and would defeat the point of an edge-runtime demo.
 

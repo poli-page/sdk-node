@@ -5,9 +5,10 @@
  * Run:  POLI_PAGE_API_KEY=pp_sandbox_x npm run demo:esm
  *
  * Walks through every public method of the SDK and writes the results to
- * `output-esm/`. Uses the `getting-started/welcome` template that's
- * auto-provisioned in every Poli Page org, so this works out of the box
- * with any fresh API key — no project setup needed.
+ * `output-esm/`. Renders the `welcome` template of the `getting-started`
+ * project, which every organization gets in its `sandbox` environment: use a
+ * sandbox key (`pp_sandbox_…`) of an organization whose `getting-started`
+ * project is untouched. A `live` key gets 404 PROJECT_NOT_IN_ENVIRONMENT.
  *
  * Open the generated files to confirm everything works:
  *
@@ -39,10 +40,8 @@ mkdirSync(OUT_DIR, { recursive: true });
 // On a fresh prompt the pasted key is saved to `demo/.env` automatically.
 const apiKey = await ensureApiKey();
 
-// Every render call uses project mode — required by render.pdf/pdfStream/
-// renderToFile/document. getting-started/welcome is auto-provisioned in
-// every org, so this works out of the box for any newcomer with a fresh
-// API key.
+// getting-started/welcome is published into every organization's
+// sandbox environment when the organization is created.
 const projectInput = {
 	project: 'getting-started',
 	template: 'welcome',
@@ -200,7 +199,7 @@ try {
 	await client.render.pdf({ project: 'getting-started', template: 'does-not-exist', data: {} });
 	console.log('  ' + c.red('✗ unexpected: the call succeeded but should have failed'));
 } catch (err) {
-	if (err instanceof PoliPageError) {
+	if (err instanceof PoliPageError && err.code === 'TEMPLATE_NOT_FOUND' && err.status === 404) {
 		console.log(`  ${c.green('✔')} Error caught successfully. PoliPageError exposed:`);
 		console.log('     ', {
 			code: err.code,
