@@ -1,35 +1,45 @@
 /** @internal */
-type SdkInternalCode = 'invalid_options' | 'network_error' | 'timeout' | 'aborted';
+type SdkInternalCode = 'invalid_options' | 'network_error' | 'timeout' | 'aborted' | 'DOWNLOAD_FAILED';
 
 /** @internal */
 type ApiCode =
 	// auth
 	| 'MISSING_API_KEY'
 	| 'INVALID_API_KEY'
-	// billing / lifecycle
-	| 'PAYMENT_REQUIRED'
+	// organization / access
 	| 'FORBIDDEN'
 	| 'ORGANIZATION_CANCELLED'
 	| 'ORGANIZATION_PURGED'
+	| 'ORGANIZATION_PAYMENT_GRACE'
+	| 'ORGANIZATION_MIGRATING'
+	| 'ENVIRONMENT_PROTECTED'
+	| 'THUMBNAILS_NOT_AVAILABLE'
 	// not found / gone
 	| 'NOT_FOUND'
-	| 'VERSION_NOT_FOUND'
+	| 'PROJECT_NOT_FOUND'
+	| 'PROJECT_NOT_IN_ENVIRONMENT'
+	| 'TEMPLATE_NOT_FOUND'
 	| 'DOCUMENT_NOT_FOUND'
-	| 'GONE'
+	| 'DOCUMENT_GONE'
 	// validation
 	| 'VALIDATION_ERROR'
 	| 'MISSING_DATA'
-	| 'MISSING_PROJECT_OR_TEMPLATE'
 	| 'MISSING_TEMPLATE_SLUG'
-	| 'INVALID_VERSION_FORMAT'
-	| 'VERSION_REQUIRED'
-	| 'INVALID_VERSION_FOR_KEY_ENV'
 	| 'PROJECT_REQUIRED_FOR_DOCUMENT'
+	| 'ENVIRONMENT_MISMATCH'
+	| 'EMPTY_DOCUMENT'
+	| 'TEMPLATE_ERROR'
+	| 'RENDER_BODY_TOO_LARGE'
+	| 'DOCUMENT_TOO_LARGE'
 	// rate / quota
 	| 'QUOTA_EXCEEDED'
 	| 'OVERAGE_CAP_EXCEEDED'
+	| 'RATE_LIMIT_EXCEEDED'
 	// server
-	| 'INTERNAL_ERROR';
+	| 'INTERNAL_ERROR'
+	| 'STORAGE_ACCESS_DENIED'
+	| 'PUBLISH_IN_PROGRESS'
+	| 'RENDER_TIMEOUT';
 
 /**
  * Known error codes raised by the SDK or returned by the API.
@@ -104,7 +114,7 @@ export class PoliPageError extends Error {
 
 	/**
 	 * `true` for HTTP 400 — request payload failed validation
-	 * (missing data, missing project/template, bad version, etc.).
+	 * (missing data, unknown field, template error, etc.).
 	 *
 	 * @example
 	 * ```ts

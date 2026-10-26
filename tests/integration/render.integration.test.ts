@@ -8,12 +8,12 @@ import { renderToFile } from '../../src/node.js';
 const apiKey = process.env.POLI_PAGE_API_KEY;
 const baseUrl = process.env.POLI_PAGE_BASE_URL ?? 'https://api.poli.page';
 
-// Integration tests use the `getting-started/welcome/1.0.0` template that
-// every Poli Page org gets provisioned automatically — works out of the box
-// for any fresh API key. Override via env vars to point at your own template.
+// Integration tests render the `getting-started` project's `welcome` template,
+// published into every organization's sandbox environment — works out of the
+// box with a sandbox key of a fresh organization. Override via env vars to
+// point at a project published in your key's environment.
 const project = process.env.POLI_PAGE_TEST_PROJECT ?? 'getting-started';
 const template = process.env.POLI_PAGE_TEST_TEMPLATE ?? 'welcome';
-const version = process.env.POLI_PAGE_TEST_VERSION ?? '1.0.0';
 
 const describeIfKey = apiKey ? describe : describe.skip;
 
@@ -21,7 +21,7 @@ describeIfKey('integration: API', () => {
 	it('renders a real PDF (project mode, %PDF magic bytes, > 1KB)', async () => {
 		const client = new PoliPage({ apiKey: apiKey!, baseUrl });
 		const pdf = await client.render.pdf({
-			project, template, version,
+			project, template,
 			data: { name: 'Integration Test' },
 		});
 		expect(pdf).toBeInstanceOf(Uint8Array);
@@ -29,26 +29,10 @@ describeIfKey('integration: API', () => {
 		expect(new TextDecoder().decode(pdf.subarray(0, 4))).toBe('%PDF');
 	});
 
-	it('preview returns html + totalPages + environment', async () => {
-		const client = new PoliPage({ apiKey: apiKey!, baseUrl });
-		// render.preview accepts inline mode — keep this test inline-mode to
-		// exercise that path (no project/template setup required).
-		const result = await client.render.preview({
-			template: '<p>{{ name }}</p>',
-			data: { name: 'Preview Test' },
-		});
-		expect(typeof result.html).toBe('string');
-		expect(result.html.length).toBeGreaterThan(0);
-		// The deployed API returns totalPages: 0 for small inline content
-		// (no explicit page breaks). Just confirm it's a non-negative number.
-		expect(result.totalPages).toBeGreaterThanOrEqual(0);
-		expect(['sandbox', 'live']).toContain(result.environment);
-	});
-
 	it('bad API key produces PoliPageError with status 401', async () => {
-		const client = new PoliPage({ apiKey: 'pp_test_invalid_xxx', baseUrl, maxRetries: 0 });
+		const client = new PoliPage({ apiKey: 'pp_sandbox_00000000000000000000000000000000', baseUrl, maxRetries: 0 });
 		try {
-			await client.render.pdf({ project, template, version, data: {} });
+			await client.render.pdf({ project, template, data: {} });
 			expect.fail('Should have thrown');
 		} catch (err) {
 			expect(err).toBeInstanceOf(PoliPageError);
@@ -64,7 +48,7 @@ describeIfKey('integration: API', () => {
 		try {
 			await renderToFile(
 				client,
-				{ project, template, version, data: { name: 'renderToFile' } },
+				{ project, template, data: { name: 'renderToFile' } },
 				out,
 			);
 			const s = await stat(out);
@@ -79,7 +63,7 @@ describeIfKey('integration: API', () => {
 	it('render.document stores a PDF and returns a descriptor with downloadable bytes', async () => {
 		const client = new PoliPage({ apiKey: apiKey!, baseUrl });
 		const doc = await client.render.document({
-			project, template, version,
+			project, template,
 			data: { name: 'render.document' },
 			metadata: { source: 'sdk-node integration test' },
 		});

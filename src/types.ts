@@ -30,7 +30,16 @@ export type Orientation = 'portrait' | 'landscape';
  */
 export type RenderMetadata = Record<string, string | number | boolean>;
 
-interface BaseRenderInput {
+/**
+ * Input accepted by every render method: a project and one of its templates,
+ * by slug. The render uses the project's copy published in the API key's
+ * environment; there is no version to pick and no inline HTML.
+ */
+export interface RenderInput {
+	/** Project slug. */
+	project: string;
+	/** Template slug within the project. */
+	template: string;
 	/** Template data (variables, locale hints, etc.). Required. */
 	data: Record<string, unknown>;
 	/** Page format override. */
@@ -41,51 +50,18 @@ interface BaseRenderInput {
 	locale?: string;
 	/**
 	 * Caller-supplied metadata. Free-form key-value pairs, forwarded to the
-	 * API and echoed on `preview` and `document` responses. Not interpreted
-	 * by the SDK.
+	 * API and echoed on the document descriptor. Not interpreted by the SDK.
 	 */
 	metadata?: RenderMetadata;
-	/** Optional caller cancellation. Composed with the SDK's internal timeout. */
+	/** Optional caller cancellation. Composed with the SDK's internal timeout. Not sent. */
 	signal?: AbortSignal;
-	/** Optional override for the auto-generated UUID v4 idempotency key. */
+	/** Optional override for the auto-generated UUID v4 idempotency key. Sent as a header. */
 	idempotencyKey?: string;
 }
 
 /**
- * Render against a stored project + template by slug. Use `version` to target
- * a specific published version; omit to render the draft.
- */
-export interface ProjectModeInput extends BaseRenderInput {
-	project: string;
-	template: string;
-	version?: string;
-}
-
-/**
- * Render with raw HTML inline. No project resolution.
- */
-export interface InlineModeInput extends BaseRenderInput {
-	project?: never;
-	template: string;
-	version?: never;
-}
-
-/**
- * Input accepted by all render methods. Either project mode (resolved by slug)
- * or inline mode (raw HTML in `template`).
- */
-export type RenderInput = ProjectModeInput | InlineModeInput;
-
-export interface PreviewResult {
-	html: string;
-	totalPages: number;
-	environment: 'sandbox' | 'live';
-}
-
-/**
- * Result of `client.documents.preview(id)`. The deployed API uses
- * `pageCount` (singular) here — different from `render.preview`'s
- * `totalPages` field.
+ * Result of `client.documents.preview(id)`: the stored HTML of a rendered
+ * document and its page count.
  */
 export interface DocumentPreviewResult {
 	html: string;
@@ -105,8 +81,12 @@ export interface RawDocumentDescriptor {
 	projectSlug: string | null;
 	templateId: string | null;
 	templateSlug: string | null;
-	version: string | null;
-	environment: 'sandbox' | 'live';
+	/**
+	 * Name of the environment the document was rendered in (the API key's
+	 * environment), e.g. `sandbox`, `live` or `staging`. Any name the API
+	 * returns is passed through unchanged.
+	 */
+	environment: string;
 	apiKeyId: string | null;
 	format: PageFormat;
 	orientation: Orientation | null;
@@ -143,14 +123,17 @@ export interface DocumentDescriptor extends RawDocumentDescriptor {
 }
 
 /**
- * Options for `client.documents.thumbnails(id, options)`. Spec §6.3.
+ * Options for `client.documents.thumbnails(id, options?)`. Spec §6.3.
+ * Every option is optional; an unset option is not sent and the API's
+ * default applies. The SDK does not check bounds: the API answers
+ * `400 VALIDATION_ERROR` to an out-of-range value.
  */
 export interface ThumbnailOptions {
-	/** Thumbnail width in pixels. Required. */
-	width: number;
-	/** Output format. Default `png`. */
-	format?: 'png' | 'jpeg';
-	/** JPEG quality 1-100. Only valid when `format` is `jpeg`. */
+	/** Thumbnail width in pixels, 50–2000. API default `400`. */
+	width?: number;
+	/** Output format. API default `jpeg`. */
+	format?: 'jpeg' | 'webp' | 'png';
+	/** Image quality 1–100. Only valid when `format` is `jpeg`. */
 	quality?: number;
 	/** Generate only these pages (1-based). */
 	pages?: number[];
@@ -199,8 +182,8 @@ export interface PoliPageOptions {
 }
 
 /**
- * The render namespace exposed as `client.render`. Hosts the four
- * render operations defined by spec v1.3 §5.1–§5.3.
+ * The render namespace exposed as `client.render`. Hosts the three
+ * render operations, all backed by `POST /v1/render`.
  */
 export interface RenderNamespace {
 	/**
@@ -213,12 +196,11 @@ export interface RenderNamespace {
 	 * const pdf = await client.render.pdf({
 	 *   project: 'billing',
 	 *   template: 'invoice',
-	 *   version: '1.0.0',
 	 *   data: { invoiceNumber: 'INV-001' },
 	 * });
 	 * ```
 	 */
-	pdf(input: ProjectModeInput): Promise<Uint8Array>;
+	pdf(input: RenderInput): Promise<Uint8Array>;
 
 	/**
 	 * Like `render.pdf` but returns a `ReadableStream` of the PDF bytes.
@@ -226,25 +208,12 @@ export interface RenderNamespace {
 	 * @example
 	 * ```ts
 	 * const stream = await client.render.pdfStream({
-	 *   project: 'billing', template: 'invoice', version: '1.0.0', data: { ... },
+	 *   project: 'billing', template: 'invoice', data: { ... },
 	 * });
 	 * return new Response(stream, { headers: { 'content-type': 'application/pdf' } });
 	 * ```
 	 */
-	pdfStream(input: ProjectModeInput): Promise<ReadableStream<Uint8Array>>;
-
-	/**
-	 * Generate paginated HTML preview output. Accepts both project mode
-	 * and inline mode. Calls `POST /v1/render/preview`.
-	 *
-	 * @example
-	 * ```ts
-	 * const { html, totalPages, environment } = await client.render.preview({
-	 *   project: 'billing', template: 'invoice', version: '1.0.0', data: { ... },
-	 * });
-	 * ```
-	 */
-	preview(input: RenderInput): Promise<PreviewResult>;
+	pdfStream(input: RenderInput): Promise<ReadableStream<Uint8Array>>;
 
 	/**
 	 * Render a PDF, store it server-side, and return a flat document descriptor.
@@ -258,14 +227,14 @@ export interface RenderNamespace {
 	 * @example
 	 * ```ts
 	 * const doc = await client.render.document({
-	 *   project: 'billing', template: 'invoice', version: '1.0.0',
+	 *   project: 'billing', template: 'invoice',
 	 *   data: { ... },
 	 *   metadata: { customerId: 'cust_123' },
 	 * });
 	 * await db.invoices.update({ id: 'INV-001' }, { documentId: doc.documentId });
 	 * ```
 	 */
-	document(input: ProjectModeInput): Promise<DocumentDescriptor>;
+	document(input: RenderInput): Promise<DocumentDescriptor>;
 }
 
 /**
@@ -298,21 +267,23 @@ export interface DocumentsNamespace {
 
 	/**
 	 * Generate page thumbnails for a stored document. Spec §6.3.
-	 * POST `/v1/documents/:id/thumbnails`.
+	 * POST `/v1/documents/:id/thumbnails`. Every option is optional.
 	 *
 	 * @example
 	 * ```ts
-	 * const thumbs = await client.documents.thumbnails('doc_abc123', {
+	 * const thumbs = await client.documents.thumbnails('doc_abc123');
+	 * const webp = await client.documents.thumbnails('doc_abc123', {
 	 *   width: 840,
-	 *   format: 'png',
+	 *   format: 'webp',
 	 * });
 	 * ```
 	 */
-	thumbnails(id: string, options: ThumbnailOptions): Promise<Thumbnail[]>;
+	thumbnails(id: string, options?: ThumbnailOptions): Promise<Thumbnail[]>;
 
 	/**
 	 * Soft-delete a stored document. The PDF is purged from storage;
 	 * metadata is retained for audit. Spec §6.4. DELETE `/v1/documents/:id`.
+	 * Idempotent: deleting an already-deleted document resolves too.
 	 *
 	 * @example
 	 * ```ts

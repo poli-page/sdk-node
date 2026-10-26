@@ -21,7 +21,6 @@ const sampleDescriptor = {
 	projectSlug: 'p',
 	templateId: 'tpl_t',
 	templateSlug: 't',
-	version: '1.0.0',
 	environment: 'sandbox',
 	apiKeyId: 'key_x',
 	format: 'A4',
@@ -76,28 +75,28 @@ afterAll(async () => {
 
 describe('renderToFile (sub-export)', () => {
 	it('writes a non-empty PDF to disk', async () => {
-		const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
+		const client = new PoliPage({ apiKey: 'pp_sandbox_x', baseUrl });
 		const out = join(tempDir, 'a.pdf');
-		await renderToFile(client, { project: 'p', template: 't', version: '1.0.0', data: {} }, out);
+		await renderToFile(client, { project: 'p', template: 't', data: {} }, out);
 		const content = await readFile(out);
 		expect(new TextDecoder().decode(content.subarray(0, 4))).toBe('%PDF');
 		expect(content.length).toBeGreaterThan(0);
 	});
 
 	it('creates parent directories that do not exist', async () => {
-		const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
+		const client = new PoliPage({ apiKey: 'pp_sandbox_x', baseUrl });
 		const out = join(tempDir, 'nested', 'deeply', 'b.pdf');
-		await renderToFile(client, { project: 'p', template: 't', version: '1.0.0', data: {} }, out);
+		await renderToFile(client, { project: 'p', template: 't', data: {} }, out);
 		const s = await stat(out);
 		expect(s.isFile()).toBe(true);
 	});
 
 	it('overwrites existing files', async () => {
-		const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
+		const client = new PoliPage({ apiKey: 'pp_sandbox_x', baseUrl });
 		const out = join(tempDir, 'c.pdf');
-		await renderToFile(client, { project: 'p', template: 't', version: '1.0.0', data: {} }, out);
+		await renderToFile(client, { project: 'p', template: 't', data: {} }, out);
 		const first = (await stat(out)).size;
-		await renderToFile(client, { project: 'p', template: 't', version: '1.0.0', data: {} }, out);
+		await renderToFile(client, { project: 'p', template: 't', data: {} }, out);
 		const second = (await stat(out)).size;
 		expect(second).toBe(first);
 	});

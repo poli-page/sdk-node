@@ -89,7 +89,6 @@ const sampleDescriptor = {
 	projectSlug: 'billing',
 	templateId: 'tpl_invoice_v1',
 	templateSlug: 'invoice',
-	version: '1.0.0',
 	environment: 'live',
 	apiKeyId: 'key_live_abc',
 	format: 'A4',
@@ -127,6 +126,17 @@ describe('documentsGet', () => {
 		});
 		await documentsGet(buildCtx(), 'doc_abc123');
 		expect(lastRequest.body).toBe('');
+	});
+
+	it('returns any environment name unchanged', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(
+				JSON.stringify({ ...sampleDescriptor, environment: 'staging', presignedPdfUrl: 'http://x' }),
+			);
+		});
+		const doc = await documentsGet(buildCtx(), 'doc_abc123');
+		expect(doc.environment).toBe('staging');
 	});
 
 	it('attaches a downloadPdf method on the returned descriptor', async () => {
@@ -249,6 +259,45 @@ describe('documentsThumbnails', () => {
 		});
 	});
 
+	it('sends {} when called with no options', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ thumbnails: [sampleThumbnail] }));
+		});
+		const thumbs = await documentsThumbnails(buildCtx(), 'doc_abc123');
+		expect(lastRequest.body).toBe('{}');
+		expect(thumbs).toHaveLength(1);
+	});
+
+	it('sends {} when no option is set', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ thumbnails: [] }));
+		});
+		await documentsThumbnails(buildCtx(), 'doc_abc123', {});
+		expect(lastRequest.body).toBe('{}');
+		await documentsThumbnails(buildCtx(), 'doc_abc123', { width: undefined, format: undefined });
+		expect(lastRequest.body).toBe('{}');
+	});
+
+	it('sends a single option on its own (webp format)', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ thumbnails: [] }));
+		});
+		await documentsThumbnails(buildCtx(), 'doc_abc123', { format: 'webp' });
+		expect(JSON.parse(lastRequest.body)).toEqual({ thumbnails: { format: 'webp' } });
+	});
+
+	it('forwards out-of-range values unchanged (the API validates them)', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ thumbnails: [] }));
+		});
+		await documentsThumbnails(buildCtx(), 'doc_abc123', { width: 5000, quality: 0 });
+		expect(JSON.parse(lastRequest.body)).toEqual({ thumbnails: { width: 5000, quality: 0 } });
+	});
+
 	it('unwraps the server { thumbnails: [...] } envelope and returns Thumbnail[]', async () => {
 		setMockHandler((_req, res) => {
 			res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -298,6 +347,15 @@ describe('documentsDelete', () => {
 		});
 		const result = await documentsDelete(buildCtx(), 'doc_abc123');
 		expect(result).toBeUndefined();
+	});
+
+	it('resolves on a repeated delete (the API answers 204 again)', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(204);
+			res.end();
+		});
+		await documentsDelete(buildCtx(), 'doc_abc123');
+		await expect(documentsDelete(buildCtx(), 'doc_abc123')).resolves.toBeUndefined();
 	});
 
 	it('encodes special characters in the document ID', async () => {

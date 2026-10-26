@@ -8,8 +8,6 @@
 export type {
 	PageFormat,
 	Orientation,
-	ProjectModeInput,
-	InlineModeInput,
 	RenderInput,
 	RenderMetadata,
 	RenderNamespace,
@@ -18,7 +16,6 @@ export type {
 	DocumentPreviewResult,
 	Thumbnail,
 	ThumbnailOptions,
-	PreviewResult,
 	PoliPageOptions,
 	RequestEvent,
 	ResponseEvent,
@@ -61,7 +58,6 @@ const DEFAULT_TIMEOUT = 60_000;
  * const pdf = await client.render.pdf({
  *   project: 'billing',
  *   template: 'invoice',
- *   version: '1.0.0',
  *   data: { invoiceNumber: 'INV-001', total: 1280 },
  * });
  * ```

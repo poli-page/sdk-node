@@ -6,6 +6,7 @@ const SDK_INTERNAL = [
   { code: 'network_error',   when: 'TCP/TLS-level failure reaching the API. Retryable.' },
   { code: 'timeout',         when: 'The request did not complete within `timeout`. Retryable.' },
   { code: 'aborted',         when: 'Caller-supplied `signal` aborted the request. Not retryable.' },
+  { code: 'DOWNLOAD_FAILED', when: 'Fetching the PDF from `presignedPdfUrl` failed (expired URL or network error).' },
 ];
 
 const API_AUTH = [
@@ -14,36 +15,47 @@ const API_AUTH = [
 ];
 
 const API_BILLING = [
-  { code: 'PAYMENT_REQUIRED',       when: 'Organization billing is past due.' },
-  { code: 'FORBIDDEN',              when: 'The key does not have access to the requested resource.' },
-  { code: 'ORGANIZATION_CANCELLED', when: 'The organization has been cancelled.' },
-  { code: 'ORGANIZATION_PURGED',    when: 'The organization has been purged.' },
+  { code: 'FORBIDDEN',                  when: 'The key does not have access to the requested resource.' },
+  { code: 'ORGANIZATION_CANCELLED',     when: 'The organization has been cancelled.' },
+  { code: 'ORGANIZATION_PURGED',        when: 'The organization has been purged.' },
+  { code: 'ORGANIZATION_PAYMENT_GRACE', when: 'The organization is in its payment grace period (403).' },
+  { code: 'ORGANIZATION_MIGRATING',     when: 'The organization is being migrated (503). Retryable.' },
+  { code: 'ENVIRONMENT_PROTECTED',      when: 'The key\'s environment is protected against this operation (403).' },
+  { code: 'THUMBNAILS_NOT_AVAILABLE',   when: 'Thumbnails are not included in the organization\'s plan (403).' },
 ];
 
 const API_NOT_FOUND = [
-  { code: 'NOT_FOUND',          when: 'The project/template slug does not exist or is not published.' },
-  { code: 'VERSION_NOT_FOUND',  when: 'The pinned version does not exist for this template.' },
-  { code: 'DOCUMENT_NOT_FOUND', when: 'No stored document matches the supplied id.' },
-  { code: 'GONE',               when: 'The resource existed but has been deleted.' },
+  { code: 'NOT_FOUND',                  when: 'The requested resource does not exist.' },
+  { code: 'PROJECT_NOT_FOUND',          when: 'No project matches the `project` slug.' },
+  { code: 'PROJECT_NOT_IN_ENVIRONMENT', when: 'The project is not published in the key\'s environment.' },
+  { code: 'TEMPLATE_NOT_FOUND',         when: 'No template matches the `template` slug in that project.' },
+  { code: 'DOCUMENT_NOT_FOUND',         when: 'No stored document matches the supplied id.' },
+  { code: 'DOCUMENT_GONE',              when: 'The stored document existed but has been deleted (410).' },
 ];
 
 const API_VALIDATION = [
-  { code: 'VALIDATION_ERROR',             when: '`data` does not satisfy the template schema.' },
-  { code: 'MISSING_DATA',                 when: 'Request body lacks the required `data` field.' },
-  { code: 'MISSING_PROJECT_OR_TEMPLATE',  when: 'Project mode call without both `project` and `template`.' },
-  { code: 'MISSING_TEMPLATE_SLUG',        when: 'Template slug is missing.' },
-  { code: 'INVALID_VERSION_FORMAT',       when: 'The `version` string is not a valid semver.' },
-  { code: 'VERSION_REQUIRED',             when: 'Live keys require a pinned `version`.' },
-  { code: 'INVALID_VERSION_FOR_KEY_ENV',  when: 'Sandbox key targeting a live-only version, or vice versa.' },
+  { code: 'VALIDATION_ERROR',              when: 'The request body is invalid (unknown field, out-of-range option, bad `data`).' },
+  { code: 'MISSING_DATA',                  when: 'Request body lacks the required `data` field.' },
+  { code: 'MISSING_TEMPLATE_SLUG',         when: 'Template slug is missing.' },
+  { code: 'PROJECT_REQUIRED_FOR_DOCUMENT', when: 'A render was requested without a `project`.' },
+  { code: 'ENVIRONMENT_MISMATCH',          when: 'The request does not match the key\'s environment (400).' },
+  { code: 'EMPTY_DOCUMENT',                when: 'The render produced an empty document (400).' },
+  { code: 'TEMPLATE_ERROR',                when: 'The template failed to render with the supplied `data`.' },
+  { code: 'RENDER_BODY_TOO_LARGE',         when: 'The render request body is too large (413).' },
+  { code: 'DOCUMENT_TOO_LARGE',            when: 'The rendered document is too large (413).' },
 ];
 
 const API_RATE = [
-  { code: 'QUOTA_EXCEEDED',      when: 'Per-key rate limit or monthly quota reached. Retryable.' },
-  { code: 'OVERAGE_CAP_EXCEEDED', when: 'Hard overage cap reached. Not retryable.' },
+  { code: 'QUOTA_EXCEEDED',       when: 'Monthly quota reached (429).' },
+  { code: 'OVERAGE_CAP_EXCEEDED', when: 'Hard overage cap reached (429).' },
+  { code: 'RATE_LIMIT_EXCEEDED',  when: 'Too many requests (429). Retryable; honours `Retry-After`.' },
 ];
 
 const API_SERVER = [
-  { code: 'INTERNAL_ERROR', when: 'The API returned 5xx. Retryable.' },
+  { code: 'INTERNAL_ERROR',        when: 'The API returned 5xx, or a non-JSON error body. Retryable on 5xx.' },
+  { code: 'STORAGE_ACCESS_DENIED', when: 'The API could not reach document storage (502). Retryable.' },
+  { code: 'PUBLISH_IN_PROGRESS',   when: 'A publish holds this project in this environment (503). Retried after `Retry-After`.' },
+  { code: 'RENDER_TIMEOUT',        when: 'The render did not finish in time (504). Retryable.' },
 ];
 
 export function buildErrorsPage(): string {

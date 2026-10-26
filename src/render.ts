@@ -1,8 +1,6 @@
 import { PoliPageError } from './error.js';
 import type {
 	DocumentDescriptor,
-	PreviewResult,
-	ProjectModeInput,
 	RawDocumentDescriptor,
 	RenderInput,
 	RenderNamespace,
@@ -63,6 +61,18 @@ function attachDownloadPdf(raw: RawDocumentDescriptor): DocumentDescriptor {
 }
 
 /**
+ * Build the `POST /v1/render` body from the seven documented fields only.
+ * A JavaScript caller is not held to the types, and the API rejects unknown
+ * fields with `400 VALIDATION_ERROR`, so nothing else the input carries
+ * (`version`, `environment`, …) is sent. Unset optional fields stay
+ * `undefined`, which `JSON.stringify` omits from the wire body.
+ */
+function buildRenderBody(input: RenderInput): object {
+	const { project, template, data, metadata, format, orientation, locale } = input;
+	return { project, template, data, metadata, format, orientation, locale };
+}
+
+/**
  * Implementation of `client.render.document`. Wired by `createRenderNamespace`
  * and not intended for direct caller use.
  *
@@ -72,7 +82,7 @@ function attachDownloadPdf(raw: RawDocumentDescriptor): DocumentDescriptor {
  */
 export async function renderDocument(
 	ctx: SdkContext,
-	input: ProjectModeInput,
+	input: RenderInput,
 ): Promise<DocumentDescriptor> {
 	if (!input.project) {
 		throw new PoliPageError(
@@ -80,8 +90,12 @@ export async function renderDocument(
 			'PROJECT_REQUIRED_FOR_DOCUMENT',
 		);
 	}
-	const { signal, idempotencyKey, ...wireBody } = input;
-	const response = await ctx.post('/v1/render', wireBody, signal, idempotencyKey);
+	const response = await ctx.post(
+		'/v1/render',
+		buildRenderBody(input),
+		input.signal,
+		input.idempotencyKey,
+	);
 	const raw = (await response.json()) as RawDocumentDescriptor;
 	return attachDownloadPdf(raw);
 }
@@ -96,7 +110,7 @@ export async function renderDocument(
  */
 export async function renderPdf(
 	ctx: SdkContext,
-	input: ProjectModeInput,
+	input: RenderInput,
 ): Promise<Uint8Array> {
 	const doc = await renderDocument(ctx, input);
 	return doc.downloadPdf({ signal: input.signal });
@@ -112,7 +126,7 @@ export async function renderPdf(
  */
 export async function renderPdfStream(
 	ctx: SdkContext,
-	input: ProjectModeInput,
+	input: RenderInput,
 ): Promise<ReadableStream<Uint8Array>> {
 	const doc = await renderDocument(ctx, input);
 	let response: Response;
@@ -138,24 +152,6 @@ export async function renderPdfStream(
 }
 
 /**
- * Implementation of `client.render.preview`. Wired by `createRenderNamespace`
- * and not intended for direct caller use.
- *
- * Calls `POST /v1/render/preview` and returns the parsed `PreviewResult`
- * `{ html, totalPages, environment }`. Accepts both project mode and
- * inline mode (unlike the render-to-document methods, which require
- * project mode).
- */
-export async function renderPreview(
-	ctx: SdkContext,
-	input: RenderInput,
-): Promise<PreviewResult> {
-	const { signal, idempotencyKey, ...wireBody } = input;
-	const response = await ctx.post('/v1/render/preview', wireBody, signal, idempotencyKey);
-	return response.json() as Promise<PreviewResult>;
-}
-
-/**
  * Build the object exposed as `client.render`. Each method captures the
  * provided `ctx` and forwards to the corresponding free function.
  *
@@ -165,7 +161,6 @@ export function createRenderNamespace(ctx: SdkContext): RenderNamespace {
 	return {
 		pdf: (input) => renderPdf(ctx, input),
 		pdfStream: (input) => renderPdfStream(ctx, input),
-		preview: (input) => renderPreview(ctx, input),
 		document: (input) => renderDocument(ctx, input),
 	};
 }

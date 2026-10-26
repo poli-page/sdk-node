@@ -36,9 +36,10 @@ afterAll(async () => {
 });
 
 /**
- * Helper: assert that calling `invoke` against a mock server that returns
- * the given (status, code, message) surfaces those fields verbatim on the
- * thrown PoliPageError, including x-request-id propagation.
+ * Helper: assert that calling `invoke` against a mock server that answers
+ * with the API's error body `{ error, detail, requestId }` surfaces the code
+ * and detail verbatim on the thrown PoliPageError, with the HTTP status and
+ * the x-request-id header.
  */
 async function expectCode(opts: {
 	status: number;
@@ -50,9 +51,11 @@ async function expectCode(opts: {
 			'Content-Type': 'application/json',
 			'x-request-id': 'req_test_42',
 		});
-		res.end(JSON.stringify({ code: opts.code, message: `Synthetic ${opts.code}` }));
+		res.end(
+			JSON.stringify({ error: opts.code, detail: `Synthetic ${opts.code}`, requestId: 'req_test_42' }),
+		);
 	});
-	const client = new PoliPage({ apiKey: 'pp_test_abc', baseUrl, maxRetries: 0 });
+	const client = new PoliPage({ apiKey: 'pp_sandbox_abc', baseUrl, maxRetries: 0 });
 	await expect(opts.invoke(client)).rejects.toMatchObject({
 		name: 'PoliPageError',
 		code: opts.code,
@@ -68,29 +71,32 @@ async function expectCode(opts: {
 	}
 }
 
-describe('spec §7.2 error code propagation', () => {
-	it('propagates PAYMENT_REQUIRED (402)', async () => {
-		await expectCode({
-			status: 402,
-			code: 'PAYMENT_REQUIRED',
-			invoke: (c) => c.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} }),
-		});
-	});
+const render = (c: PoliPage) => c.render.pdf({ project: 'p', template: 't', data: {} });
 
-	it('propagates ORGANIZATION_CANCELLED (403)', async () => {
-		await expectCode({
-			status: 403,
-			code: 'ORGANIZATION_CANCELLED',
-			invoke: (c) => c.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} }),
-		});
-	});
-
-	it('propagates ORGANIZATION_PURGED (410)', async () => {
-		await expectCode({
-			status: 410,
-			code: 'ORGANIZATION_PURGED',
-			invoke: (c) => c.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} }),
-		});
+describe('API error code propagation', () => {
+	it.each([
+		[403, 'ORGANIZATION_CANCELLED'],
+		[410, 'ORGANIZATION_PURGED'],
+		[403, 'ORGANIZATION_PAYMENT_GRACE'],
+		[503, 'ORGANIZATION_MIGRATING'],
+		[403, 'ENVIRONMENT_PROTECTED'],
+		[400, 'ENVIRONMENT_MISMATCH'],
+		[404, 'PROJECT_NOT_FOUND'],
+		[404, 'PROJECT_NOT_IN_ENVIRONMENT'],
+		[404, 'TEMPLATE_NOT_FOUND'],
+		[400, 'TEMPLATE_ERROR'],
+		[400, 'EMPTY_DOCUMENT'],
+		[400, 'PROJECT_REQUIRED_FOR_DOCUMENT'],
+		[413, 'RENDER_BODY_TOO_LARGE'],
+		[413, 'DOCUMENT_TOO_LARGE'],
+		[429, 'QUOTA_EXCEEDED'],
+		[429, 'OVERAGE_CAP_EXCEEDED'],
+		[429, 'RATE_LIMIT_EXCEEDED'],
+		[502, 'STORAGE_ACCESS_DENIED'],
+		[503, 'PUBLISH_IN_PROGRESS'],
+		[504, 'RENDER_TIMEOUT'],
+	])('propagates %i %s from render.pdf', async (status, code) => {
+		await expectCode({ status, code, invoke: render });
 	});
 
 	it('propagates DOCUMENT_NOT_FOUND (404) from documents.get', async () => {
@@ -101,63 +107,110 @@ describe('spec §7.2 error code propagation', () => {
 		});
 	});
 
-	it('propagates GONE (410) from documents.get on a soft-deleted document', async () => {
+	it('propagates DOCUMENT_GONE (410) from documents.get on a deleted document', async () => {
 		await expectCode({
 			status: 410,
-			code: 'GONE',
+			code: 'DOCUMENT_GONE',
 			invoke: (c) => c.documents.get('doc_deleted'),
 		});
 	});
 
-	it('propagates QUOTA_EXCEEDED (429) on Free monthly limit', async () => {
+	it('propagates THUMBNAILS_NOT_AVAILABLE (403) from documents.thumbnails', async () => {
 		await expectCode({
-			status: 429,
-			code: 'QUOTA_EXCEEDED',
-			invoke: (c) => c.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} }),
+			status: 403,
+			code: 'THUMBNAILS_NOT_AVAILABLE',
+			invoke: (c) => c.documents.thumbnails('doc_abc'),
 		});
 	});
 
-	it('propagates OVERAGE_CAP_EXCEEDED (429) on paid overage cap', async () => {
-		await expectCode({
-			status: 429,
-			code: 'OVERAGE_CAP_EXCEEDED',
-			invoke: (c) => c.render.pdf({ project: 'p', template: 't', version: '1.0.0', data: {} }),
+	it('surfaces a 404 { error: TEMPLATE_NOT_FOUND, detail } with the detail as message', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(404, { 'Content-Type': 'application/json' });
+			res.end(
+				JSON.stringify({
+					error: 'TEMPLATE_NOT_FOUND',
+					detail: 'Template "does-not-exist" not found in project "getting-started"',
+					requestId: 'req_tpl',
+				}),
+			);
+		});
+		const client = new PoliPage({ apiKey: 'pp_sandbox_abc', baseUrl });
+		await expect(
+			client.render.pdf({ project: 'getting-started', template: 'does-not-exist', data: {} }),
+		).rejects.toMatchObject({
+			name: 'PoliPageError',
+			code: 'TEMPLATE_NOT_FOUND',
+			status: 404,
+			message: 'Template "does-not-exist" not found in project "getting-started"',
 		});
 	});
 
-	it('propagates INVALID_VERSION_FORMAT (400) on bad version string', async () => {
-		await expectCode({
-			status: 400,
-			code: 'INVALID_VERSION_FORMAT',
-			invoke: (c) => c.render.pdf({
-				project: 'p', template: 't', version: 'latest', data: {},
-			}),
+	it('passes an unknown code through verbatim', async () => {
+		await expectCode({ status: 409, code: 'SOMETHING_THE_SDK_HAS_NEVER_SEEN', invoke: render });
+	});
+});
+
+describe('renders during a publish', () => {
+	it('retries 503 PUBLISH_IN_PROGRESS after Retry-After, then surfaces it once retries are exhausted', async () => {
+		let attempts = 0;
+		setMockHandler((_req, res) => {
+			attempts++;
+			res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '1' });
+			res.end(
+				JSON.stringify({
+					error: 'PUBLISH_IN_PROGRESS',
+					detail: 'A publish is in progress for this project',
+					requestId: 'req_pub',
+				}),
+			);
 		});
+		const delays: number[] = [];
+		const client = new PoliPage({
+			apiKey: 'pp_sandbox_abc',
+			baseUrl,
+			maxRetries: 1,
+			retryDelay: 10_000,
+			onRetry: (e) => delays.push(e.delayMs),
+		});
+		const t0 = Date.now();
+		await expect(render(client)).rejects.toMatchObject({
+			name: 'PoliPageError',
+			code: 'PUBLISH_IN_PROGRESS',
+			status: 503,
+		});
+		expect(attempts).toBe(2);
+		expect(delays).toEqual([1000]);
+		expect(Date.now() - t0).toBeGreaterThanOrEqual(950);
 	});
 
-	it('propagates VERSION_REQUIRED (400) on live key without version', async () => {
-		await expectCode({
-			status: 400,
-			code: 'VERSION_REQUIRED',
-			invoke: (c) => c.render.pdf({ project: 'p', template: 't', data: {} }),
+	it('succeeds when the publish ends before retries are exhausted', async () => {
+		let attempts = 0;
+		setMockHandler((req, res) => {
+			if (req.url?.startsWith('/presigned/')) {
+				res.writeHead(200, { 'Content-Type': 'application/pdf' });
+				res.end(Buffer.from('%PDF-1.4 ok'));
+				return;
+			}
+			attempts++;
+			if (attempts === 1) {
+				res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '0' });
+				res.end(JSON.stringify({ error: 'PUBLISH_IN_PROGRESS', requestId: 'req_pub' }));
+				return;
+			}
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(
+				JSON.stringify({
+					documentId: 'doc_1', organizationId: 'org', projectId: 'p', projectSlug: 'p',
+					templateId: 't', templateSlug: 't', environment: 'sandbox', apiKeyId: 'k',
+					format: 'A4', orientation: 'portrait', locale: null, pageCount: 1, sizeBytes: 1,
+					createdAt: 'now', metadata: {}, presignedPdfUrl: `${baseUrl}/presigned/ok.pdf`,
+					expiresAt: 'later',
+				}),
+			);
 		});
-	});
-
-	it('propagates INVALID_VERSION_FOR_KEY_ENV (400)', async () => {
-		await expectCode({
-			status: 400,
-			code: 'INVALID_VERSION_FOR_KEY_ENV',
-			invoke: (c) => c.render.pdf({
-				project: 'p', template: 't', version: '1.0.0', data: {},
-			}),
-		});
-	});
-
-	it('propagates PROJECT_REQUIRED_FOR_DOCUMENT (400)', async () => {
-		await expectCode({
-			status: 400,
-			code: 'PROJECT_REQUIRED_FOR_DOCUMENT',
-			invoke: (c) => c.render.pdf({ project: 'p', template: 't', data: {} }),
-		});
+		const client = new PoliPage({ apiKey: 'pp_sandbox_abc', baseUrl });
+		const pdf = await render(client);
+		expect(attempts).toBe(2);
+		expect(new TextDecoder().decode(pdf.subarray(0, 4))).toBe('%PDF');
 	});
 });

@@ -8,6 +8,30 @@ Breaking changes between major versions are summarized in [MIGRATION.md](MIGRATI
 
 ## [Unreleased]
 
+Environments contract: a key is `pp_{env}_{32 hex}` and carries its environment (`pp_sandbox_…`, `pp_live_…`, `pp_staging_…`); the API resolves the environment from the key and renders the project's copy published there. There are no versions, no draft rendering and no authenticated preview. Breaking, with no deprecation window.
+
+### Removed
+
+- `render.preview(input)` and its `PreviewResult` type: the API removed `POST /v1/render/preview` (a call now gets `404`). `documents.preview(id)` stays.
+- Inline-HTML rendering and the `InlineModeInput` type: the API answers `400 VALIDATION_ERROR` to an inline `template`.
+- The `version` render input field and `DocumentDescriptor.version`: a render uses the copy published in the key's environment.
+- Known error codes `VERSION_NOT_FOUND`, `INVALID_VERSION_FORMAT`, `VERSION_REQUIRED`, `INVALID_VERSION_FOR_KEY_ENV`, `MISSING_PROJECT_OR_TEMPLATE`, `GONE` (the API answers `410 DOCUMENT_GONE`) and `PAYMENT_REQUIRED` (payment grace is `403 ORGANIZATION_PAYMENT_GRACE`).
+- `examples/render-preview.ts`.
+
+### Changed
+
+- `ProjectModeInput` is renamed `RenderInput` and is the only render input type.
+- The `POST /v1/render` body is built from `project`, `template`, `data`, `metadata`, `format`, `orientation` and `locale` only; any other key a caller passes (such as `version` from untyped JavaScript) is no longer sent. Unset optional fields are omitted.
+- `DocumentDescriptor.environment` is a `string`: any environment name the API returns (e.g. `staging`) is passed through unchanged.
+- `documents.thumbnails(id, options?)`: every option is optional and `options` itself can be omitted; with no option set the body is `{}` and the API defaults apply (`width` 400, `format` `jpeg`). `format` accepts `'jpeg' | 'webp' | 'png'`. The SDK does not check bounds; the API answers `400 VALIDATION_ERROR`.
+- `documents.delete(id)` is documented as idempotent: it resolves on `204`, including for an already-deleted document.
+- Integration tests render `getting-started`/`welcome` with no version (`POLI_PAGE_TEST_VERSION` is gone).
+
+### Added
+
+- Known error codes `PUBLISH_IN_PROGRESS` (503, retried like any 5xx, honouring `Retry-After`), `ENVIRONMENT_MISMATCH`, `PROJECT_NOT_IN_ENVIRONMENT`, `TEMPLATE_NOT_FOUND`, `DOCUMENT_GONE`, `ENVIRONMENT_PROTECTED`, `ORGANIZATION_PAYMENT_GRACE`, `EMPTY_DOCUMENT`, `STORAGE_ACCESS_DENIED`, `ORGANIZATION_MIGRATING`, `PROJECT_NOT_FOUND`, `TEMPLATE_ERROR`, `THUMBNAILS_NOT_AVAILABLE`, `RATE_LIMIT_EXCEEDED`, `RENDER_BODY_TOO_LARGE`, `DOCUMENT_TOO_LARGE`, `RENDER_TIMEOUT`. Unknown codes still pass through verbatim.
+- `DOWNLOAD_FAILED` is listed among the known SDK codes of `PoliPageErrorCode` (it was already raised by `downloadPdf()`, `render.pdf` and `render.pdfStream`).
+
 ## [0.9.0] - 2026-06-22
 
 ### BREAKING
