@@ -24,8 +24,9 @@ interface MethodTarget {
 const RENDER_ERRORS: readonly string[] = [
   'VALIDATION_ERROR', 'INVALID_API_KEY', 'PROJECT_NOT_FOUND', 'PROJECT_NOT_IN_ENVIRONMENT', 'TEMPLATE_NOT_FOUND',
   'TEMPLATE_ERROR', 'EMPTY_DOCUMENT', 'RENDER_BODY_TOO_LARGE', 'DOCUMENT_TOO_LARGE',
+  'PROJECT_REQUIRED_FOR_DOCUMENT',
   'QUOTA_EXCEEDED', 'RATE_LIMIT_EXCEEDED', 'PUBLISH_IN_PROGRESS', 'RENDER_TIMEOUT',
-  'timeout', 'network_error', 'INTERNAL_ERROR',
+  'timeout', 'network_error', 'aborted', 'INTERNAL_ERROR',
 ];
 
 const METHODS: readonly MethodTarget[] = [
