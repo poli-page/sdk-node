@@ -39,7 +39,7 @@ export const c = {
 	cyan: ansi('36'),
 };
 
-/** Print a numbered section banner: `[2/6] preview() — ...` in bold cyan. */
+/** Print a numbered section banner: `[2/9] render.pdfStream() — ...` in bold cyan. */
 export const step = (n, total, name) =>
 	console.log('\n' + c.cyan(c.bold(`[${n}/${total}] ${name}`)));
 
@@ -116,6 +116,12 @@ export function resolveBaseUrl() {
 }
 
 /**
+ * Full-key format shared by every Poli Page SDK: `pp_{env}_{32 lowercase hex}`.
+ * It checks the shape only, never the environment name.
+ */
+const API_KEY_PATTERN = /^pp_(?=[a-z][a-z0-9-]{0,19}_)[a-z][a-z0-9]*(?:-[a-z0-9]+)*_[0-9a-f]{32}$/;
+
+/**
  * Make sure we have a POLI_PAGE_API_KEY for the demo. Resolution order:
  *
  *   1. `process.env.POLI_PAGE_API_KEY` (host shell — wins for CI).
@@ -123,8 +129,8 @@ export function resolveBaseUrl() {
  *   3. Interactive prompt; on a successful paste, the key is appended to
  *      `demo/.env` so future runs skip this step.
  *
- * Exits the process with a friendly error if the user pastes something
- * that doesn't start with `pp_test_`.
+ * Exits the process with a friendly error if the pasted value is not a
+ * well-formed key (`API_KEY_PATTERN`).
  */
 export async function ensureApiKey() {
 	if (process.env.POLI_PAGE_API_KEY) return process.env.POLI_PAGE_API_KEY;
@@ -141,9 +147,11 @@ export async function ensureApiKey() {
 	console.log(c.bold(c.yellow('   No POLI_PAGE_API_KEY found.')));
 	console.log(rule);
 	console.log('');
-	console.log('   This demo needs a test key (' + c.cyan('pp_test_*') + ') to');
-	console.log('   talk to the Poli Page API. Test keys never bill or send real');
-	console.log('   documents.');
+	console.log('   This demo needs a ' + c.cyan('sandbox') + ' key (' + c.cyan('pp_sandbox_…') + ') to talk');
+	console.log('   to the Poli Page API. Sandbox renders are watermarked, never count');
+	console.log('   toward your quota, and their documents expire after 30 days.');
+	console.log('   Use a fresh organization: the demo renders its ' + c.cyan('getting-started'));
+	console.log('   project, which every organization gets in ' + c.cyan('sandbox') + '.');
 	console.log('');
 	console.log(c.bold('   How to get one:'));
 	console.log('     1. Sign in at ' + c.cyan('https://app.poli.page'));
@@ -151,8 +159,8 @@ export async function ensureApiKey() {
 	console.log('          ' + c.cyan('https://app.poli.page/orgs/{YOUR_ORG}/keys'));
 	console.log(c.dim('        (replace {YOUR_ORG} with your org slug — visible in the'));
 	console.log(c.dim('         dashboard URL when you\'re inside your organization)'));
-	console.log('     3. Click "Create key" and copy');
-	console.log('        the value (starts with ' + c.cyan('pp_test_') + ').');
+	console.log('     3. Click "Create key" for the ' + c.cyan('sandbox') + ' environment and copy');
+	console.log('        the value (starts with ' + c.cyan('pp_sandbox_') + ').');
 	console.log('');
 	console.log('   Paste it below — we\'ll save it to ' + c.cyan('.env') + ' (repo root) so');
 	console.log('   future runs pick it up automatically. (You can also set');
@@ -160,11 +168,11 @@ export async function ensureApiKey() {
 	console.log('');
 
 	const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-	const key = (await rl.question(c.bold('   Paste your pp_test_* key') + ' (or Ctrl-C to cancel): ')).trim();
+	const key = (await rl.question(c.bold('   Paste your sandbox key') + ' (or Ctrl-C to cancel): ')).trim();
 	rl.close();
 
-	if (!key.startsWith('pp_test_')) {
-		console.error('\n  ' + c.red('✗') + ' Expected a key starting with `pp_test_`. Aborting.\n');
+	if (!API_KEY_PATTERN.test(key)) {
+		console.error('\n  ' + c.red('✗') + ' Expected a key of the form `pp_{env}_{32 lowercase hex}`. Aborting.\n');
 		process.exit(1);
 	}
 

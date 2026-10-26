@@ -34,7 +34,9 @@ Notes:
 
 ## Step 1 — Get an API key (you'll need this every time)
 
-Every demo talks to the Poli Page API, which requires an API key. **You only need a `pp_test_*` key** — test keys never bill, and never send real documents.
+Every demo talks to the Poli Page API, which requires an API key. **You only need a `sandbox` key** (`pp_sandbox_…`): sandbox renders are watermarked, never count toward your monthly PDF quota, and their documents expire 30 days after creation.
+
+Use a **fresh organization**. Every organization gets a `getting-started` project, published into its `sandbox` environment when the organization is created, with a `welcome` template; the demos render it. It is a normal, editable project: in an organization that renamed it, deleted it or removed it from `sandbox`, the API answers `404 PROJECT_NOT_FOUND` or `404 PROJECT_NOT_IN_ENVIRONMENT` and the demos stop at step 1.
 
 ### How to create one
 
@@ -44,7 +46,13 @@ Every demo talks to the Poli Page API, which requires an API key. **You only nee
    https://app.poli.page/orgs/{YOUR_ORG}/keys
    ```
    Replace `{YOUR_ORG}` with your **organization slug** — you can see it in the URL whenever you're inside your dashboard. For example, if your dashboard URL is `https://app.poli.page/orgs/acme/dashboard`, your slug is `acme` and the keys page is at `https://app.poli.page/orgs/acme/keys`.
-3. Click **Create key** and copy the value (starts with `pp_test_`).
+3. Click **Create key** for the `sandbox` environment and copy the value (starts with `pp_sandbox_`).
+
+When the demo prompts for the key, it checks the pasted value against the key format shared by every Poli Page SDK, and nothing else:
+
+```text
+^pp_(?=[a-z][a-z0-9-]{0,19}_)[a-z][a-z0-9]*(?:-[a-z0-9]+)*_[0-9a-f]{32}$
+```
 
 ### One canonical place for the key — `.env` at the SDK repo root
 
@@ -60,7 +68,7 @@ The "first run prompts, subsequent runs are silent" experience is the design goa
 
 ```bash
 cp .env.example .env
-# then edit .env and replace `pp_test_replace_me` with your real key
+# then edit .env and replace `pp_sandbox_x` with your real sandbox key
 ```
 
 The Cloudflare Worker demo passes the resolved key to `wrangler dev` via `--var POLI_PAGE_API_KEY:…` at boot — there is no `.dev.vars` file in this project. In production you use `wrangler secret put POLI_PAGE_API_KEY` instead. See `demo/edge/cloudflare-worker/README.md`.
@@ -74,14 +82,19 @@ npm run demo:esm    # writes to demo/node/output-esm/
 npm run demo:cjs    # writes to demo/node/output-cjs/
 ```
 
-Each run produces four output files:
+Each run walks nine steps, in this order:
 
-| File | What |
-|---|---|
-| `render.pdf` | PDF bytes (in-memory, `client.render.pdf()`) |
-| `stream.pdf` | PDF bytes (streamed, `client.render.pdfStream()`) |
-| `file.pdf` | PDF bytes (streamed-to-disk, `renderToFile()`) |
-| `preview.html` | Engine HTML output (`client.documents.preview(id)`, after storing the document via `client.render.document()`) — open in any browser |
+| Step | Call | Output |
+|---|---|---|
+| 1 | `client.render.pdf()` | `render.pdf` (PDF bytes in memory) |
+| 2 | `client.render.pdfStream()` | `stream.pdf` (streamed PDF bytes) |
+| 3 | `renderToFile()` | `file.pdf` (streamed to disk) |
+| 4 | `client.render.document()` | prints the stored document's `documentId` |
+| 5 | `client.documents.get(id)` | prints the refreshed presigned URL's expiry |
+| 6 | `client.documents.thumbnails(id)` | `thumbs/page_<n>.png` (Starter+ tier; skipped on Free) |
+| 7 | `client.documents.preview(id)` | `documents_preview.html` (the stored document's HTML) — open in any browser |
+| 8 | `client.documents.delete(id)` | deletes the stored document |
+| 9 | `not-found` | renders `getting-started`/`does-not-exist`, catches the `PoliPageError` (`404 TEMPLATE_NOT_FOUND`) and prints its `code`, `status`, `message` and `requestId` |
 
 The three PDFs are byte-identical (modulo creation timestamps) — that's the cross-method consistency check. To verify:
 
@@ -96,10 +109,11 @@ diff <(pdftotext demo/node/output-esm/render.pdf -) <(pdftotext demo/node/output
 npm run demo:edge
 ```
 
-This boots `wrangler dev` on `localhost:8787`. In another terminal:
+This boots `wrangler dev` on `localhost:8787` and opens the report page, which shows the same nine steps (step 3, `renderToFile`, is skipped: edge runtimes have no filesystem). The `not-found` step is also served on its own as JSON. In another terminal:
 
 ```bash
-curl -o /tmp/edge.pdf http://localhost:8787 && open /tmp/edge.pdf
+curl -i http://localhost:8787/errors/not-found
+# → HTTP 404 with the error's toPayload() body: { code: "TEMPLATE_NOT_FOUND", message, status: 404, requestId }
 ```
 
 The worker has **no `nodejs_compat` flag** — its clean boot is the runtime proof that the SDK's main entry runs on Workers, Vercel Edge, Deno, and Bun without any Node compatibility layer. See `demo/edge/cloudflare-worker/README.md` for production deploy.
@@ -122,7 +136,7 @@ demo/
         └── worker.mjs
 ```
 
-The demos use the `getting-started/welcome/1.0.0` project template that's auto-provisioned in every Poli Page org — no template files ship with the demos.
+The demos render the `welcome` template of the `getting-started` project that every organization gets in its `sandbox` environment, with no version — no template files ship with the demos.
 
 ## Running the demos directly (without the root-level scripts)
 
@@ -138,18 +152,17 @@ npm run demo:cjs
 # Cloudflare Worker
 cd demo/edge/cloudflare-worker
 npm install
-echo "POLI_PAGE_API_KEY=pp_test_..." > .dev.vars
-npm run dev
+npm run dev   # resolves the key from the shell or the repo-root .env, prompts otherwise
 ```
 
 ## Notes for SDK porters
 
 These demos are also the canonical reference when implementing other Poli Page SDKs (Python, PHP, Go, etc.). Each language's demo should:
 
-- Walk the same methods in the same order: `render.pdf` → `render.pdfStream` → `renderToFile` (or equivalent, where the language supports it) → `render.document` → `documents.preview(id)` → error handling.
-- Use the auto-provisioned `getting-started/welcome/1.0.0` project template so the demo works out of the box for any newcomer with a fresh API key — no template files in-tree, no project setup needed.
-- Show error handling at the bottom — trigger a real API error, catch the language's error type, expose `code`/`status`/`requestId`/predicate helpers.
-- Prompt for the API key when `POLI_PAGE_API_KEY` isn't set, with the same instructional copy as the Node demo.
+- Walk the same methods in the same order: `render.pdf` → `render.pdfStream` → `renderToFile` (or equivalent, where the language supports it) → `render.document` → `documents.get(id)` → `documents.thumbnails(id)` → `documents.preview(id)` → `documents.delete(id)` → `not-found`.
+- Render `{ project: "getting-started", template: "welcome", data: { name: "SDK Demo" } }` with no `version`, so the demo works out of the box with a `sandbox` key of a fresh organization — no template files in-tree, no project setup needed.
+- End with the `not-found` step: `render.pdf({ project: "getting-started", template: "does-not-exist", data: {} })`, which the API answers with `404` and code `TEMPLATE_NOT_FOUND`; catch the language's error type and print its `code`, `status`, `message` and `requestId`.
+- Read `POLI_PAGE_API_KEY` and the optional `POLI_PAGE_BASE_URL`; prompt for a `sandbox` key when `POLI_PAGE_API_KEY` isn't set, with the same instructional copy as the Node demo, and check a pasted key against the full-key regex above only (never a list of environment names).
 
 ## What these demos are NOT
 

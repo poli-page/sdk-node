@@ -19,61 +19,69 @@ interface MethodTarget {
   readonly locate: (td: TdNode) => TdNode | undefined;
 }
 
+// Codes a render can return; the byte-returning methods add DOWNLOAD_FAILED
+// for the presigned-URL fetch that follows the render.
+const RENDER_ERRORS: readonly string[] = [
+  'VALIDATION_ERROR', 'INVALID_API_KEY', 'PROJECT_NOT_FOUND', 'PROJECT_NOT_IN_ENVIRONMENT', 'TEMPLATE_NOT_FOUND',
+  'TEMPLATE_ERROR', 'QUOTA_EXCEEDED', 'RATE_LIMIT_EXCEEDED', 'PUBLISH_IN_PROGRESS',
+  'timeout', 'network_error', 'INTERNAL_ERROR',
+];
+
 const METHODS: readonly MethodTarget[] = [
   {
     slug: 'render-pdf',
     displayName: 'render.pdf',
     exampleFile: 'render-pdf.ts',
-    errorCodes: ['VALIDATION_ERROR', 'NOT_FOUND', 'QUOTA_EXCEEDED', 'timeout', 'network_error', 'INTERNAL_ERROR'],
+    errorCodes: [...RENDER_ERRORS, 'DOWNLOAD_FAILED'],
     locate: (td) => findMethod(td, 'RenderNamespace', 'pdf'),
   },
   {
     slug: 'render-pdf-stream',
     displayName: 'render.pdfStream',
     exampleFile: 'render-pdf-stream.ts',
-    errorCodes: ['VALIDATION_ERROR', 'NOT_FOUND', 'QUOTA_EXCEEDED', 'timeout', 'network_error', 'INTERNAL_ERROR'],
+    errorCodes: [...RENDER_ERRORS, 'DOWNLOAD_FAILED'],
     locate: (td) => findMethod(td, 'RenderNamespace', 'pdfStream'),
   },
   {
     slug: 'render-document',
     displayName: 'render.document',
     exampleFile: 'render-document.ts',
-    errorCodes: ['VALIDATION_ERROR', 'NOT_FOUND', 'QUOTA_EXCEEDED', 'INTERNAL_ERROR'],
+    errorCodes: RENDER_ERRORS,
     locate: (td) => findMethod(td, 'RenderNamespace', 'document'),
   },
   {
     slug: 'documents-get',
     displayName: 'documents.get',
     exampleFile: 'documents-get.ts',
-    errorCodes: ['DOCUMENT_NOT_FOUND', 'INVALID_API_KEY', 'INTERNAL_ERROR'],
+    errorCodes: ['DOCUMENT_NOT_FOUND', 'DOCUMENT_GONE', 'FORBIDDEN', 'INVALID_API_KEY', 'INTERNAL_ERROR'],
     locate: (td) => findMethod(td, 'DocumentsNamespace', 'get'),
   },
   {
     slug: 'documents-preview',
     displayName: 'documents.preview',
     exampleFile: 'documents-preview.ts',
-    errorCodes: ['DOCUMENT_NOT_FOUND', 'INVALID_API_KEY', 'INTERNAL_ERROR'],
+    errorCodes: ['DOCUMENT_NOT_FOUND', 'DOCUMENT_GONE', 'FORBIDDEN', 'INVALID_API_KEY', 'INTERNAL_ERROR'],
     locate: (td) => findMethod(td, 'DocumentsNamespace', 'preview'),
   },
   {
     slug: 'documents-thumbnails',
     displayName: 'documents.thumbnails',
     exampleFile: 'documents-thumbnails.ts',
-    errorCodes: ['DOCUMENT_NOT_FOUND', 'VALIDATION_ERROR', 'INVALID_API_KEY', 'INTERNAL_ERROR'],
+    errorCodes: ['DOCUMENT_NOT_FOUND', 'DOCUMENT_GONE', 'FORBIDDEN', 'THUMBNAILS_NOT_AVAILABLE', 'VALIDATION_ERROR', 'INVALID_API_KEY', 'INTERNAL_ERROR'],
     locate: (td) => findMethod(td, 'DocumentsNamespace', 'thumbnails'),
   },
   {
     slug: 'documents-delete',
     displayName: 'documents.delete',
     exampleFile: 'documents-delete.ts',
-    errorCodes: ['DOCUMENT_NOT_FOUND', 'INVALID_API_KEY', 'INTERNAL_ERROR'],
+    errorCodes: ['DOCUMENT_NOT_FOUND', 'FORBIDDEN', 'ENVIRONMENT_PROTECTED', 'INVALID_API_KEY', 'INTERNAL_ERROR'],
     locate: (td) => findMethod(td, 'DocumentsNamespace', 'delete'),
   },
   {
     slug: 'render-to-file',
     displayName: 'renderToFile',
     exampleFile: 'render-to-file.ts',
-    errorCodes: ['VALIDATION_ERROR', 'NOT_FOUND', 'QUOTA_EXCEEDED', 'timeout', 'network_error', 'INTERNAL_ERROR'],
+    errorCodes: [...RENDER_ERRORS, 'DOWNLOAD_FAILED'],
     locate: (td) => findFirst(td, (n) => n.name === 'renderToFile' && n.kind === KIND.Function),
   },
 ];
@@ -116,7 +124,7 @@ function renderMethodPage(target: MethodTarget, refl: TdNode, example: string): 
   const errorsBlock = target.errorCodes.length === 0
     ? ''
     : `\n## Errors\n\n<ErrorTable errors={${JSON.stringify(
-        target.errorCodes.map((code) => ({ code, when: 'See [errors](../../../production/errors/) for the full description.' })),
+        target.errorCodes.map((code) => ({ code, when: 'See the [errors reference](../../errors/) for the full description.' })),
       )}} />\n`;
 
   const descLine = escapeFrontmatter(description);

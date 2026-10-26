@@ -2,7 +2,7 @@
 /**
  * @poli-page/sdk — Node.js ESM demo
  *
- * Run:  POLI_PAGE_API_KEY=pp_test_... npm run demo:esm
+ * Run:  POLI_PAGE_API_KEY=pp_sandbox_x npm run demo:esm
  *
  * Walks through every public method of the SDK and writes the results to
  * `output-esm/`. Uses the `getting-started/welcome` template that's
@@ -149,12 +149,12 @@ try {
 	}
 	console.log(`  ${c.dim('open:')} ${fileLink(thumbDir)}`);
 } catch (err) {
-	// Tier-gated: Free keys are rejected with 402 PAYMENT_REQUIRED or 403
-	// FORBIDDEN / THUMBNAILS_NOT_AVAILABLE depending on the gating layer.
+	// Tier-gated: Free keys are rejected with 403 THUMBNAILS_NOT_AVAILABLE
+	// (or 403 FORBIDDEN, depending on the gating layer).
 	// Soft-skip any of those so the demo keeps running on Free.
 	if (
 		err instanceof PoliPageError
-		&& (err.code === 'THUMBNAILS_NOT_AVAILABLE' || err.status === 402 || err.status === 403)
+		&& (err.code === 'THUMBNAILS_NOT_AVAILABLE' || err.status === 403)
 	) {
 		console.log(`  ${c.yellow('skipped')} — ${err.code} (HTTP ${err.status}) — Starter+ tier feature`);
 	} else {
@@ -185,12 +185,12 @@ await client.documents.delete(doc.documentId);
 console.log(`  ${c.green('✔')} deleted ${doc.documentId}`);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 9. Error handling — DELIBERATELY trigger a failure, then catch it.
+// 9. not-found — DELIBERATELY trigger a 404 TEMPLATE_NOT_FOUND, then catch it.
 //    Every failure — API errors, network failures, timeouts, caller aborts —
 //    surfaces as `PoliPageError`. Inspect `code`, `status`, `requestId`, or
 //    use the predicate helpers (isAuthError, isRateLimitError, isRetryable…).
 // ─────────────────────────────────────────────────────────────────────────────
-step(9, TOTAL_STEPS, 'error handling — DEMO ONLY (we trigger an error on purpose)');
+step(9, TOTAL_STEPS, 'not-found — DEMO ONLY (we trigger an error on purpose)');
 console.log(c.yellow('  ⚠  This step is intentional — the SDK is about to throw, but the'));
 console.log(c.yellow('     demo will catch and inspect it. ') + c.bold('The demo is NOT crashing.'));
 console.log(c.dim('     (We render a template that does not exist, expecting the API to return 404 TEMPLATE_NOT_FOUND.)'));
@@ -205,9 +205,8 @@ try {
 		console.log('     ', {
 			code: err.code,
 			status: err.status,
+			message: err.message,
 			requestId: err.requestId,
-			isAuthError: err.isAuthError(),
-			isRetryable: err.isRetryable(),
 		});
 	} else {
 		throw err;

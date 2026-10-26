@@ -4,9 +4,11 @@ All notable changes to `@poli-page/sdk` (Node.js) are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-Breaking changes between major versions are summarized in [MIGRATION.md](MIGRATION.md).
+Upgrade steps for breaking changes are on the docs site's [migration page](https://poli-page.github.io/sdk-node/support/migration/).
 
 ## [Unreleased]
+
+## [0.10.0] - 2026-10-26
 
 Environments contract: a key is `pp_{env}_{32 hex}` and carries its environment (`pp_sandbox_…`, `pp_live_…`, `pp_staging_…`); the API resolves the environment from the key and renders the project's copy published there. There are no versions, no draft rendering and no authenticated preview. Breaking, with no deprecation window.
 
@@ -31,6 +33,13 @@ Environments contract: a key is `pp_{env}_{32 hex}` and carries its environment 
 
 - Known error codes `PUBLISH_IN_PROGRESS` (503, retried like any 5xx, honouring `Retry-After`), `ENVIRONMENT_MISMATCH`, `PROJECT_NOT_IN_ENVIRONMENT`, `TEMPLATE_NOT_FOUND`, `DOCUMENT_GONE`, `ENVIRONMENT_PROTECTED`, `ORGANIZATION_PAYMENT_GRACE`, `EMPTY_DOCUMENT`, `STORAGE_ACCESS_DENIED`, `ORGANIZATION_MIGRATING`, `PROJECT_NOT_FOUND`, `TEMPLATE_ERROR`, `THUMBNAILS_NOT_AVAILABLE`, `RATE_LIMIT_EXCEEDED`, `RENDER_BODY_TOO_LARGE`, `DOCUMENT_TOO_LARGE`, `RENDER_TIMEOUT`. Unknown codes still pass through verbatim.
 - `DOWNLOAD_FAILED` is listed among the known SDK codes of `PoliPageErrorCode` (it was already raised by `downloadPdf()`, `render.pdf` and `render.pdfStream`).
+- `.github/workflows/integration.yml` runs `npm run test:integration` nightly and on demand against the real API, with a `sandbox` key from the `POLI_PAGE_API_KEY` secret (and an optional `POLI_PAGE_BASE_URL` secret); without the key it logs a skip.
+
+### Documentation
+
+- README, demos, `.env.example` and the docs site teach the environments contract: `sandbox` keys (`pp_sandbox_…`) and the full-key format, the key table (watermark, quota, 30-day `sandbox` expiry, `poli-watermark`), the `getting-started`/`welcome` quick start with no `version`, and the playground (https://play.poli.page) for previews and inline HTML.
+- The demos check a pasted key against the full-key regex only, no longer have a `render.preview` step, and end with the `not-found` step (`404 TEMPLATE_NOT_FOUND`). The Cloudflare Worker demo also answers `GET /errors/not-found` with the error's `toPayload()` body.
+- The docs migration page has a "From 0.9.x to 0.10.0" entry; the generated errors reference lists the 31 API codes with their status and retry behaviour.
 
 ## [0.9.0] - 2026-06-22
 
