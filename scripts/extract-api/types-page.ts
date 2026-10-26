@@ -4,9 +4,6 @@ import { findFirst, summaryText, type TdNode, KIND } from './types-internal.js';
 const PUBLIC_TYPES = [
   'PoliPageOptions',
   'RenderInput',
-  'ProjectModeInput',
-  'InlineModeInput',
-  'PreviewResult',
   'DocumentDescriptor',
   'DocumentPreviewResult',
   'Thumbnail',
@@ -25,7 +22,7 @@ export function buildTypesPage(td: TdNode): string {
   const blocks: string[] = [];
   for (const name of PUBLIC_TYPES) {
     const node = findFirst(td, (n) => n.name === name && (n.kind === KIND.Interface || n.kind === KIND.Class));
-    if (!node) continue; // type aliases (e.g. RenderInput) aren't kind=Interface; skip silently
+    if (!node) continue; // type aliases (e.g. PageFormat) aren't kind=Interface; skip silently
     const lede = summaryText(node.comment) || '';
     blocks.push(`### \`${name}\`\n\n${lede || `_(See the source for the full definition.)_`}\n`);
   }

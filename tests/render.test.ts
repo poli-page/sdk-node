@@ -3,7 +3,6 @@ import { createServer, type Server, type IncomingMessage, type ServerResponse } 
 import {
 	renderPdf,
 	renderPdfStream,
-	renderPreview,
 	renderDocument,
 	createRenderNamespace,
 	type SdkContext,
@@ -104,7 +103,6 @@ const sampleDescriptor = {
 	projectSlug: 'billing',
 	templateId: 'tpl_invoice_v1',
 	templateSlug: 'invoice',
-	version: '1.0.0',
 	environment: 'live',
 	apiKeyId: 'key_live_abc',
 	format: 'A4',
@@ -146,7 +144,6 @@ describe('renderPdf', () => {
 		const pdf = await renderPdf(buildCtx(), {
 			project: 'billing',
 			template: 'invoice',
-			version: '1.0.0',
 			data: {},
 		});
 		expect(pdf).toBeInstanceOf(Uint8Array);
@@ -162,7 +159,6 @@ describe('renderPdf', () => {
 		await renderPdf(buildCtx(), {
 			project: 'p',
 			template: 't',
-			version: '1.0.0',
 			data: {},
 			metadata: { customerId: 'cust_1', invoiceNumber: 42, paid: true },
 		});
@@ -175,7 +171,6 @@ describe('renderPdf', () => {
 		await renderPdf(buildCtx(), {
 			project: 'p',
 			template: 't',
-			version: '1.0.0',
 			data: {},
 		});
 		const body = JSON.parse(renderRequestBody!);
@@ -188,7 +183,6 @@ describe('renderPdf', () => {
 		await renderPdf(buildCtx(), {
 			project: 'p',
 			template: 't',
-			version: '1.0.0',
 			data: {},
 			signal: controller.signal,
 			idempotencyKey: 'custom-key',
@@ -205,19 +199,15 @@ describe('renderPdf', () => {
 		// assertion for this test.
 	});
 
-	it('passes project + template + version through to /v1/render', async () => {
+	it('passes project + template + data through to /v1/render', async () => {
 		setRenderAndPdfHandler();
 		await renderPdf(buildCtx(), {
 			project: 'billing',
 			template: 'invoice',
-			version: '1.0.0',
 			data: { amount: 100 },
 		});
 		const body = JSON.parse(renderRequestBody!);
-		expect(body.project).toBe('billing');
-		expect(body.template).toBe('invoice');
-		expect(body.version).toBe('1.0.0');
-		expect(body.data).toEqual({ amount: 100 });
+		expect(body).toEqual({ project: 'billing', template: 'invoice', data: { amount: 100 } });
 	});
 
 	it('throws PoliPageError DOWNLOAD_FAILED when presigned URL fetch returns non-2xx', async () => {
@@ -239,7 +229,6 @@ describe('renderPdf', () => {
 			renderPdf(buildCtx(), {
 				project: 'p',
 				template: 't',
-				version: '1.0.0',
 				data: {},
 			}),
 		).rejects.toMatchObject({
@@ -256,7 +245,6 @@ describe('renderPdfStream', () => {
 		const stream = await renderPdfStream(buildCtx(), {
 			project: 'p',
 			template: 't',
-			version: '1.0.0',
 			data: {},
 		});
 		expect(stream).toBeInstanceOf(ReadableStream);
@@ -286,7 +274,6 @@ describe('renderPdfStream', () => {
 			renderPdfStream(buildCtx(), {
 				project: 'p',
 				template: 't',
-				version: '1.0.0',
 				data: {},
 			}),
 		).rejects.toMatchObject({
@@ -301,7 +288,6 @@ describe('renderPdfStream', () => {
 		const stream = await renderPdfStream(buildCtx(), {
 			project: 'p',
 			template: 't',
-			version: '1.0.0',
 			data: {},
 			metadata: { trace: 'abc' },
 		});
@@ -311,64 +297,6 @@ describe('renderPdfStream', () => {
 			/* drain */
 		}
 		expect(JSON.parse(renderRequestBody!).metadata).toEqual({ trace: 'abc' });
-	});
-});
-
-describe('renderPreview', () => {
-	it('POSTs to /v1/render/preview and returns html + totalPages + environment', async () => {
-		setMockHandler((_req, res) => {
-			res.writeHead(200, { 'Content-Type': 'application/json' });
-			res.end(
-				JSON.stringify({
-					html: '<p>preview</p>',
-					totalPages: 3,
-					environment: 'sandbox',
-				}),
-			);
-		});
-		const result = await renderPreview(buildCtx(), { template: '<p>x</p>', data: {} });
-		expect(result.html).toBe('<p>preview</p>');
-		expect(result.totalPages).toBe(3);
-		expect(result.environment).toBe('sandbox');
-		expect(lastRequest.path).toBe('/v1/render/preview');
-		expect(lastRequest.method).toBe('POST');
-	});
-
-	it('accepts inline mode (the only render-* method that does)', async () => {
-		setMockHandler((_req, res) => {
-			res.writeHead(200, { 'Content-Type': 'application/json' });
-			res.end(JSON.stringify({ html: '<p>x</p>', totalPages: 1, environment: 'sandbox' }));
-		});
-		await renderPreview(buildCtx(), { template: '<h1>inline</h1>', data: {} });
-		expect(JSON.parse(lastRequest.body).template).toBe('<h1>inline</h1>');
-	});
-
-	it('forwards metadata in the request body', async () => {
-		setMockHandler((_req, res) => {
-			res.writeHead(200, { 'Content-Type': 'application/json' });
-			res.end(JSON.stringify({ html: '<p>x</p>', totalPages: 1, environment: 'sandbox' }));
-		});
-		await renderPreview(buildCtx(), {
-			template: '<p>x</p>',
-			data: {},
-			metadata: { customerId: 'cust_1' },
-		});
-		expect(JSON.parse(lastRequest.body).metadata).toEqual({ customerId: 'cust_1' });
-	});
-
-	it('propagates PoliPageError on API error', async () => {
-		setMockHandler((_req, res) => {
-			res.writeHead(400, { 'Content-Type': 'application/json' });
-			res.end(JSON.stringify({ code: 'VALIDATION_ERROR', message: 'bad input' }));
-		});
-		// The buildCtx fake here does not parse error bodies into PoliPageError —
-		// that's the PoliPage class's job. Through this transport, a 400 will
-		// produce a response that the render* functions then try to JSON-parse
-		// as a PreviewResult. The assertion is that the resulting object lacks
-		// the expected shape — which is good enough; the full error-translation
-		// path is covered by error-codes.test.ts and integration tests.
-		const result = await renderPreview(buildCtx(), { template: '<p>x</p>', data: {} });
-		expect((result as unknown as { html?: string }).html).toBeUndefined();
 	});
 });
 
@@ -393,7 +321,6 @@ describe('renderDocument', () => {
 		const doc = await renderDocument(buildCtx(), {
 			project: 'p',
 			template: 't',
-			version: '1.0.0',
 			data: {},
 		});
 		expect(lastRequest.path).toBe('/v1/render');
@@ -412,7 +339,6 @@ describe('renderDocument', () => {
 		await renderDocument(buildCtx(), {
 			project: 'p',
 			template: 't',
-			version: '1.0.0',
 			data: {},
 			metadata: { customerId: 'cust_1' },
 		});
@@ -427,7 +353,6 @@ describe('renderDocument', () => {
 		const doc = await renderDocument(buildCtx(), {
 			project: 'p',
 			template: 't',
-			version: '1.0.0',
 			data: {},
 		});
 		expect(doc.metadata).toEqual({});
@@ -441,7 +366,6 @@ describe('renderDocument', () => {
 		const doc = await renderDocument(buildCtx(), {
 			project: 'p',
 			template: 't',
-			version: '1.0.0',
 			data: {},
 		});
 		expect(typeof doc.downloadPdf).toBe('function');
@@ -455,7 +379,6 @@ describe('renderDocument', () => {
 		const doc = await renderDocument(buildCtx(), {
 			project: 'p',
 			template: 't',
-			version: '1.0.0',
 			data: {},
 		});
 		const pdf = await doc.downloadPdf();
@@ -481,7 +404,6 @@ describe('renderDocument', () => {
 		const doc = await renderDocument(buildCtx(), {
 			project: 'p',
 			template: 't',
-			version: '1.0.0',
 			data: {},
 		});
 		await expect(doc.downloadPdf()).rejects.toMatchObject({
@@ -489,6 +411,62 @@ describe('renderDocument', () => {
 			code: 'DOWNLOAD_FAILED',
 			status: 403,
 		});
+	});
+
+	it('sends the seven documented fields when all are set', async () => {
+		setDescriptorHandler({ ...sampleDescriptor, presignedPdfUrl: `${baseUrl}/presigned/x.pdf` });
+		await renderDocument(buildCtx(), {
+			project: 'billing',
+			template: 'invoice',
+			data: { n: 1 },
+			metadata: { customerId: 'cust_1' },
+			format: 'A5',
+			orientation: 'landscape',
+			locale: 'fr-FR',
+		});
+		expect(JSON.parse(renderRequestBody!)).toEqual({
+			project: 'billing',
+			template: 'invoice',
+			data: { n: 1 },
+			metadata: { customerId: 'cust_1' },
+			format: 'A5',
+			orientation: 'landscape',
+			locale: 'fr-FR',
+		});
+	});
+
+	it('never sends a key outside the seven documented fields, whatever the caller passes', async () => {
+		setDescriptorHandler({ ...sampleDescriptor, presignedPdfUrl: `${baseUrl}/presigned/x.pdf` });
+		// A JavaScript caller is not held to the types.
+		const untyped = {
+			project: 'billing',
+			template: 'invoice',
+			data: {},
+			version: '1.0.0',
+			environment: 'live',
+			watermark: false,
+			idempotencyKey: 'k',
+		} as unknown as Parameters<typeof renderDocument>[1];
+		await renderDocument(buildCtx(), untyped);
+		expect(JSON.parse(renderRequestBody!)).toEqual({
+			project: 'billing',
+			template: 'invoice',
+			data: {},
+		});
+	});
+
+	it('omits unset optional fields instead of sending null', async () => {
+		setDescriptorHandler({ ...sampleDescriptor, presignedPdfUrl: `${baseUrl}/presigned/x.pdf` });
+		await renderDocument(buildCtx(), {
+			project: 'p',
+			template: 't',
+			data: {},
+			metadata: undefined,
+			format: undefined,
+			orientation: undefined,
+			locale: undefined,
+		});
+		expect(renderRequestBody).toBe('{"project":"p","template":"t","data":{}}');
 	});
 
 	it('throws PROJECT_REQUIRED_FOR_DOCUMENT and never calls ctx.post when project is empty', async () => {
@@ -510,12 +488,9 @@ describe('renderDocument', () => {
 });
 
 describe('createRenderNamespace', () => {
-	it('returns an object with pdf, pdfStream, preview, document methods bound to ctx', () => {
+	it('returns an object with exactly pdf, pdfStream, document methods bound to ctx', () => {
 		const ns = createRenderNamespace(buildCtx());
-		expect(typeof ns.pdf).toBe('function');
-		expect(typeof ns.pdfStream).toBe('function');
-		expect(typeof ns.preview).toBe('function');
-		expect(typeof ns.document).toBe('function');
+		expect(Object.keys(ns).sort()).toEqual(['document', 'pdf', 'pdfStream']);
 	});
 
 	it('routes pdf through /v1/render then auto-downloads', async () => {
@@ -524,7 +499,6 @@ describe('createRenderNamespace', () => {
 		const pdf = await ns.pdf({
 			project: 'p',
 			template: 't',
-			version: '1.0.0',
 			data: {},
 		});
 		expect(pdf).toBeInstanceOf(Uint8Array);
@@ -532,7 +506,7 @@ describe('createRenderNamespace', () => {
 	});
 
 	it('throws PROJECT_REQUIRED_FOR_DOCUMENT via public client.render.document when project is empty', async () => {
-		const client = new PoliPage({ apiKey: 'pp_test_x', baseUrl });
+		const client = new PoliPage({ apiKey: 'pp_sandbox_x', baseUrl });
 		await expect(
 			client.render.document({ project: '', template: 'invoice', data: {} }),
 		).rejects.toMatchObject({
@@ -564,7 +538,6 @@ describe('createRenderNamespace', () => {
 		const doc = await ns.document({
 			project: 'p',
 			template: 't',
-			version: '1.0.0',
 			data: {},
 		});
 		expect(doc.documentId).toBe('doc_routing');

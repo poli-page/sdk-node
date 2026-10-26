@@ -35,13 +35,6 @@ const METHODS: readonly MethodTarget[] = [
     locate: (td) => findMethod(td, 'RenderNamespace', 'pdfStream'),
   },
   {
-    slug: 'render-preview',
-    displayName: 'render.preview',
-    exampleFile: 'render-preview.ts',
-    errorCodes: ['VALIDATION_ERROR', 'NOT_FOUND', 'QUOTA_EXCEEDED', 'INTERNAL_ERROR'],
-    locate: (td) => findMethod(td, 'RenderNamespace', 'preview'),
-  },
-  {
     slug: 'render-document',
     displayName: 'render.document',
     exampleFile: 'render-document.ts',

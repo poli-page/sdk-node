@@ -4,22 +4,22 @@ import { PoliPage, PoliPageError } from '../../src/index.js';
 const apiKey = process.env.POLI_PAGE_API_KEY;
 const baseUrl = process.env.POLI_PAGE_BASE_URL ?? 'https://api.poli.page';
 
-// Integration tests use the `getting-started/welcome/1.0.0` template that
-// every Poli Page org gets provisioned automatically — works out of the box
-// for any fresh API key. Override via env vars to point at your own template.
+// Integration tests render the `getting-started` project's `welcome` template,
+// published into every organization's sandbox environment — works out of the
+// box with a sandbox key of a fresh organization. Override via env vars to
+// point at a project published in your key's environment.
 const project = process.env.POLI_PAGE_TEST_PROJECT ?? 'getting-started';
 const template = process.env.POLI_PAGE_TEST_TEMPLATE ?? 'welcome';
-const version = process.env.POLI_PAGE_TEST_VERSION ?? '1.0.0';
 
 const describeIfKey = apiKey ? describe : describe.skip;
 
 describeIfKey('integration: documents.* round trip', () => {
-	it('render.document → documents.get → downloadPdf → documents.thumbnails → documents.delete → 410 GONE', async () => {
+	it('render.document → documents.get → downloadPdf → documents.thumbnails → documents.delete (twice) → 410 DOCUMENT_GONE', async () => {
 		const client = new PoliPage({ apiKey: apiKey!, baseUrl });
 
 		// 1. Render and store a document.
 		const created = await client.render.document({
-			project, template, version,
+			project, template,
 			data: { id: Date.now() },
 			metadata: { source: 'documents integration test' },
 		});
@@ -59,17 +59,17 @@ describeIfKey('integration: documents.* round trip', () => {
 		// 6. Soft-delete.
 		await client.documents.delete(created.documentId);
 
-		// 7. Subsequent get returns 410 GONE.
+		// 7. Deletes are idempotent: a second delete resolves too.
+		await client.documents.delete(created.documentId);
+
+		// 8. Subsequent get returns 410 DOCUMENT_GONE.
 		try {
 			await client.documents.get(created.documentId);
-			expect.fail('Expected GONE after delete');
+			expect.fail('Expected DOCUMENT_GONE after delete');
 		} catch (err) {
 			expect(err).toBeInstanceOf(PoliPageError);
 			expect((err as PoliPageError).status).toBe(410);
-			// The deployed API may surface this code as 'GONE' or
-			// 'DOCUMENT_GONE' depending on the API version. Both are
-			// valid; assert the family rather than a single string.
-			expect(['GONE', 'DOCUMENT_GONE']).toContain((err as PoliPageError).code);
+			expect((err as PoliPageError).code).toBe('DOCUMENT_GONE');
 		}
 	});
 });

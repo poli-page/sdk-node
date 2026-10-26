@@ -8,7 +8,6 @@ export function buildMetaSidecar(packageVersion: string): unknown {
     methods: [
       { slug: 'render-pdf',           name: 'render.pdf' },
       { slug: 'render-pdf-stream',    name: 'render.pdfStream' },
-      { slug: 'render-preview',       name: 'render.preview' },
       { slug: 'render-document',      name: 'render.document' },
       { slug: 'documents-get',        name: 'documents.get' },
       { slug: 'documents-preview',    name: 'documents.preview' },

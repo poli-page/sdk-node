@@ -83,17 +83,20 @@ export async function documentsPreview(
  * `createDocumentsNamespace`.
  *
  * POSTs `/v1/documents/:id/thumbnails` with the options object nested
- * under a `thumbnails` key (deployed-API wire shape). Unwraps the server
- * envelope `{ thumbnails: [...] }` from the response and returns the array.
+ * under a `thumbnails` key (deployed-API wire shape), or `{}` when no option
+ * is set so every API default applies. Options are not range-checked here:
+ * the API answers `400 VALIDATION_ERROR`. Unwraps the server envelope
+ * `{ thumbnails: [...] }` from the response and returns the array.
  */
 export async function documentsThumbnails(
 	ctx: SdkContext,
 	id: string,
-	options: ThumbnailOptions,
+	options?: ThumbnailOptions,
 ): Promise<Thumbnail[]> {
+	const anySet = options !== undefined && Object.values(options).some((v) => v !== undefined);
 	const response = await ctx.post(
 		`/v1/documents/${encodeURIComponent(id)}/thumbnails`,
-		{ thumbnails: options },
+		anySet ? { thumbnails: options } : {},
 	);
 	const result = (await response.json()) as { thumbnails: Thumbnail[] };
 	return result.thumbnails;
@@ -101,14 +104,11 @@ export async function documentsThumbnails(
 
 /**
  * Implementation of `client.documents.delete`. Wired by
- * `createDocumentsNamespace` (Task 7).
+ * `createDocumentsNamespace`.
  *
  * DELETEs `/v1/documents/:id`. Returns void; the response body is
- * ignored. Spec §6.4.
- *
- * Note: a re-delete of an already-deleted document surfaces as
- * `PoliPageError` with `code: 'GONE'` (HTTP 410) from the transport
- * layer — no special handling here.
+ * ignored. Spec §6.4. Idempotent: the API answers `204` for an
+ * already-deleted document too.
  */
 export async function documentsDelete(ctx: SdkContext, id: string): Promise<void> {
 	await ctx.delete(`/v1/documents/${encodeURIComponent(id)}`);
