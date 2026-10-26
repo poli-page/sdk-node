@@ -6,6 +6,9 @@ const SDK_INTERNAL = [
   { code: 'network_error',   when: 'TCP/TLS-level failure reaching the API. Retryable.' },
   { code: 'timeout',         when: 'The request did not complete within `timeout`. Retryable.' },
   { code: 'aborted',         when: 'Caller-supplied `signal` aborted the request. Not retryable.' },
+];
+
+const SDK_DOWNLOAD = [
   { code: 'DOWNLOAD_FAILED', when: 'Fetching the PDF from `presignedPdfUrl` failed (expired URL or network error).' },
 ];
 
@@ -66,11 +69,15 @@ description: All error codes raised by PoliPageError, grouped by source.
 
 import ErrorTable from '@preset/components/ErrorTable.astro';
 
-Every failure thrown by the SDK is an instance of \`PoliPageError\` with a \`code\`. SDK-internal codes are lowercase; codes from the API are uppercase.
+Every failure thrown by the SDK is an instance of \`PoliPageError\` with a \`code\`. SDK-internal codes are lowercase; codes from the API are uppercase. \`DOWNLOAD_FAILED\` is raised by the SDK, not the API, when the PDF download from the presigned URL fails.
 
 ## SDK-internal
 
 <ErrorTable errors={${JSON.stringify(SDK_INTERNAL)}} />
+
+## PDF download
+
+<ErrorTable errors={${JSON.stringify(SDK_DOWNLOAD)}} />
 
 ## Authentication
 

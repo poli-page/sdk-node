@@ -1,5 +1,8 @@
 /** @internal */
-type SdkInternalCode = 'invalid_options' | 'network_error' | 'timeout' | 'aborted' | 'DOWNLOAD_FAILED';
+type SdkInternalCode = 'invalid_options' | 'network_error' | 'timeout' | 'aborted';
+
+/** @internal Raised by the SDK when fetching the PDF from `presignedPdfUrl` fails; not an API code. */
+type DownloadCode = 'DOWNLOAD_FAILED';
 
 /** @internal */
 type ApiCode =
@@ -46,7 +49,7 @@ type ApiCode =
  * The `(string & {})` extension keeps autocomplete on known codes while
  * still accepting forward-compat codes the API may add in the future.
  */
-export type PoliPageErrorCode = SdkInternalCode | ApiCode | (string & {});
+export type PoliPageErrorCode = SdkInternalCode | DownloadCode | ApiCode | (string & {});
 
 /**
  * Single error type for everything raised by the SDK: API errors,
