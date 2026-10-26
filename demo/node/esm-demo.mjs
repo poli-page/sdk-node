@@ -205,7 +205,6 @@ try {
 		console.log('     ', {
 			code: err.code,
 			status: err.status,
-			message: err.message,
 			requestId: err.requestId,
 			isAuthError: err.isAuthError(),
 			isRetryable: err.isRetryable(),

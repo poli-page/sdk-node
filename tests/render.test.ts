@@ -229,7 +229,7 @@ describe('renderPdf', () => {
 			renderPdf(buildCtx(), {
 				project: 'p',
 				template: 't',
-					data: {},
+				data: {},
 			}),
 		).rejects.toMatchObject({
 			name: 'PoliPageError',
@@ -274,7 +274,7 @@ describe('renderPdfStream', () => {
 			renderPdfStream(buildCtx(), {
 				project: 'p',
 				template: 't',
-					data: {},
+				data: {},
 			}),
 		).rejects.toMatchObject({
 			name: 'PoliPageError',
