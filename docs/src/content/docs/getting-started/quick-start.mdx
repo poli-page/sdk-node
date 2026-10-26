@@ -5,17 +5,19 @@ description: Render your first PDF with the Poli Page Node.js SDK in under 30 se
 
 import ApiKeyCallout from '@preset/components/ApiKeyCallout.astro';
 
-This page walks through your first render — from key to PDF — without touching the dashboard.
+This page walks through your first render — from key to PDF — without touching the dashboard. Every organization gets a `getting-started` project, published into its `sandbox` environment when the organization is created, with a `welcome` template; a `sandbox` key renders it with no setup.
 
 <ApiKeyCallout />
 
 ## Set your API key
 
-Export your key into the environment your script runs in:
+Create a `sandbox` key in a fresh organization and export it into the environment your script runs in:
 
 ```bash
-export POLI_PAGE_API_KEY=pp_test_...
+export POLI_PAGE_API_KEY=pp_sandbox_x   # replace with your sandbox key
 ```
+
+`getting-started` is a normal, editable project: in an organization that renamed it, deleted it or removed it from `sandbox`, the API answers `404 PROJECT_NOT_FOUND` or `404 PROJECT_NOT_IN_ENVIRONMENT`. Use a fresh organization to follow along.
 
 ## Render a PDF
 
@@ -25,13 +27,15 @@ import { PoliPage } from '@poli-page/sdk';
 const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });
 
 const pdf = await client.render.pdf({
-  project: 'billing',
-  template: 'invoice',
-  data: { invoiceNumber: 'INV-001', total: 1280 },
+  project: 'getting-started',
+  template: 'welcome',
+  data: { name: 'SDK Demo' },
 });
 ```
 
-`pdf` is a `Uint8Array`. Write it to disk, stream it to S3, or return it directly from an HTTP handler.
+`pdf` is a `Uint8Array`. Write it to disk, stream it to S3, or return it directly from an HTTP handler. Sandbox renders are watermarked and do not count toward your monthly PDF quota.
+
+To render your own templates, publish the project to the environment of the key you render with, then swap the slugs. To preview a template or render inline HTML while you design it, use the playground: [play.poli.page](https://play.poli.page).
 
 ## Example
 
@@ -42,15 +46,15 @@ import { PoliPage } from '@poli-page/sdk';
 const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });
 
 const pdf = await client.render.pdf({
-  project: 'billing',
-  template: 'invoice',
-  data: { invoiceNumber: 'INV-001', total: 1280 },
+  project: 'getting-started',
+  template: 'welcome',
+  data: { name: 'SDK Demo' },
 });
 
-await writeFile('./invoice.pdf', pdf);
+await writeFile('./welcome.pdf', pdf);
 ```
 
 ## See also
 - [Authentication](../../concepts/authentication/)
-- [Render modes](../../concepts/render-modes/)
+- [Render input](../../concepts/render-modes/)
 - [Output handling](../../concepts/output-handling/)

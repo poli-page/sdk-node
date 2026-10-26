@@ -16,8 +16,8 @@
  *   4. Forward Ctrl-C to wrangler so quitting cleans up properly.
  *
  * Trade-off worth knowing: passing the key via `--var` means the value
- * is visible in `ps` while wrangler runs. Acceptable for `pp_test_*`
- * (test) keys; never use this approach for `pp_live_*` keys.
+ * is visible in `ps` while wrangler runs. Acceptable for `sandbox`
+ * keys; never use this approach for keys of other environments.
  * Production deploys use `wrangler secret put POLI_PAGE_API_KEY`.
  */
 

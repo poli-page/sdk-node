@@ -1,4 +1,4 @@
-// Demonstrates: client.render.pdf(input) — project mode only.
+// Demonstrates: client.render.pdf(input) — PDF bytes in memory.
 import { PoliPage } from '@poli-page/sdk';
 
 const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });

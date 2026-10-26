@@ -1,16 +1,34 @@
 ---
 title: Migration
-description: Upgrade guides for moving between major versions of the Node.js SDK.
+description: Upgrade guides for moving between breaking versions of the Node.js SDK.
 ---
 
-This page tracks breaking changes between major versions of `@poli-page/sdk`. For the full per-release diff, see the [changelog](../changelog/).
+This page tracks breaking changes between versions of `@poli-page/sdk`. For the full per-release diff, see the [changelog](../changelog/).
 
-## v1.0
+## From 0.9.x to 0.10.0
 
-The first stable release. The full v1.0 surface and the renames from the pre-1.0 line (`client.render(input)` → `client.render.pdf(input)`, etc.) are documented in [`MIGRATION.md` in the repo](https://github.com/poli-page/sdk-node/blob/main/MIGRATION.md).
+The API moved from versions to environments, and this release follows it with no deprecation window. A key carries its environment, `pp_{env}_{32 lowercase hex}` (`pp_sandbox_…`, `pp_live_…`, `pp_staging_…`), and a render uses the project's copy published in that environment.
 
-Short version: every render call now goes through a namespace (`render.pdf`, `render.preview`, `render.document`), all PDF-producing methods require project mode, and inline mode is supported only on `render.preview`.
+1. **Keys.** Use a key of the environment you render in: a `sandbox` key (`pp_sandbox_…`) where you used a test key, a `live` key (`pp_live_…`) for production. Standard and service keys share this format. The SDK does not check a key's format, so nothing in your code changes beyond the key value.
+2. **No `version`.** Remove `version` from every render input, including stored inputs and variables you pass in. TypeScript rejects it in an object literal typed as `RenderInput`, whether written in the call or assigned to a `RenderInput` variable; an object from an untyped variable compiles, and the SDK drops the field, so the render uses the copy published in the key's environment. It is never sent. Publish the project to the environment of the key you render with; the API answers `404 PROJECT_NOT_IN_ENVIRONMENT` when it is not published there. `DocumentDescriptor.version` is gone, and `DocumentDescriptor.environment` is any environment name (a `string`).
+3. **No `render.preview`, no inline HTML.** The API removed the authenticated preview and inline-HTML rendering; the SDK removed `render.preview`, `PreviewResult` and `InlineModeInput`. Preview templates and inline HTML in the playground, [play.poli.page](https://play.poli.page). `documents.preview(id)`, the stored HTML of a rendered document, stays.
+4. **One input type.** `ProjectModeInput` is renamed `RenderInput`, the only input type of every render method.
+5. **Error codes.** Update code checks that name a removed code:
+
+   | Removed | Use instead |
+   | ------- | ----------- |
+   | `PAYMENT_REQUIRED` | `ORGANIZATION_PAYMENT_GRACE` (403) |
+   | `GONE` | `DOCUMENT_GONE` (410) |
+   | `VERSION_NOT_FOUND`, `MISSING_PROJECT_OR_TEMPLATE` | `PROJECT_NOT_FOUND`, `PROJECT_NOT_IN_ENVIRONMENT`, `TEMPLATE_NOT_FOUND` (404) |
+   | `INVALID_VERSION_FORMAT`, `VERSION_REQUIRED`, `INVALID_VERSION_FOR_KEY_ENV` | none: there are no versions |
+
+   `PUBLISH_IN_PROGRESS` (503) is retried like any 5xx, honouring `Retry-After`. The full list is in the [errors reference](../../reference/errors/).
+6. **Thumbnails.** `documents.thumbnails(id, options?)` takes optional options; the API defaults are `width` 400 and `format` `jpeg`, and `webp` is accepted.
+
+## From 0.1.x to 0.9.0
+
+0.9.0 introduced the namespaced surface: `client.render(input)` became `client.render.pdf(input)`, `client.renderStream(input)` became `client.render.pdfStream(input)`, and stored documents moved under `client.documents.*`. The [changelog](../changelog/) lists every change.
 
 ## See also
 - [Changelog](../changelog/)
-- [Render modes](../../concepts/render-modes/)
+- [Render input](../../concepts/render-modes/)

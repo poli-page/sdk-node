@@ -5,10 +5,14 @@
  * runs unmodified on Workers, Vercel Edge, Deno, and Bun.
  *
  * GET / returns an HTML report that exercises every SDK method, mirroring
- * the 10-step canonical demo in `demo/node/esm-demo.mjs`. Step 3 (the
+ * the 9-step canonical demo in `demo/node/esm-demo.mjs`. Step 3 (the
  * filesystem helper `renderToFile`) is intentionally skipped — edge runtimes
  * have no filesystem — but the slot stays numbered so the report reads
  * parallel to the Node demos.
+ *
+ * GET /errors/not-found runs the `not-found` step alone and answers with the
+ * caught error's `toPayload()` body and status (404 TEMPLATE_NOT_FOUND); any
+ * other outcome answers 500 and names it.
  *
  * Run locally:
  *   npm run dev                # predev prompts for the API key if needed
@@ -24,27 +28,35 @@ export default {
 			baseUrl: env.POLI_PAGE_BASE_URL,
 		});
 
-		// Every render call uses project mode — required by render.pdf/
-		// pdfStream/document. getting-started/welcome is auto-provisioned
-		// in every org.
+		if (new URL(request.url).pathname === '/errors/not-found') {
+			try {
+				await renderNotFound(client);
+			} catch (err) {
+				if (isTemplateNotFound(err)) return Response.json(err.toPayload(), { status: 404 });
+				if (!(err instanceof PoliPageError)) throw err;
+				return new Response(`unexpected: expected 404 TEMPLATE_NOT_FOUND, got ${err.status ?? '(no status)'} ${err.code}`, { status: 500 });
+			}
+			return new Response('unexpected: rendering a template that does not exist succeeded', { status: 500 });
+		}
+
+		// getting-started/welcome is published into every organization's
+		// sandbox environment when the organization is created.
 		const projectInput = {
 			project: 'getting-started',
 			template: 'welcome',
-			version: '1.0.0',
-			data: { name: 'Edge Demo' },
+			data: { name: 'SDK Demo' },
 		};
 
 		// First wave: run the independent SDK paths in parallel. `allSettled`
 		// lets us collect every outcome (success or failure) so the report
 		// shows what happened on each step independently.
-		const [renderRes, streamRes, renderPreviewRes, docRes, errorRes] = await Promise.allSettled([
+		const [renderRes, streamRes, docRes, errorRes] = await Promise.allSettled([
 			client.render.pdf(projectInput),
 			collectStream(client.render.pdfStream(projectInput)),
-			client.render.preview(projectInput),
 			client.render.document(projectInput),
-			// Step 10 is supposed to fail — version 'banana' triggers INVALID_VERSION_FORMAT (400).
-			// We invert the framing in the report: rejection is the success.
-			client.render.pdf({ project: 'getting-started', template: 'welcome', version: 'banana', data: {} }),
+			// Step 9 is supposed to fail. We invert the framing in the report:
+			// rejection is the success.
+			renderNotFound(client),
 		]);
 
 		// Second wave: the documents.* steps need the id from render.document.
@@ -76,7 +88,6 @@ export default {
 			reportHtml({
 				renderRes,
 				streamRes,
-				renderPreviewRes,
 				docRes,
 				getRes,
 				thumbsRes,
@@ -92,6 +103,19 @@ export default {
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The `not-found` step, identical in every Poli Page SDK demo: a template
+ * that does not exist, which the API answers with 404 TEMPLATE_NOT_FOUND.
+ */
+function renderNotFound(client) {
+	return client.render.pdf({ project: 'getting-started', template: 'does-not-exist', data: {} });
+}
+
+/** True for the error the `not-found` step expects: 404 TEMPLATE_NOT_FOUND. */
+function isTemplateNotFound(err) {
+	return err instanceof PoliPageError && err.code === 'TEMPLATE_NOT_FOUND' && err.status === 404;
+}
 
 /** Drain a ReadableStream<Uint8Array> into a single Uint8Array. */
 async function collectStream(streamPromise) {
@@ -148,7 +172,6 @@ function errorBlock(err) {
 function reportHtml({
 	renderRes,
 	streamRes,
-	renderPreviewRes,
 	docRes,
 	getRes,
 	thumbsRes,
@@ -172,15 +195,7 @@ function reportHtml({
           href="data:application/pdf;base64,${toBase64(streamRes.value)}">Download stream.pdf</a>`
 			: `<p class="fail">✗ failed</p>${errorBlock(streamRes.reason)}`;
 
-	// Step 4: render.preview() → paginated HTML. Show in a sandboxed iframe.
-	const renderPreviewSection =
-		renderPreviewRes.status === 'fulfilled'
-			? `<p class="ok">✔ ${renderPreviewRes.value.totalPages} page(s),
-       ${renderPreviewRes.value.html.length} chars of HTML, env=${esc(renderPreviewRes.value.environment)}</p>
-       <iframe class="preview" sandbox srcdoc="${esc(renderPreviewRes.value.html)}"></iframe>`
-			: `<p class="fail">✗ failed</p>${errorBlock(renderPreviewRes.reason)}`;
-
-	// Step 5: render.document() → stored document descriptor.
+	// Step 4: render.document() → stored document descriptor.
 	const docSection =
 		docRes.status === 'fulfilled'
 			? `<p class="ok">✔ stored — <code>documentId: ${esc(docRes.value.documentId)}</code>,
@@ -188,15 +203,15 @@ function reportHtml({
        <a class="btn" href="${esc(docRes.value.presignedPdfUrl)}" target="_blank" rel="noopener">Open presigned PDF</a>`
 			: `<p class="fail">✗ failed</p>${errorBlock(docRes.reason)}`;
 
-	// Step 6: documents.get(id) → refreshed descriptor.
+	// Step 5: documents.get(id) → refreshed descriptor.
 	const getSection =
 		getRes.status === 'fulfilled'
 			? `<p class="ok">✔ refreshed presigned URL valid until <code>${esc(getRes.value.expiresAt)}</code></p>`
 			: `<p class="skip">✗ skipped or failed</p>${errorBlock(getRes.reason)}`;
 
-	// Step 7: documents.thumbnails(id) → per-page PNGs. Tier-gated: Free keys
-	// are rejected with 402 PAYMENT_REQUIRED or 403 FORBIDDEN /
-	// THUMBNAILS_NOT_AVAILABLE depending on the gating layer.
+	// Step 6: documents.thumbnails(id) → per-page PNGs. Tier-gated: Free keys
+	// are rejected with 403 THUMBNAILS_NOT_AVAILABLE (or 403 FORBIDDEN,
+	// depending on the gating layer).
 	let thumbsSection;
 	if (thumbsRes.status === 'fulfilled') {
 		const figures = thumbsRes.value
@@ -212,7 +227,6 @@ function reportHtml({
 	} else if (
 		thumbsRes.reason instanceof PoliPageError
 		&& (thumbsRes.reason.code === 'THUMBNAILS_NOT_AVAILABLE'
-			|| thumbsRes.reason.status === 402
 			|| thumbsRes.reason.status === 403)
 	) {
 		thumbsSection = `<p class="skip">skipped — ${esc(thumbsRes.reason.code)} (HTTP ${thumbsRes.reason.status}) — Starter+ tier feature</p>`;
@@ -220,7 +234,7 @@ function reportHtml({
 		thumbsSection = `<p class="fail">✗ failed</p>${errorBlock(thumbsRes.reason)}`;
 	}
 
-	// Step 8: documents.preview(id) → stored HTML preview.
+	// Step 7: documents.preview(id) → stored HTML preview.
 	const storedPreviewSection =
 		storedPreviewRes.status === 'fulfilled'
 			? `<p class="ok">✔ ${storedPreviewRes.value.pageCount} page(s),
@@ -228,20 +242,20 @@ function reportHtml({
        <iframe class="preview" sandbox srcdoc="${esc(storedPreviewRes.value.html)}"></iframe>`
 			: `<p class="fail">✗ failed</p>${errorBlock(storedPreviewRes.reason)}`;
 
-	// Step 9: documents.delete(id) → void on success.
+	// Step 8: documents.delete(id) → void on success.
 	const deleteSection =
 		deleteRes.status === 'fulfilled'
 			? `<p class="ok">✔ soft-deleted</p>`
 			: `<p class="fail">✗ failed</p>${errorBlock(deleteRes.reason)}`;
 
-	// Step 10: error handling. Inverted — the demo passes when the SDK throws
-	// a PoliPageError for the deliberately invalid version string.
+	// Step 9: not-found. Inverted — the demo passes when the SDK throws
+	// 404 TEMPLATE_NOT_FOUND for the template that does not exist.
 	const errorSection =
-		errorRes.status === 'rejected' && errorRes.reason instanceof PoliPageError
+		errorRes.status === 'rejected' && isTemplateNotFound(errorRes.reason)
 			? `<p class="ok">✔ Error caught successfully — the SDK exposed:</p>
        ${errorBlock(errorRes.reason)}`
 			: errorRes.status === 'rejected'
-				? `<p class="fail">✗ Threw, but not a PoliPageError</p>${errorBlock(errorRes.reason)}`
+				? `<p class="fail">✗ Threw, but not 404 TEMPLATE_NOT_FOUND</p>${errorBlock(errorRes.reason)}`
 				: `<p class="fail">✗ Unexpected: the call succeeded but should have failed.</p>`;
 
 	return `<!doctype html>
@@ -281,39 +295,37 @@ function reportHtml({
     Edge, Deno, and Bun.
   </p>
 
-  <h2>[1/10] render.pdf() — PDF bytes in memory</h2>
+  <h2>[1/9] render.pdf() — PDF bytes in memory</h2>
   ${renderSection}
 
-  <h2>[2/10] render.pdfStream() — ReadableStream of PDF bytes</h2>
+  <h2>[2/9] render.pdfStream() — ReadableStream of PDF bytes</h2>
   ${streamSection}
 
-  <h2>[3/10] renderToFile() — skipped on edge runtimes</h2>
+  <h2>[3/9] renderToFile() — skipped on edge runtimes</h2>
   <p class="skip">skipped — edge runtimes have no filesystem; renderToFile is a Node-only helper exported from <code>@poli-page/sdk/node</code>.</p>
 
-  <h2>[4/10] render.preview() — paginated HTML</h2>
-  ${renderPreviewSection}
-
-  <h2>[5/10] render.document() — store the document, return the descriptor</h2>
+  <h2>[4/9] render.document() — store the document, return the descriptor</h2>
   ${docSection}
 
-  <h2>[6/10] documents.get(id) — refresh descriptor</h2>
+  <h2>[5/9] documents.get(id) — refresh descriptor</h2>
   ${getSection}
 
-  <h2>[7/10] documents.thumbnails(id) — page images (Starter+ tier)</h2>
+  <h2>[6/9] documents.thumbnails(id) — page images (Starter+ tier)</h2>
   ${thumbsSection}
 
-  <h2>[8/10] documents.preview(id) — stored document HTML (no engine work)</h2>
+  <h2>[7/9] documents.preview(id) — stored document HTML (no engine work)</h2>
   ${storedPreviewSection}
 
-  <h2>[9/10] documents.delete(id) — soft-delete</h2>
+  <h2>[8/9] documents.delete(id) — soft-delete</h2>
   ${deleteSection}
 
-  <h2>[10/10] error handling — DEMO ONLY (we trigger an error on purpose)</h2>
+  <h2>[9/9] not-found — DEMO ONLY (we trigger an error on purpose)</h2>
   <div class="intentional">
-    <strong>This step is intentional.</strong> The SDK is sent an invalid version
-    string (<code>version: 'banana'</code>), the API returns 400
-    <code>INVALID_VERSION_FORMAT</code>, and the SDK surfaces it as a
-    <code>PoliPageError</code>. The demo passes when this error is caught.
+    <strong>This step is intentional.</strong> The SDK renders a template that
+    does not exist (<code>template: 'does-not-exist'</code>), the API returns 404
+    <code>TEMPLATE_NOT_FOUND</code>, and the SDK surfaces it as a
+    <code>PoliPageError</code>. The demo passes when this error is caught. The
+    same error as JSON: <a href="/errors/not-found"><code>GET /errors/not-found</code></a>.
   </div>
   ${errorSection}
 </body>

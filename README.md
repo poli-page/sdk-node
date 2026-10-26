@@ -27,65 +27,45 @@ Requires Node.js 20.18 or later.
 
 ## Quick start
 
-### Project mode — render a published template by slug
+### Render a template by slug
+
+Set `POLI_PAGE_API_KEY` to a `sandbox` key of a fresh organization (`pp_sandbox_…`, see [Authentication & environments](#authentication--environments)), then:
 
 ```ts
 import { PoliPage } from '@poli-page/sdk';
 
 const client = new PoliPage({
   apiKey: process.env.POLI_PAGE_API_KEY!,
-  // baseUrl is configurable — defaults to the production host below.
-  // Point it at develop/staging when you're not targeting prod.
-  baseUrl: process.env.POLI_PAGE_BASE_URL ?? 'https://api.poli.page',
+  // Optional: defaults to https://api.poli.page.
+  baseUrl: process.env.POLI_PAGE_BASE_URL,
 });
 
 const pdf = await client.render.pdf({
   project: 'getting-started',
   template: 'welcome',
-  version: '1.0.0',
-  data: { name: 'World' },
+  data: { name: 'SDK Demo' },
 });
 // pdf is a Uint8Array
 ```
 
-> **Heads up — the host is configurable.** Without `baseUrl`, the SDK targets
-> the production default `https://api.poli.page`. Set `baseUrl` to hit a
-> different environment, e.g.:
->
-> ```ts
-> const client = new PoliPage({
->   apiKey: process.env.POLI_PAGE_API_KEY!,
->   baseUrl: 'https://api.develop.poli.page', // develop / staging vs prod
-> });
-> ```
->
-> The SDK does **not** read environment variables at runtime — resolve the host
-> in your own app code (as shown above) and pass it in explicitly.
+> **The host is configurable.** Without `baseUrl`, the SDK targets
+> `https://api.poli.page`. The SDK does **not** read environment variables at
+> runtime: resolve the host in your own app code (as shown above) and pass it
+> in explicitly.
 
-Every Poli Page org comes pre-provisioned with a `getting-started/welcome` template, so the snippet above runs as-is the moment you have an API key — no project setup needed. For your own templates, swap the slugs once you've pushed a version with the `poli` CLI:
+Every organization gets a `getting-started` project, published into its `sandbox` environment when the organization is created, with a `welcome` template. A sandbox key renders it with no setup, so the snippet above runs as-is on a fresh organization. It is a normal, editable project: in an organization that renamed it, deleted it or removed it from `sandbox`, the API answers `404 PROJECT_NOT_FOUND` or `404 PROJECT_NOT_IN_ENVIRONMENT`, so use a fresh organization to follow along.
+
+There is no version to pick: a render uses the project's copy published in the API key's environment. For your own templates, publish the project to the environment of the key you render with, then swap the slugs:
 
 ```ts
 const pdf = await client.render.pdf({
   project: 'billing',
   template: 'invoice',
-  version: '1.0.0',
   data: { invoiceNumber: 'INV-001', total: 1280 },
 });
 ```
 
-### Preview inline HTML
-
-`render.preview` accepts raw HTML for live editing and visual inspection without producing a stored document. Use this for editor previews or layout tests.
-
-```ts
-const { html, totalPages, environment } = await client.render.preview({
-  template: '<h1>Hello {{ name }}</h1>',
-  data: { name: 'World' },
-});
-console.log(`Rendered ${totalPages} page(s) in ${environment} mode`);
-```
-
-**`render.pdf`, `render.pdfStream`, and `render.document` require project mode** — `project` + `template`, optionally pinned to a specific `version` (omit to render the current draft). Inline HTML is only accepted by `render.preview`. The SDK enforces this at compile time.
+To preview a template or render inline HTML while you design it, use the playground: https://play.poli.page. The API and this SDK render published templates only.
 
 ### Write a PDF to disk
 
@@ -96,7 +76,7 @@ import { renderToFile } from '@poli-page/sdk/node';
 const client = new PoliPage({ apiKey: process.env.POLI_PAGE_API_KEY! });
 await renderToFile(
   client,
-  { project: 'getting-started', template: 'welcome', version: '1.0.0', data: { name: 'World' } },
+  { project: 'getting-started', template: 'welcome', data: { name: 'SDK Demo' } },
   './welcome.pdf',
 );
 ```
@@ -113,7 +93,7 @@ npm run demo:cjs    # Node CommonJS (verifies the dual exports map)
 npm run demo:edge   # Cloudflare Worker (proof of edge-runtime support)
 ```
 
-First run prompts for a `pp_test_*` key and saves it to `.env`. Subsequent runs are silent. Pick by target runtime — see [`demo/README.md`](demo/README.md#which-demo-for-which-use-case) for the full decision guide and what each demo proves.
+First run prompts for a `sandbox` key (`pp_sandbox_…`) and saves it to `.env`. Subsequent runs are silent. Each demo renders `getting-started`/`welcome` and walks nine steps: `render.pdf` → `render.pdfStream` → `renderToFile` → `render.document` → `documents.get` → `documents.thumbnails` → `documents.preview` → `documents.delete` → `not-found` (a render of a template that does not exist, caught as `PoliPageError` with code `TEMPLATE_NOT_FOUND`). Pick by target runtime — see [`demo/README.md`](demo/README.md#which-demo-for-which-use-case) for the full decision guide and what each demo proves.
 
 ### Stream — for large PDFs or piping to S3 / HTTP responses
 
@@ -121,7 +101,6 @@ First run prompts for a `pp_test_*` key and saves it to `.env`. Subsequent runs 
 const stream = await client.render.pdfStream({
   project: 'billing',
   template: 'invoice',
-  version: '1.0.0',
   data: { invoiceNumber: 'INV-001' },
 });
 // stream is a ReadableStream<Uint8Array>
@@ -137,7 +116,6 @@ Every render produces a stored document, accessible via `documentId` for later d
 const doc = await client.render.document({
   project: 'billing',
   template: 'invoice',
-  version: '1.0.0',
   data: { invoiceNumber: 'INV-001' },
   metadata: { customerId: 'cust_123' },  // your own audit data
 });
@@ -161,13 +139,23 @@ The presigned URL has a 15-minute TTL. If `downloadPdf()` fails with `code: 'DOW
 
 ## Authentication & environments
 
-The mode is determined by the API key prefix:
+An API key belongs to exactly one environment of your organization, and its text names that environment: a key is `pp_{env}_{32 lowercase hex}`, matching
 
-- `pp_test_…` → sandbox mode (not billed, generous rate limits)
-- `pp_live_…` → live mode (billed, production rate limits)
-- `pp_sa_…` → service-account keys; environment matches the SA's configuration (sandbox or live)
+```text
+^pp_(?=[a-z][a-z0-9-]{0,19}_)[a-z][a-z0-9]*(?:-[a-z0-9]+)*_[0-9a-f]{32}$
+```
 
-All prefixes hit the same endpoint — the production default `https://api.poli.page`, or whatever you pass as `baseUrl` (see [Configuration](#configuration)) to target a develop/staging host. The SDK passes the key through as a Bearer token and never inspects the prefix — pick whichever fits your deploy model.
+The API resolves the environment from the key and renders the project's copy published there; the SDK never sends an environment.
+
+| Environment                           | Key            | Watermark | Counted |
+| ------------------------------------- | -------------- | --------- | ------- |
+| `sandbox` (every org)                 | `pp_sandbox_…` | yes       | no      |
+| `live` (every org, deletable on Pro+) | `pp_live_…`    | no        | yes     |
+| created on Pro+ (e.g. `staging`)      | `pp_staging_…` | no        | yes     |
+
+"Counted" means the render counts toward the organization's monthly PDF quota. `sandbox` renders are watermarked, are not counted, and their documents expire 30 days after creation. There is no watermark option: a template that wants a watermark outside `sandbox` uses the `poli-watermark` class.
+
+Standard and service keys share this one format. Every key hits the same endpoint, `https://api.poli.page` by default or whatever you pass as `baseUrl` (see [Configuration](#configuration)). The SDK passes the key through as a Bearer token and does not check its format.
 
 ## Methods
 
@@ -175,11 +163,10 @@ All prefixes hit the same endpoint — the production default `https://api.poli.
 | ------ | ------- | ----------- |
 | `client.render.pdf(input)` | `Promise<Uint8Array>` | Render a PDF, return bytes |
 | `client.render.pdfStream(input)` | `Promise<ReadableStream<Uint8Array>>` | Render and stream the response |
-| `client.render.preview(input)` | `Promise<PreviewResult>` | Paginated HTML preview |
 | `client.render.document(input)` | `Promise<DocumentDescriptor>` | Render and return descriptor (skip auto-download) |
 | `client.documents.get(id)` | `Promise<DocumentDescriptor>` | Retrieve a stored document |
 | `client.documents.preview(id)` | `Promise<DocumentPreviewResult>` | Stored document's paginated HTML |
-| `client.documents.thumbnails(id, options)` | `Promise<Thumbnail[]>` | Page thumbnails (PNG/JPEG, base64) |
+| `client.documents.thumbnails(id, options?)` | `Promise<Thumbnail[]>` | Page thumbnails (JPEG/WebP/PNG, base64) |
 | `client.documents.delete(id)` | `Promise<void>` | Soft-delete a stored document |
 | `renderToFile(client, input, path)` *(from `@poli-page/sdk/node`)* | `Promise<void>` | Render and stream to disk (Node only) |
 
@@ -187,7 +174,7 @@ All prefixes hit the same endpoint — the production default `https://api.poli.
 
 | Option | Type | Default | Description |
 | ------ | ---- | ------- | ----------- |
-| `apiKey` | string | (required) | `pp_test_*` or `pp_live_*` API key |
+| `apiKey` | string | (required) | API key; it belongs to one environment (see [Authentication & environments](#authentication--environments)) |
 | `baseUrl` | string | `https://api.poli.page` | API base URL |
 | `maxRetries` | number | 2 | Max retry attempts on retryable errors |
 | `retryDelay` | number (ms) | 500 | Base delay before the first retry |
@@ -226,11 +213,12 @@ try {
   await client.render.document({ ... });
 } catch (err) {
   if (err instanceof PoliPageError) {
-    if (err.code === 'PAYMENT_REQUIRED')       return showBanner('Subscription has unpaid invoices.');
-    if (err.code === 'ORGANIZATION_CANCELLED') return showBanner('Subscription cancelled — service is read-only.');
-    if (err.code === 'ORGANIZATION_PURGED')    return showBanner('Organization has been purged.');
-    if (err.code === 'DOCUMENT_NOT_FOUND')     return show404();
-    if (err.code === 'GONE')                   return show410();   // document was soft-deleted
+    if (err.code === 'ORGANIZATION_PAYMENT_GRACE') return showBanner('Subscription has unpaid invoices.');
+    if (err.code === 'ORGANIZATION_CANCELLED')     return showBanner('Subscription cancelled — service is read-only.');
+    if (err.code === 'ORGANIZATION_PURGED')        return showBanner('Organization has been purged.');
+    if (err.code === 'PROJECT_NOT_IN_ENVIRONMENT') return showBanner('Publish the project to this key\'s environment.');
+    if (err.code === 'DOCUMENT_NOT_FOUND')         return show404();
+    if (err.code === 'DOCUMENT_GONE')              return show410();   // document was deleted or expired
     // ... existing predicate-based handling above ...
   }
   throw err;
@@ -274,7 +262,7 @@ The SDK retries on **5xx**, **429**, **network errors**, and **timeouts**. Backo
 
 ## Type system
 
-Full type definitions ship with the package. `RenderInput` is a discriminated union — invalid combos (e.g. `project` without `template`) fail at compile time.
+Full type definitions ship with the package. `RenderInput` is the one input type of every render method: `project`, `template` and `data` are required. A field the API does not accept (such as `version`) fails at compile time in an object literal; passed through a variable, it compiles but the SDK never sends it.
 
 ## Concurrency & thread-safety
 
@@ -290,7 +278,7 @@ Server-side only. The SDK runs on any modern JavaScript server runtime:
 - **Deno**
 - **Bun**
 
-**Browsers are not supported.** API keys (`pp_test_*`, `pp_live_*`) are
+**Browsers are not supported.** API keys, whatever their environment, are
 secrets and must never be shipped to a browser. Call the SDK from your
 backend and proxy the result to the client.
 

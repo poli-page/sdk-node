@@ -2,13 +2,14 @@
 /**
  * @poli-page/sdk — Node.js CommonJS demo
  *
- * Run:  POLI_PAGE_API_KEY=pp_test_... npm run demo:cjs
+ * Run:  POLI_PAGE_API_KEY=pp_sandbox_x npm run demo:cjs
  *
  * Same walkthrough as `esm-demo.mjs`, written for CommonJS consumers.
- * Uses the `getting-started/welcome` template that's auto-provisioned
- * in every Poli Page org, so this works out of the box with any fresh API
- * key — no project setup needed. Outputs go to `output-cjs/` so they don't
- * clobber the ESM run's files.
+ * Renders the `welcome` template of the `getting-started` project, which
+ * every organization gets in its `sandbox` environment: use a sandbox key
+ * (`pp_sandbox_…`) of an organization whose `getting-started` project is
+ * untouched. A `live` key gets 404 PROJECT_NOT_IN_ENVIRONMENT. Outputs go to
+ * `output-cjs/` so they don't clobber the ESM run's files.
  *
  * What's different from the ESM demo:
  *   - `require(...)` instead of `import ... from ...`
@@ -31,10 +32,8 @@ const { join } = require('node:path');
 const OUT_DIR = 'output-cjs';
 mkdirSync(OUT_DIR, { recursive: true });
 
-// Every render call uses project mode — required by render.pdf/pdfStream/
-// renderToFile/document. getting-started/welcome is auto-provisioned in
-// every org, so this works out of the box for any newcomer with a fresh
-// API key.
+// getting-started/welcome is published into every organization's
+// sandbox environment when the organization is created.
 const projectInput = {
 	project: 'getting-started',
 	template: 'welcome',
@@ -142,12 +141,12 @@ const projectInput = {
 		}
 		console.log(`  ${c.dim('open:')} ${fileLink(thumbDir)}`);
 	} catch (err) {
-		// Tier-gated: Free keys are rejected with 402 PAYMENT_REQUIRED or 403
-		// FORBIDDEN / THUMBNAILS_NOT_AVAILABLE depending on the gating layer.
+		// Tier-gated: Free keys are rejected with 403 THUMBNAILS_NOT_AVAILABLE
+		// (or 403 FORBIDDEN, depending on the gating layer).
 		// Soft-skip any of those so the demo keeps running on Free.
 		if (
 			err instanceof PoliPageError
-			&& (err.code === 'THUMBNAILS_NOT_AVAILABLE' || err.status === 402 || err.status === 403)
+			&& (err.code === 'THUMBNAILS_NOT_AVAILABLE' || err.status === 403)
 		) {
 			console.log(`  ${c.yellow('skipped')} — ${err.code} (HTTP ${err.status}) — Starter+ tier feature`);
 		} else {
@@ -175,9 +174,9 @@ const projectInput = {
 	console.log(`  ${c.green('✔')} deleted ${doc.documentId}`);
 
 	// ─────────────────────────────────────────────────────────────────────────
-	// 9. Error handling — DELIBERATELY trigger a failure, then catch it.
+	// 9. not-found — DELIBERATELY trigger a 404 TEMPLATE_NOT_FOUND, then catch it.
 	// ─────────────────────────────────────────────────────────────────────────
-	step(9, TOTAL_STEPS, 'error handling — DEMO ONLY (we trigger an error on purpose)');
+	step(9, TOTAL_STEPS, 'not-found — DEMO ONLY (we trigger an error on purpose)');
 	console.log(c.yellow('  ⚠  This step is intentional — the SDK is about to throw, but the'));
 	console.log(c.yellow('     demo will catch and inspect it. ') + c.bold('The demo is NOT crashing.'));
 	console.log(c.dim('     (We render a template that does not exist, expecting the API to return 404 TEMPLATE_NOT_FOUND.)'));
@@ -187,14 +186,13 @@ const projectInput = {
 		await client.render.pdf({ project: 'getting-started', template: 'does-not-exist', data: {} });
 		console.log('  ' + c.red('✗ unexpected: the call succeeded but should have failed'));
 	} catch (err) {
-		if (err instanceof PoliPageError) {
+		if (err instanceof PoliPageError && err.code === 'TEMPLATE_NOT_FOUND' && err.status === 404) {
 			console.log(`  ${c.green('✔')} Error caught successfully. PoliPageError exposed:`);
 			console.log('     ', {
 				code: err.code,
 				status: err.status,
+				message: err.message,
 				requestId: err.requestId,
-				isAuthError: err.isAuthError(),
-				isRetryable: err.isRetryable(),
 			});
 		} else {
 			throw err;
