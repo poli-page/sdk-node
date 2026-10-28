@@ -10,7 +10,9 @@ Upgrade steps for breaking changes are on the docs site's [migration page](https
 
 ### Added
 
-- Known error codes `MISSING_ORG_CONTEXT` (400), `NOT_A_MEMBER` (403), `ENVIRONMENT_NOT_FOUND` (404) and `CLIENT_VERSION_UNSUPPORTED` (426). The API declares them on the routes the SDK calls, although an API-key caller never gets them. None is retried; like every API code, they pass through verbatim.
+- Known error codes `TEMPLATE_UNSAFE` (400, not retried), `RENDERING_ENGINE_ERROR` (500), `TEMPLATE_HTML_MISSING` (500) and `STORAGE_ERROR` (500); the three 5xx are retried like any 5xx.
+- Known error codes `MISSING_ORG_CONTEXT` (400), `NOT_A_MEMBER` (403), `ENVIRONMENT_NOT_FOUND` (404) and `CLIENT_VERSION_UNSUPPORTED` (426). The API declares them on the routes the SDK calls, although an API-key caller never gets them. None is retried.
+- Like every API code, these pass through verbatim; the SDK's retry behaviour is unchanged.
 
 ## [0.10.0] - 2026-10-27
 

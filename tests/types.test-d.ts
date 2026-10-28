@@ -167,7 +167,7 @@ test('Thumbnail and ThumbnailOptions are re-exported', () => {
 /** The literal members of a `'A' | 'B' | (string & {})` union. */
 type KnownCodes<T> = T extends string ? (string extends T ? never : T) : never;
 
-test('PoliPageErrorCode knows exactly the SDK codes and the 35 API codes', () => {
+test('PoliPageErrorCode knows exactly the SDK codes and the 39 API codes', () => {
 	expectTypeOf<KnownCodes<PoliPageErrorCode>>().toEqualTypeOf<
 		// SDK
 		| 'invalid_options'
@@ -202,12 +202,16 @@ test('PoliPageErrorCode knows exactly the SDK codes and the 35 API codes', () =>
 		| 'ENVIRONMENT_MISMATCH'
 		| 'EMPTY_DOCUMENT'
 		| 'TEMPLATE_ERROR'
+		| 'TEMPLATE_UNSAFE'
 		| 'RENDER_BODY_TOO_LARGE'
 		| 'DOCUMENT_TOO_LARGE'
 		| 'QUOTA_EXCEEDED'
 		| 'OVERAGE_CAP_EXCEEDED'
 		| 'RATE_LIMIT_EXCEEDED'
 		| 'INTERNAL_ERROR'
+		| 'RENDERING_ENGINE_ERROR'
+		| 'TEMPLATE_HTML_MISSING'
+		| 'STORAGE_ERROR'
 		| 'STORAGE_ACCESS_DENIED'
 		| 'PUBLISH_IN_PROGRESS'
 		| 'RENDER_TIMEOUT'

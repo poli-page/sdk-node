@@ -86,6 +86,7 @@ describe('API error code propagation', () => {
 		[404, 'ENVIRONMENT_NOT_FOUND'],
 		[404, 'TEMPLATE_NOT_FOUND'],
 		[400, 'TEMPLATE_ERROR'],
+		[400, 'TEMPLATE_UNSAFE'],
 		[400, 'EMPTY_DOCUMENT'],
 		[400, 'PROJECT_REQUIRED_FOR_DOCUMENT'],
 		[413, 'RENDER_BODY_TOO_LARGE'],
@@ -93,6 +94,9 @@ describe('API error code propagation', () => {
 		[429, 'QUOTA_EXCEEDED'],
 		[429, 'OVERAGE_CAP_EXCEEDED'],
 		[429, 'RATE_LIMIT_EXCEEDED'],
+		[500, 'RENDERING_ENGINE_ERROR'],
+		[500, 'TEMPLATE_HTML_MISSING'],
+		[500, 'STORAGE_ERROR'],
 		[502, 'STORAGE_ACCESS_DENIED'],
 		[503, 'PUBLISH_IN_PROGRESS'],
 		[504, 'RENDER_TIMEOUT'],
@@ -159,6 +163,7 @@ describe('API error code propagation', () => {
 		[403, 'NOT_A_MEMBER'],
 		[404, 'ENVIRONMENT_NOT_FOUND'],
 		[426, 'CLIENT_VERSION_UNSUPPORTED'],
+		[400, 'TEMPLATE_UNSAFE'],
 	])('does not retry %i %s', async (status, code) => {
 		let attempts = 0;
 		setMockHandler((_req, res) => {
@@ -171,6 +176,25 @@ describe('API error code propagation', () => {
 		expect(err).toBeInstanceOf(PoliPageError);
 		expect((err as PoliPageError).isRetryable()).toBe(false);
 		expect(attempts).toBe(1);
+	});
+
+	it.each([
+		[500, 'RENDERING_ENGINE_ERROR'],
+		[500, 'TEMPLATE_HTML_MISSING'],
+		[500, 'STORAGE_ERROR'],
+	])('retries %i %s, then surfaces it once retries are exhausted', async (status, code) => {
+		let attempts = 0;
+		setMockHandler((_req, res) => {
+			attempts++;
+			res.writeHead(status, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ error: code, detail: `Synthetic ${code}`, requestId: 'req_r' }));
+		});
+		const client = new PoliPage({ apiKey: 'pp_sandbox_abc', baseUrl, maxRetries: 2, retryDelay: 1 });
+		const err: unknown = await render(client).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(PoliPageError);
+		expect((err as PoliPageError).code).toBe(code);
+		expect((err as PoliPageError).isRetryable()).toBe(true);
+		expect(attempts).toBe(3);
 	});
 
 	it('passes an unknown code through verbatim', async () => {
