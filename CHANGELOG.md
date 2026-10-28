@@ -8,6 +8,10 @@ Upgrade steps for breaking changes are on the docs site's [migration page](https
 
 ## [Unreleased]
 
+### Added
+
+- Known error codes `MISSING_ORG_CONTEXT` (400), `NOT_A_MEMBER` (403), `ENVIRONMENT_NOT_FOUND` (404) and `CLIENT_VERSION_UNSUPPORTED` (426). The API declares them on the routes the SDK calls, although an API-key caller never gets them. None is retried; like every API code, they pass through verbatim.
+
 ## [0.10.0] - 2026-10-27
 
 Environments contract: a key is `pp_{env}_{32 hex}` and carries its environment (`pp_sandbox_…`, `pp_live_…`, `pp_staging_…`); the API resolves the environment from the key and renders the project's copy published there. There are no versions, no draft rendering and no authenticated preview. Breaking, with no deprecation window.

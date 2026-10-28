@@ -15,6 +15,8 @@ const API_AUTH = [
 ];
 
 const API_ORGANIZATION = [
+  { code: 'MISSING_ORG_CONTEXT',        when: '400: a session caller sent no organization header. Never with an API key, which carries its organization. Not retryable.' },
+  { code: 'NOT_A_MEMBER',               when: '403: a session caller is not a member of the organization it named. Never with an API key. Not retryable.' },
   { code: 'ORGANIZATION_PAYMENT_GRACE', when: '403: the organization is in payment grace: read-only, writes are refused. Not retryable.' },
   { code: 'ORGANIZATION_CANCELLED',     when: '403: the organization has been cancelled: read-only until purge. Not retryable.' },
   { code: 'ORGANIZATION_PURGED',        when: '410: the organization has been purged. Not retryable.' },
@@ -28,6 +30,7 @@ const API_NOT_FOUND = [
   { code: 'NOT_FOUND',                  when: '404: generic not found, e.g. a removed route. Not retryable.' },
   { code: 'PROJECT_NOT_FOUND',          when: '404: no project with this slug in the organization. Not retryable.' },
   { code: 'PROJECT_NOT_IN_ENVIRONMENT', when: '404: the project was never published in the key`s environment, or was removed from it. Not retryable.' },
+  { code: 'ENVIRONMENT_NOT_FOUND',      when: '404: render by a session caller naming an unknown environment. Never with an API key: deleting its environment revokes it. Not retryable.' },
   { code: 'TEMPLATE_NOT_FOUND',         when: '404: the template is absent from the environment`s published copy of the project. Not retryable.' },
   { code: 'DOCUMENT_NOT_FOUND',         when: '404: no stored document matches the supplied id. Not retryable.' },
   { code: 'DOCUMENT_GONE',              when: '410: the document was deleted, or is a sandbox document older than 30 days. Not retryable.' },
@@ -43,6 +46,7 @@ const API_VALIDATION = [
   { code: 'EMPTY_DOCUMENT',                when: '400: the render produced zero pages. Not retryable.' },
   { code: 'RENDER_BODY_TOO_LARGE',         when: '413: the request body is too large. Not retryable.' },
   { code: 'DOCUMENT_TOO_LARGE',            when: '413: the document exceeds an engine cap. Not retryable.' },
+  { code: 'CLIENT_VERSION_UNSUPPORTED',    when: '426: the editor kill-switch, for `X-Poli-Client: editor` requests only. The SDK never sends that header. Not retryable.' },
 ];
 
 const API_RATE = [

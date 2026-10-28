@@ -83,6 +83,7 @@ describe('API error code propagation', () => {
 		[400, 'ENVIRONMENT_MISMATCH'],
 		[404, 'PROJECT_NOT_FOUND'],
 		[404, 'PROJECT_NOT_IN_ENVIRONMENT'],
+		[404, 'ENVIRONMENT_NOT_FOUND'],
 		[404, 'TEMPLATE_NOT_FOUND'],
 		[400, 'TEMPLATE_ERROR'],
 		[400, 'EMPTY_DOCUMENT'],
@@ -115,6 +116,14 @@ describe('API error code propagation', () => {
 		});
 	});
 
+	it.each([
+		[400, 'MISSING_ORG_CONTEXT'],
+		[403, 'NOT_A_MEMBER'],
+		[426, 'CLIENT_VERSION_UNSUPPORTED'],
+	])('propagates %i %s from documents.get', async (status, code) => {
+		await expectCode({ status, code, invoke: (c) => c.documents.get('doc_abc') });
+	});
+
 	it('propagates THUMBNAILS_NOT_AVAILABLE (403) from documents.thumbnails', async () => {
 		await expectCode({
 			status: 403,
@@ -143,6 +152,25 @@ describe('API error code propagation', () => {
 			status: 404,
 			message: 'Template "does-not-exist" not found in project "getting-started"',
 		});
+	});
+
+	it.each([
+		[400, 'MISSING_ORG_CONTEXT'],
+		[403, 'NOT_A_MEMBER'],
+		[404, 'ENVIRONMENT_NOT_FOUND'],
+		[426, 'CLIENT_VERSION_UNSUPPORTED'],
+	])('does not retry %i %s', async (status, code) => {
+		let attempts = 0;
+		setMockHandler((_req, res) => {
+			attempts++;
+			res.writeHead(status, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ error: code, detail: `Synthetic ${code}`, requestId: 'req_nr' }));
+		});
+		const client = new PoliPage({ apiKey: 'pp_sandbox_abc', baseUrl, maxRetries: 2, retryDelay: 1 });
+		const err: unknown = await render(client).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(PoliPageError);
+		expect((err as PoliPageError).isRetryable()).toBe(false);
+		expect(attempts).toBe(1);
 	});
 
 	it('passes an unknown code through verbatim', async () => {

@@ -167,7 +167,7 @@ test('Thumbnail and ThumbnailOptions are re-exported', () => {
 /** The literal members of a `'A' | 'B' | (string & {})` union. */
 type KnownCodes<T> = T extends string ? (string extends T ? never : T) : never;
 
-test('PoliPageErrorCode knows exactly the SDK codes and the 31 API codes', () => {
+test('PoliPageErrorCode knows exactly the SDK codes and the 35 API codes', () => {
 	expectTypeOf<KnownCodes<PoliPageErrorCode>>().toEqualTypeOf<
 		// SDK
 		| 'invalid_options'
@@ -178,6 +178,8 @@ test('PoliPageErrorCode knows exactly the SDK codes and the 31 API codes', () =>
 		// API
 		| 'MISSING_API_KEY'
 		| 'INVALID_API_KEY'
+		| 'MISSING_ORG_CONTEXT'
+		| 'NOT_A_MEMBER'
 		| 'ORGANIZATION_CANCELLED'
 		| 'ORGANIZATION_PURGED'
 		| 'ORGANIZATION_PAYMENT_GRACE'
@@ -188,9 +190,11 @@ test('PoliPageErrorCode knows exactly the SDK codes and the 31 API codes', () =>
 		| 'NOT_FOUND'
 		| 'PROJECT_NOT_FOUND'
 		| 'PROJECT_NOT_IN_ENVIRONMENT'
+		| 'ENVIRONMENT_NOT_FOUND'
 		| 'TEMPLATE_NOT_FOUND'
 		| 'DOCUMENT_NOT_FOUND'
 		| 'DOCUMENT_GONE'
+		| 'CLIENT_VERSION_UNSUPPORTED'
 		| 'VALIDATION_ERROR'
 		| 'MISSING_DATA'
 		| 'MISSING_TEMPLATE_SLUG'
