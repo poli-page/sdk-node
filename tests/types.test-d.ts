@@ -178,7 +178,7 @@ test('Thumbnail and ThumbnailOptions are re-exported', () => {
 /** The literal members of a `'A' | 'B' | (string & {})` union. */
 type KnownCodes<T> = T extends string ? (string extends T ? never : T) : never;
 
-test('PoliPageErrorCode knows exactly the SDK codes and the 31 API codes', () => {
+test('PoliPageErrorCode knows exactly the SDK codes and the 32 API codes', () => {
 	expectTypeOf<KnownCodes<PoliPageErrorCode>>().toEqualTypeOf<
 		// SDK
 		| 'invalid_options'

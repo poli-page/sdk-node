@@ -33,6 +33,7 @@ Conformance with the Poli Page API contract v1.0.0 ([poli-page/api-contract](htt
 
 ### Added
 
+- Known error code `TEMPLATE_UNSAFE` (400): the template, a partial or an SVG asset holds an injection attempt; `detail` names it. Not retried.
 - `documents.get`, `documents.preview` and `documents.delete` take a last `{ signal }` argument, and `documents.thumbnails` a third one, to cancel the call (`code: 'aborted'`, never retried). New type `DocumentsRequestOptions`.
 - `PoliPageError` takes an optional fifth constructor argument `{ cause }`.
 - `tests/contract.test.ts` runs every SDK case of the API contract against a local mock server; CI pins the contract by commit (`poli-page/api-contract` action) and Dependabot proposes each new version. Run it locally with `POLI_CONTRACT=<path to contract.json> npm test`.
@@ -61,7 +62,6 @@ Environments contract: a key is `pp_{env}_{32 hex}` and carries its environment 
 ### Added
 
 - Known error codes `PUBLISH_IN_PROGRESS` (503, retried like any 5xx, honouring `Retry-After`), `ENVIRONMENT_MISMATCH`, `PROJECT_NOT_IN_ENVIRONMENT`, `TEMPLATE_NOT_FOUND`, `DOCUMENT_GONE`, `ENVIRONMENT_PROTECTED`, `ORGANIZATION_PAYMENT_GRACE`, `EMPTY_DOCUMENT`, `STORAGE_ACCESS_DENIED`, `ORGANIZATION_MIGRATING`, `PROJECT_NOT_FOUND`, `TEMPLATE_ERROR`, `THUMBNAILS_NOT_AVAILABLE`, `RATE_LIMIT_EXCEEDED`, `RENDER_BODY_TOO_LARGE`, `DOCUMENT_TOO_LARGE`, `RENDER_TIMEOUT`. Unknown codes still pass through verbatim.
-- Known error code `TEMPLATE_UNSAFE` (400): the template, a partial or an SVG asset holds an injection attempt; `detail` names it. Not retried.
 - `DOWNLOAD_FAILED` is listed among the known SDK codes of `PoliPageErrorCode` (it was already raised by `downloadPdf()`, `render.pdf` and `render.pdfStream`).
 - `.github/workflows/integration.yml` runs `npm run test:integration` nightly and on demand against the real API, with a `sandbox` key from the `POLI_PAGE_API_KEY` secret (and an optional `POLI_PAGE_BASE_URL` secret); without the key it logs a skip.
 
