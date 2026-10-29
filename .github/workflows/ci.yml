@@ -131,8 +131,8 @@ jobs:
           node smoke.mjs
           node smoke.cjs
 
-  # One check that sums up the matrix: the name the `main` ruleset requires for merges
-  # (the poli-page auto loop's gate waits for a check named `ci`).
+  # One check that sums up the matrix: the `main` ruleset requires a check named `ci`
+  # for merges, whatever the matrix legs are.
   ci:
     if: always()
     needs: [test]

@@ -29,6 +29,13 @@ updates:
       - dependencies
       - ci
     groups:
+      # The API contract gets PRs of its own: a contract bump shows what the
+      # API change breaks, never mixed with other action bumps.
+      api-contract:
+        patterns:
+          - "poli-page/api-contract"
       actions:
         patterns:
           - "*"
+        exclude-patterns:
+          - "poli-page/api-contract"

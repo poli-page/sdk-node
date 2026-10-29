@@ -10,7 +10,8 @@
 #
 # What it does, in order:
 #   1. Pre-flight: on main, clean tree, tag doesn't already exist.
-#   2. Verify: lint, typecheck, unit tests (integration if API key is set).
+#   2. Verify: lint, typecheck, unit tests with the pinned API contract
+#      (integration if API key is set).
 #   3. Build: npm run build.
 #   4. Pack: npm pack — show tarball contents and size.
 #   5. Confirm with the user before publishing.
@@ -86,6 +87,17 @@ ok "tag v$VERSION does not exist yet"
 
 # ─── 3. verify ──────────────────────────────────────────────────────────────
 step "Lint, typecheck, unit tests"
+# The unit tests include the API contract cases (tests/contract.test.ts). Use
+# the contract version CI pins, unless POLI_CONTRACT already names a file.
+if [[ -z "${POLI_CONTRACT:-}" ]]; then
+	contract_sha=$(sed -n 's|.*uses: poli-page/api-contract@\([0-9a-f]\{40\}\).*|\1|p' .github/workflows/ci.yml | head -n 1)
+	[[ -n "$contract_sha" ]] || fail "no poli-page/api-contract pin found in .github/workflows/ci.yml"
+	POLI_CONTRACT="$(mktemp -d)/contract.json"
+	curl -fsSL "https://raw.githubusercontent.com/poli-page/api-contract/$contract_sha/contract.json" -o "$POLI_CONTRACT" \
+		|| fail "could not download the API contract $contract_sha; set POLI_CONTRACT to its contract.json"
+	export POLI_CONTRACT
+fi
+ok "API contract: $POLI_CONTRACT"
 npm run lint
 npm run typecheck
 npm test
