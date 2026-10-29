@@ -589,6 +589,14 @@ if (!contractPath) {
 	const runsCancellation = contract.policy.cancellationSdks.includes('node');
 
 	describe('API contract', () => {
+		it('has SDK cases, and no case of a kind this test does not know', () => {
+			expect(sdkCases.length, 'kind "sdk" cases').toBeGreaterThan(0);
+			const unknownKinds = contract.cases
+				.map((c) => c.kind)
+				.filter((kind) => kind !== 'sdk' && kind !== 'impl');
+			expect(unknownKinds, 'case kinds other than "sdk" and "impl"').toEqual([]);
+		});
+
 		it('applies only the normalizations the contract allows', () => {
 			const allowed = contract.policy.normalizations.map((n) => n.id);
 			const disallowed = NORMALIZATIONS_USED.filter((id) => !allowed.includes(id));
