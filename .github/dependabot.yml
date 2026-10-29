@@ -23,8 +23,8 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-      day: monday
+      # Daily: a new API contract version (poli-page/api-contract) arrives as a PR at once.
+      interval: daily
     labels:
       - dependencies
       - ci

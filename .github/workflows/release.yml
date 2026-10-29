@@ -85,11 +85,19 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: API contract
+        id: contract
+        uses: poli-page/api-contract@c1dcf6904b927a044384dd5b8eb0bc2b16a38a6e # v1.0.0
+
       - name: Test
         run: npm test
+        env:
+          POLI_CONTRACT: ${{ steps.contract.outputs.path }}
 
       - name: Type tests
         run: npm run test:types
+        env:
+          POLI_CONTRACT: ${{ steps.contract.outputs.path }}
 
       - name: Build
         run: npm run build
