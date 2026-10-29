@@ -135,7 +135,7 @@ const thumbs = await client.documents.thumbnails(doc.documentId, { width: 320, f
 await client.documents.delete(doc.documentId);
 ```
 
-The presigned URL has a 15-minute TTL. If `downloadPdf()` fails with `code: 'DOWNLOAD_FAILED'` (HTTP 403 from S3), call `documents.get(id)` to refresh and retry.
+The presigned URL has a 15-minute TTL. If `downloadPdf()` fails with `code: 'DOWNLOAD_FAILED'` (HTTP 403 from S3), call `documents.get(id)` to refresh and retry. `DOWNLOAD_FAILED` is never retryable, whatever the storage status: the SDK does not retry it and `isRetryable()` is `false`.
 
 ## Authentication & environments
 

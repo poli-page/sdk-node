@@ -13,6 +13,7 @@ The Poli Page SDK retries transient failures automatically. Every POST carries a
 - Exponential backoff starting at `retryDelay` ms (default 500), doubling each attempt, with a random factor in `[0.5, 1.5)`.
 - Honors the `Retry-After` response header when present (integer seconds or an HTTP-date), clamped to 0–30 s, without jitter. `Retry-After-Ms` is ignored.
 - `aborted` (caller-cancelled) is never retried. The presigned-URL download is never retried.
+- `DOWNLOAD_FAILED` is never retried and `isRetryable()` is `false` for it, whatever the storage status.
 
 ## Disabling retries
 

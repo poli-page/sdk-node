@@ -11,6 +11,8 @@ This page tracks breaking changes between versions of `@poli-page/sdk`. For the 
 2. **Messages.** If you match error messages, use the codes instead; the messages changed to the specification's exact texts (`Network request failed`, `Failed to download PDF: HTTP <status>`, `Failed to download PDF: network error`, `HTTP <status>` for a non-JSON error body, `project is required`). The underlying `fetch` error of a network, timeout or download failure is now `err.cause`.
 3. **Download cancellation.** Aborting the signal during the PDF download now throws `aborted`, not `DOWNLOAD_FAILED`.
 
+4. **`DOWNLOAD_FAILED` is never retryable.** `isRetryable()` is `false` for it whatever the storage status (it was `true` for a storage 5xx or 429). A queue that requeues on `isRetryable()` drops it at once: call `documents.get(id)` and download again.
+
 ## From 0.9.x to 0.10.0
 
 The API moved from versions to environments, and this release follows it with no deprecation window. A key carries its environment, `pp_{env}_{32 lowercase hex}` (`pp_sandbox_…`, `pp_live_…`, `pp_staging_…`), and a render uses the project's copy published in that environment.

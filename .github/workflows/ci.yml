@@ -56,7 +56,7 @@ jobs:
 
       - name: API contract
         id: contract
-        uses: poli-page/api-contract@c1dcf6904b927a044384dd5b8eb0bc2b16a38a6e # v1.0.0
+        uses: poli-page/api-contract@0eba96c1ecf9a28b7e259f444f3ca5b7c059d5fd # v1.3.0
 
       - name: Test (with coverage)
         run: npm run test:coverage

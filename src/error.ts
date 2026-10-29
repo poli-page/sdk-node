@@ -173,7 +173,8 @@ export class PoliPageError extends Error {
 	 * timeout). Caller-aborted requests (`code: 'aborted'`) are never retryable,
 	 * and neither are `QUOTA_EXCEEDED`, `OVERAGE_CAP_EXCEEDED` (429) and
 	 * `STORAGE_ACCESS_DENIED` (502): retrying cannot help until the quota resets
-	 * or the bucket access is restored.
+	 * or the bucket access is restored. `DOWNLOAD_FAILED` is never retryable either,
+	 * whatever the storage status.
 	 *
 	 * The SDK already retries internally up to `maxRetries`; this predicate is
 	 * mostly useful when an outer queue / scheduler decides whether to re-enqueue.
@@ -188,6 +189,8 @@ export class PoliPageError extends Error {
 	isRetryable(): boolean {
 		if (this.code === 'aborted') return false;
 		if (NON_RETRYABLE_CODES.includes(this.code)) return false;
+		// A failed download is never retried, whatever the storage status.
+		if (this.code === 'DOWNLOAD_FAILED') return false;
 		if (this.isNetworkError()) return true;
 		if (this.status !== undefined && this.status >= 500) return true;
 		if (this.status === 429) return true;
