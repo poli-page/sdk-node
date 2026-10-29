@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { getEventListeners } from 'node:events';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
 import { PoliPage, PoliPageError } from '../src/index.js';
 
@@ -1124,14 +1125,23 @@ describe('a 2xx answer whose body fails mid-way', () => {
 		expect(attempts).toBe(2);
 	});
 
-	it('an error answer dropped mid-body is a network_error, retried', async () => {
+	/** An error answer's headers and the start of its body, then `midBody`. */
+	function partialError(res: ServerResponse, status: number, midBody?: () => void) {
+		res.writeHead(status, {
+			'Content-Type': 'application/json',
+			'Content-Length': '1000',
+			'x-request-id': `req_partial_${status}`,
+		});
+		res.write('{"error":"PUBL');
+		if (midBody) setTimeout(midBody, 50);
+	}
+
+	it('a 503 whose body drops keeps its status (INTERNAL_ERROR, HTTP 503) and is retried', async () => {
 		let attempts = 0;
 		setMockHandler((req, res) => {
 			attempts++;
 			if (attempts === 1) {
-				res.writeHead(503, { 'Content-Type': 'application/json', 'Content-Length': '1000' });
-				res.write('{"error":"PUBL');
-				setTimeout(() => req.socket.destroy(), 50);
+				partialError(res, 503, () => req.socket.destroy());
 				return;
 			}
 			res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1141,7 +1151,79 @@ describe('a 2xx answer whose body fails mid-way', () => {
 		const client = new PoliPage({ apiKey: 'pp_sandbox_x', baseUrl, retryDelay: 1, ...h.options });
 		await client.documents.get('doc_x');
 		expect(attempts).toBe(2);
-		expect(h.retries.map((e) => e.code)).toEqual(['network_error']);
+		expect(h.retries).toHaveLength(1);
+		expect(h.retries[0]).toMatchObject({
+			code: 'INTERNAL_ERROR',
+			status: 503,
+			message: 'HTTP 503',
+			requestId: 'req_partial_503',
+		});
+		expect(h.retries[0].cause).toBeDefined();
+		expect(h.responses).toEqual([200]);
+	});
+
+	it('a 400 whose body drops keeps its status 400 and is not retried', async () => {
+		let attempts = 0;
+		setMockHandler((req, res) => {
+			attempts++;
+			partialError(res, 400, () => req.socket.destroy());
+		});
+		const h = hooks();
+		const client = new PoliPage({ apiKey: 'pp_sandbox_x', baseUrl, retryDelay: 1, ...h.options });
+		const err: unknown = await client.documents.get('doc_x').catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(PoliPageError);
+		expect(err).toMatchObject({
+			code: 'INTERNAL_ERROR',
+			status: 400,
+			message: 'HTTP 400',
+			requestId: 'req_partial_400',
+		});
+		expect((err as PoliPageError).isRetryable()).toBe(false);
+		expect(attempts).toBe(1);
+		expect(h.retries).toEqual([]);
+		expect(h.responses).toEqual([]);
+		expect(h.errors).toEqual([err]);
+	});
+
+	it('an error body that stalls past the attempt timeout keeps its status', async () => {
+		let attempts = 0;
+		setMockHandler((_req, res) => {
+			attempts++;
+			partialError(res, 503);
+		});
+		const h = hooks();
+		const client = new PoliPage({
+			apiKey: 'pp_sandbox_x',
+			baseUrl,
+			maxRetries: 1,
+			retryDelay: 1,
+			timeout: 150,
+			...h.options,
+		});
+		const err: unknown = await client.documents.get('doc_x').catch((e: unknown) => e);
+		expect(err).toMatchObject({ code: 'INTERNAL_ERROR', status: 503, message: 'HTTP 503' });
+		expect(attempts).toBe(2);
+		expect(h.retries.map((e) => e.status)).toEqual([503]);
+		expect(h.responses).toEqual([]);
+	});
+
+	it('a caller abort during an error body is aborted, never retried', async () => {
+		let attempts = 0;
+		const controller = new AbortController();
+		setMockHandler((_req, res) => {
+			attempts++;
+			partialError(res, 503, () => controller.abort());
+		});
+		const h = hooks();
+		const client = new PoliPage({ apiKey: 'pp_sandbox_x', baseUrl, retryDelay: 1, ...h.options });
+		const err: unknown = await client.documents
+			.get('doc_x', { signal: controller.signal })
+			.catch((e: unknown) => e);
+		expect(err).toMatchObject({ code: 'aborted', message: 'Request was aborted' });
+		expect((err as PoliPageError).status).toBeUndefined();
+		expect(attempts).toBe(1);
+		expect(h.retries).toEqual([]);
+		expect(h.errors).toEqual([err]);
 	});
 
 	it('a 204 answer still resolves documents.delete', async () => {
@@ -1151,5 +1233,55 @@ describe('a 2xx answer whose body fails mid-way', () => {
 		});
 		const client = new PoliPage({ apiKey: 'pp_sandbox_x', baseUrl });
 		await expect(client.documents.delete('doc_x')).resolves.toBeUndefined();
+	});
+});
+
+describe('a long-lived signal shared by many calls', () => {
+	it('keeps no abort listener once the retry waits have ended', async () => {
+		const attemptsByCall = new Map<string, number>();
+		setMockHandler((req, res) => {
+			const seen = (attemptsByCall.get(req.url ?? '') ?? 0) + 1;
+			attemptsByCall.set(req.url ?? '', seen);
+			if (seen === 1) {
+				res.writeHead(503, { 'Content-Type': 'application/json' });
+				res.end(JSON.stringify({ error: 'ORGANIZATION_MIGRATING' }));
+				return;
+			}
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ ...sampleDescriptor, presignedPdfUrl: `${baseUrl}/presigned/ok.pdf` }));
+		});
+		const shutdown = new AbortController();
+		const retries: number[] = [];
+		const client = new PoliPage({
+			apiKey: 'pp_sandbox_x',
+			baseUrl,
+			retryDelay: 1,
+			onRetry: (e) => retries.push(e.attempt),
+		});
+		for (let i = 0; i < 5; i++) {
+			await client.documents.get(`doc_${i}`, { signal: shutdown.signal });
+		}
+		expect(retries).toHaveLength(5);
+		expect(getEventListeners(shutdown.signal, 'abort')).toHaveLength(0);
+	});
+
+	it('an abort during the wait before a retry fires onError once', async () => {
+		setMockHandler((_req, res) => {
+			res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '1' });
+			res.end(JSON.stringify({ error: 'PUBLISH_IN_PROGRESS' }));
+		});
+		const controller = new AbortController();
+		const errors: PoliPageError[] = [];
+		const client = new PoliPage({
+			apiKey: 'pp_sandbox_x',
+			baseUrl,
+			onRetry: () => setTimeout(() => controller.abort(), 20),
+			onError: (e) => errors.push(e),
+		});
+		const err: unknown = await client.documents
+			.get('doc_x', { signal: controller.signal })
+			.catch((e: unknown) => e);
+		expect(err).toMatchObject({ code: 'aborted' });
+		expect(errors).toEqual([err]);
 	});
 });
