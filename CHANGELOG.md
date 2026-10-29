@@ -24,6 +24,7 @@ Conformance with the Poli Page API contract v1.0.0 ([poli-page/api-contract](htt
 ### Fixed
 
 - A failure while the PDF body is read no longer escapes as a raw `fetch` error: `render.pdf`, `downloadPdf()` and the stream of `render.pdfStream` raise `aborted` when the caller's signal aborts mid-body (was a `DOMException` `AbortError`) and `DOWNLOAD_FAILED` with `Failed to download PDF: network error` when the connection drops mid-body (was a `TypeError: terminated`). Every error the SDK raises is a `PoliPageError`.
+- Docs: the retries page and the README no longer claim the API deduplicates on `Idempotency-Key`. It does not: the key is stable across the retries of one call, and a render retried after a late 5xx can store a second document.
 
 ### Added
 
