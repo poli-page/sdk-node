@@ -188,6 +188,7 @@ export class PoliPage {
 
 		const t0 = Date.now();
 		let response: Response;
+		let answer: ArrayBuffer;
 		try {
 			response = await fetch(`${this.#baseUrl}${path}`, {
 				method,
@@ -201,10 +202,16 @@ export class PoliPage {
 				body: method === 'POST' ? JSON.stringify(body) : undefined,
 				signal: composed,
 			});
+			// The whole answer is read inside the attempt, under its timeout: a
+			// connection dropped or stalled mid-body is a failed attempt like any
+			// other (network_error or timeout, retried), never a raw fetch error
+			// once the caller parses the body.
+			answer = await response.arrayBuffer();
 		} catch (err) {
-			clearTimeout(timeoutId);
 			if (signal?.aborted) {
-				const abortedError = new PoliPageError('Request was aborted', 'aborted');
+				const abortedError = new PoliPageError('Request was aborted', 'aborted', undefined, undefined, {
+					cause: err,
+				});
 				this.#fireHook(this.#onError, abortedError);
 				throw abortedError;
 			}
@@ -219,8 +226,9 @@ export class PoliPage {
 				{ cause: err },
 			);
 			return { ok: false, error, retryAfterMs: undefined, retryable: true };
+		} finally {
+			clearTimeout(timeoutId);
 		}
-		clearTimeout(timeoutId);
 
 		if (response.ok) {
 			this.#fireHook(this.#onResponse, {
@@ -228,11 +236,20 @@ export class PoliPage {
 				requestId: response.headers.get('x-request-id') ?? undefined,
 				durationMs: Date.now() - t0,
 			});
-			return { ok: true, response };
+			// Hand the caller an answer whose body is already in memory. A 204 (or
+			// any empty answer) keeps a null body, as `Response` requires for 204.
+			return {
+				ok: true,
+				response: new Response(answer.byteLength === 0 ? null : answer, {
+					status: response.status,
+					statusText: response.statusText,
+					headers: response.headers,
+				}),
+			};
 		}
 
 		const requestId = response.headers.get('x-request-id') ?? undefined;
-		const errorBody = await response.text();
+		const errorBody = new TextDecoder().decode(answer);
 		const { code, message } = parseErrorBody(errorBody, response.status);
 		const error = new PoliPageError(message, code, response.status, requestId);
 
