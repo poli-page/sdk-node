@@ -12,7 +12,7 @@ Conformance with the Poli Page API contract v1.3.0 ([poli-page/api-contract](htt
 
 ### Changed
 
-- `DOWNLOAD_FAILED` is never retryable, whatever the storage status (was retryable for a storage 5xx or 429): `isRetryable()` now returns `false` for it. Contract v1.3.0.
+- **Breaking:** `DOWNLOAD_FAILED` is never retryable, whatever the storage status (was retryable for a storage 5xx or 429): `isRetryable()` now returns `false` for it. A queue that requeues on `isRetryable()` drops it at once; see the [migration page](https://poli-page.github.io/sdk-node/support/migration/). Contract v1.3.0.
 - **Breaking:** `QUOTA_EXCEEDED` and `OVERAGE_CAP_EXCEEDED` (429) and `STORAGE_ACCESS_DENIED` (502) are no longer retried, even with a `Retry-After` header, and `isRetryable()` now returns `false` for them (it returned `true` for any 429 or 5xx). They last until the monthly reset or until the bucket access is restored, so the SDK used to wait up to 30 s per retry for nothing. `RATE_LIMIT_EXCEEDED` and every other 429 and 5xx are still retried. Code that requeues on `isRetryable()` stops requeueing these three; see the [migration page](https://poli-page.github.io/sdk-node/support/migration/).
 - SDK error messages are the exact texts of the SDK specification:
   - `network_error`: `Network request failed` (was the `fetch` error text, e.g. `fetch failed`); the `fetch` error is kept as the error's `cause`.
