@@ -164,10 +164,10 @@ Standard and service keys share this one format. Every key hits the same endpoin
 | `client.render.pdf(input)` | `Promise<Uint8Array>` | Render a PDF, return bytes |
 | `client.render.pdfStream(input)` | `Promise<ReadableStream<Uint8Array>>` | Render and stream the response |
 | `client.render.document(input)` | `Promise<DocumentDescriptor>` | Render and return descriptor (skip auto-download) |
-| `client.documents.get(id)` | `Promise<DocumentDescriptor>` | Retrieve a stored document |
-| `client.documents.preview(id)` | `Promise<DocumentPreviewResult>` | Stored document's paginated HTML |
-| `client.documents.thumbnails(id, options?)` | `Promise<Thumbnail[]>` | Page thumbnails (JPEG/WebP/PNG, base64) |
-| `client.documents.delete(id)` | `Promise<void>` | Soft-delete a stored document |
+| `client.documents.get(id, { signal }?)` | `Promise<DocumentDescriptor>` | Retrieve a stored document |
+| `client.documents.preview(id, { signal }?)` | `Promise<DocumentPreviewResult>` | Stored document's paginated HTML |
+| `client.documents.thumbnails(id, options?, { signal }?)` | `Promise<Thumbnail[]>` | Page thumbnails (JPEG/WebP/PNG, base64) |
+| `client.documents.delete(id, { signal }?)` | `Promise<void>` | Soft-delete a stored document |
 | `renderToFile(client, input, path)` *(from `@poli-page/sdk/node`)* | `Promise<void>` | Render and stream to disk (Node only) |
 
 ## Configuration
@@ -238,6 +238,12 @@ setTimeout(() => controller.abort(), 5000);
 const pdf = await client.render.pdf({ ..., signal: controller.signal });
 ```
 
+The `documents` methods take the signal as a last argument:
+
+```ts
+const doc = await client.documents.get(documentId, { signal: controller.signal });
+```
+
 When the signal aborts, the SDK throws `PoliPageError` with `code: 'aborted'`.
 
 ## Observability
@@ -256,7 +262,7 @@ const client = new PoliPage({
 
 ## Retries & idempotency
 
-The SDK retries on **5xx**, **429**, **network errors**, and **timeouts**. Backoff is exponential (`retryDelay × 2^N`) with jitter, capped by `Retry-After` when the server provides it. Every call sends an auto-generated `Idempotency-Key` (UUID v4); pass `idempotencyKey` in the input to override.
+The SDK retries on **5xx**, **429**, **network errors**, and **timeouts**, except `QUOTA_EXCEEDED`, `OVERAGE_CAP_EXCEEDED` (429) and `STORAGE_ACCESS_DENIED` (502), which waiting cannot fix: those are thrown at once. Before retry `n` (1-based) the SDK waits `retryDelay × 2^(n−1) × j`, with `j` a random factor in `[0.5, 1.5)`; a `Retry-After` header (seconds or HTTP-date, clamped to 30 s) replaces it when the server sends one. Every call sends an auto-generated `Idempotency-Key` (UUID v4); pass `idempotencyKey` in the input to override.
 
 → Full retry semantics: https://poli-page.github.io/sdk-node/production/retries-and-idempotency/
 
@@ -296,6 +302,10 @@ Node.js 20.18 or later.
 - SDK documentation: [poli-page.github.io/sdk-node](https://poli-page.github.io/sdk-node/)
 - Sign up & generate API keys: [app.poli.page](https://app.poli.page)
 - Issues: [github.com/poli-page/sdk-node/issues](https://github.com/poli-page/sdk-node/issues)
+
+## Testing
+
+`npm test` runs the unit tests. CI also runs `tests/contract.test.ts` against the [Poli Page API contract](https://github.com/poli-page/api-contract), pinned by commit in `.github/workflows/ci.yml`: every SDK case of `contract.json` runs against a local mock server. To run it locally, download that version's `contract.json` and run `POLI_CONTRACT=<path to contract.json> npm test`. Case ids allowed to fail are listed, with the reason, in `tests/contract-skip.json`.
 
 ## License
 

@@ -348,6 +348,75 @@ describe('PoliPage SDK', () => {
 			expect(attempts).toBe(1);
 		});
 
+		it.each([
+			[429, 'QUOTA_EXCEEDED'],
+			[429, 'OVERAGE_CAP_EXCEEDED'],
+			[502, 'STORAGE_ACCESS_DENIED'],
+		])('does not retry %i %s, even with Retry-After', async (status, code) => {
+			let attempts = 0;
+			setMockHandler((_req, res) => {
+				attempts++;
+				res.writeHead(status, { 'Content-Type': 'application/json', 'Retry-After': '3600' });
+				res.end(JSON.stringify({ error: code, detail: 'no retry' }));
+			});
+			const retries: number[] = [];
+			const client = new PoliPage({
+				apiKey: 'pp_sandbox_abc',
+				baseUrl,
+				maxRetries: 2,
+				retryDelay: 10,
+				onRetry: (e) => retries.push(e.attempt),
+			});
+			await expect(
+				client.render.document({ project: 'p', template: 't', data: {} }),
+			).rejects.toMatchObject({ code, status });
+			expect(attempts).toBe(1);
+			expect(retries).toEqual([]);
+		});
+
+		it('ignores Retry-After-Ms: the backoff applies', async () => {
+			let attempts = 0;
+			setMockHandler((_req, res) => {
+				attempts++;
+				if (attempts === 1) {
+					res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After-Ms': '5000' });
+					res.end(JSON.stringify({ error: 'ORGANIZATION_MIGRATING' }));
+					return;
+				}
+				res.writeHead(200, { 'Content-Type': 'application/json' });
+				res.end(JSON.stringify({ ...sampleDescriptor, presignedPdfUrl: `${baseUrl}/presigned/ok.pdf` }));
+			});
+			const delays: number[] = [];
+			const client = new PoliPage({
+				apiKey: 'pp_sandbox_abc',
+				baseUrl,
+				retryDelay: 20,
+				onRetry: (e) => delays.push(e.delayMs),
+			});
+			await client.render.document({ project: 'p', template: 't', data: {} });
+			expect(delays).toHaveLength(1);
+			expect(delays[0]).toBeGreaterThanOrEqual(10);
+			expect(delays[0]).toBeLessThan(31);
+		});
+
+		it('raises network_error "Network request failed" with the fetch error as cause', async () => {
+			const closed = createServer();
+			await new Promise<void>((resolve) => closed.listen(0, '127.0.0.1', resolve));
+			const addr = closed.address();
+			await new Promise<void>((resolve) => closed.close(() => resolve()));
+			if (typeof addr !== 'object' || addr === null) throw new Error('no port');
+			const client = new PoliPage({
+				apiKey: 'pp_sandbox_abc',
+				baseUrl: `http://127.0.0.1:${addr.port}`,
+				maxRetries: 0,
+			});
+			const err: unknown = await client.documents.get('doc_x').catch((e: unknown) => e);
+			expect(err).toBeInstanceOf(PoliPageError);
+			expect(err).toMatchObject({ code: 'network_error', message: 'Network request failed' });
+			expect((err as PoliPageError).status).toBeUndefined();
+			expect((err as PoliPageError).cause).toBeInstanceOf(Error);
+		});
+
 		it('honors Retry-After header in seconds (uses it instead of exponential backoff)', async () => {
 			let attempts = 0;
 			const startTimes: number[] = [];
@@ -624,6 +693,34 @@ describe('PoliPage SDK', () => {
 			await expect(
 				client.render.pdf({ project: 'p', template: 't', data: {}, signal: controller.signal }),
 			).rejects.toMatchObject({ name: 'PoliPageError', code: 'aborted' });
+		});
+
+		it('documents.get aborts an in-flight request through its signal', async () => {
+			setMockHandler(() => {
+				// Never answer.
+			});
+			const client = new PoliPage({ apiKey: 'pp_sandbox_x', baseUrl });
+			const controller = new AbortController();
+			const promise = client.documents.get('doc_x', { signal: controller.signal });
+			setTimeout(() => controller.abort(), 50);
+			await expect(promise).rejects.toMatchObject({ name: 'PoliPageError', code: 'aborted' });
+		});
+
+		it('every documents method takes a signal', async () => {
+			let requests = 0;
+			setMockHandler(() => {
+				requests++;
+			});
+			const client = new PoliPage({ apiKey: 'pp_sandbox_x', baseUrl });
+			const signal = AbortSignal.abort();
+			const aborted = { name: 'PoliPageError', code: 'aborted' };
+			await expect(client.documents.get('d', { signal })).rejects.toMatchObject(aborted);
+			await expect(client.documents.preview('d', { signal })).rejects.toMatchObject(aborted);
+			await expect(client.documents.thumbnails('d', undefined, { signal })).rejects.toMatchObject(
+				aborted,
+			);
+			await expect(client.documents.delete('d', { signal })).rejects.toMatchObject(aborted);
+			expect(requests).toBe(0);
 		});
 
 		it('aborted error has no status (transport-level)', async () => {

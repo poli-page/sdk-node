@@ -12,6 +12,7 @@ export type {
 	RenderMetadata,
 	RenderNamespace,
 	DocumentsNamespace,
+	DocumentsRequestOptions,
 	DocumentDescriptor,
 	DocumentPreviewResult,
 	Thumbnail,
@@ -207,10 +208,15 @@ export class PoliPage {
 				this.#fireHook(this.#onError, abortedError);
 				throw abortedError;
 			}
-			const aborted = err instanceof Error && err.name === 'AbortError';
+			// The messages are the exact texts of the SDK specification; the fetch
+			// failure itself stays available as `cause`.
+			const timedOut = timeoutController.signal.aborted;
 			const error = new PoliPageError(
-				aborted ? `Request timed out after ${this.#timeout}ms` : err instanceof Error ? err.message : String(err),
-				aborted ? 'timeout' : 'network_error',
+				timedOut ? `Request timed out after ${this.#timeout}ms` : 'Network request failed',
+				timedOut ? 'timeout' : 'network_error',
+				undefined,
+				undefined,
+				{ cause: err },
 			);
 			return { ok: false, error, retryAfterMs: undefined, retryable: true };
 		}
@@ -226,14 +232,16 @@ export class PoliPage {
 		}
 
 		const requestId = response.headers.get('x-request-id') ?? undefined;
-		const retryable = response.status >= 500 || response.status === 429;
-		const retryAfterMs = retryable
-			? parseRetryAfter(response.headers.get('retry-after'))
-			: undefined;
-
 		const errorBody = await response.text();
 		const { code, message } = parseErrorBody(errorBody, response.status);
 		const error = new PoliPageError(message, code, response.status, requestId);
+
+		// One rule for the retry loop and for `isRetryable()`: 5xx and 429 are
+		// retried, except the codes that waiting cannot fix (quota, storage access).
+		const retryable = error.isRetryable();
+		const retryAfterMs = retryable
+			? parseRetryAfter(response.headers.get('retry-after'))
+			: undefined;
 
 		return { ok: false, error, retryAfterMs, retryable };
 	}

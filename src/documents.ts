@@ -1,47 +1,14 @@
-import { PoliPageError } from './error.js';
+import { attachDownloadPdf } from './internal/download.js';
 import type { SdkContext } from './render.js';
 import type {
 	DocumentDescriptor,
 	DocumentPreviewResult,
 	DocumentsNamespace,
+	DocumentsRequestOptions,
 	RawDocumentDescriptor,
 	Thumbnail,
 	ThumbnailOptions,
 } from './types.js';
-
-/**
- * Attach the `downloadPdf` fluent helper to a raw wire descriptor.
- *
- * Identical to the helper in `src/render.ts` — duplicated inline (6 lines)
- * to avoid a shared-helper file and the circular import that would arise
- * if `render.ts` imported it from `documents.ts` or vice versa.
- *
- * @internal
- */
-function attachDownloadPdf(raw: RawDocumentDescriptor): DocumentDescriptor {
-	return {
-		...raw,
-		async downloadPdf(options) {
-			let response: Response;
-			try {
-				response = await fetch(raw.presignedPdfUrl, { signal: options?.signal });
-			} catch (err) {
-				throw new PoliPageError(
-					err instanceof Error ? err.message : String(err),
-					'DOWNLOAD_FAILED',
-				);
-			}
-			if (!response.ok) {
-				throw new PoliPageError(
-					`Failed to download PDF: ${response.status} ${response.statusText}`,
-					'DOWNLOAD_FAILED',
-					response.status,
-				);
-			}
-			return new Uint8Array(await response.arrayBuffer());
-		},
-	};
-}
 
 /**
  * Implementation of `client.documents.get`. Wired by `createDocumentsNamespace`
@@ -50,8 +17,12 @@ function attachDownloadPdf(raw: RawDocumentDescriptor): DocumentDescriptor {
  * GETs `/v1/documents/:id`, parses the wire response, and returns a
  * `DocumentDescriptor` with the `downloadPdf` helper attached. Spec §6.1.
  */
-export async function documentsGet(ctx: SdkContext, id: string): Promise<DocumentDescriptor> {
-	const response = await ctx.get(`/v1/documents/${encodeURIComponent(id)}`);
+export async function documentsGet(
+	ctx: SdkContext,
+	id: string,
+	options?: DocumentsRequestOptions,
+): Promise<DocumentDescriptor> {
+	const response = await ctx.get(`/v1/documents/${encodeURIComponent(id)}`, options?.signal);
 	const raw = (await response.json()) as RawDocumentDescriptor;
 	return attachDownloadPdf(raw);
 }
@@ -69,8 +40,12 @@ export async function documentsGet(ctx: SdkContext, id: string): Promise<Documen
 export async function documentsPreview(
 	ctx: SdkContext,
 	id: string,
+	options?: DocumentsRequestOptions,
 ): Promise<DocumentPreviewResult> {
-	const response = await ctx.get(`/v1/documents/${encodeURIComponent(id)}/preview`);
+	const response = await ctx.get(
+		`/v1/documents/${encodeURIComponent(id)}/preview`,
+		options?.signal,
+	);
 	const html = await response.text();
 	const raw = response.headers.get('X-Document-Page-Count');
 	const parsed = raw !== null ? Number.parseInt(raw, 10) : Number.NaN;
@@ -92,11 +67,13 @@ export async function documentsThumbnails(
 	ctx: SdkContext,
 	id: string,
 	options?: ThumbnailOptions,
+	requestOptions?: DocumentsRequestOptions,
 ): Promise<Thumbnail[]> {
 	const anySet = options !== undefined && Object.values(options).some((v) => v !== undefined);
 	const response = await ctx.post(
 		`/v1/documents/${encodeURIComponent(id)}/thumbnails`,
 		anySet ? { thumbnails: options } : {},
+		requestOptions?.signal,
 	);
 	const result = (await response.json()) as { thumbnails: Thumbnail[] };
 	return result.thumbnails;
@@ -110,8 +87,12 @@ export async function documentsThumbnails(
  * ignored. Spec §6.4. Idempotent: the API answers `204` for an
  * already-deleted document too.
  */
-export async function documentsDelete(ctx: SdkContext, id: string): Promise<void> {
-	await ctx.delete(`/v1/documents/${encodeURIComponent(id)}`);
+export async function documentsDelete(
+	ctx: SdkContext,
+	id: string,
+	options?: DocumentsRequestOptions,
+): Promise<void> {
+	await ctx.delete(`/v1/documents/${encodeURIComponent(id)}`, options?.signal);
 }
 
 /**
@@ -122,9 +103,10 @@ export async function documentsDelete(ctx: SdkContext, id: string): Promise<void
  */
 export function createDocumentsNamespace(ctx: SdkContext): DocumentsNamespace {
 	return {
-		get: (id) => documentsGet(ctx, id),
-		preview: (id) => documentsPreview(ctx, id),
-		thumbnails: (id, options) => documentsThumbnails(ctx, id, options),
-		delete: (id) => documentsDelete(ctx, id),
+		get: (id, options) => documentsGet(ctx, id, options),
+		preview: (id, options) => documentsPreview(ctx, id, options),
+		thumbnails: (id, options, requestOptions) =>
+			documentsThumbnails(ctx, id, options, requestOptions),
+		delete: (id, options) => documentsDelete(ctx, id, options),
 	};
 }

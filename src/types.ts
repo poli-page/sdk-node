@@ -109,8 +109,9 @@ export interface DocumentDescriptor extends RawDocumentDescriptor {
 	/**
 	 * Fetch the PDF bytes from `presignedPdfUrl`. The URL has a 15-minute
 	 * TTL — if it expired, call `documents.get(id)` to refresh and retry.
-	 * Throws `PoliPageError` with `code: 'DOWNLOAD_FAILED'` on non-2xx or
-	 * network failures.
+	 * Throws `PoliPageError` with `code: 'DOWNLOAD_FAILED'` on non-2xx (with
+	 * the storage `status`) or network failures, and `code: 'aborted'` when
+	 * `signal` aborts the request. Never retried.
 	 *
 	 * @example
 	 * ```ts
@@ -137,6 +138,17 @@ export interface ThumbnailOptions {
 	quality?: number;
 	/** Generate only these pages (1-based). */
 	pages?: number[];
+}
+
+/**
+ * Per-call options of the `client.documents` methods.
+ */
+export interface DocumentsRequestOptions {
+	/**
+	 * Cancel the call: an abort during a request or during the wait before a
+	 * retry throws `PoliPageError` with `code: 'aborted'`, never retried.
+	 */
+	signal?: AbortSignal;
 }
 
 /**
@@ -250,9 +262,11 @@ export interface DocumentsNamespace {
 	 * ```ts
 	 * const doc = await client.documents.get('doc_abc123');
 	 * const pdf = await doc.downloadPdf();
+	 * // Or with cancellation:
+	 * const doc = await client.documents.get('doc_abc123', { signal: AbortSignal.timeout(5_000) });
 	 * ```
 	 */
-	get(id: string): Promise<DocumentDescriptor>;
+	get(id: string, options?: DocumentsRequestOptions): Promise<DocumentDescriptor>;
 
 	/**
 	 * Retrieve a stored document's paginated HTML. No counter — the engine
@@ -263,7 +277,7 @@ export interface DocumentsNamespace {
 	 * const { html, pageCount } = await client.documents.preview('doc_abc123');
 	 * ```
 	 */
-	preview(id: string): Promise<DocumentPreviewResult>;
+	preview(id: string, options?: DocumentsRequestOptions): Promise<DocumentPreviewResult>;
 
 	/**
 	 * Generate page thumbnails for a stored document. Spec §6.3.
@@ -278,7 +292,11 @@ export interface DocumentsNamespace {
 	 * });
 	 * ```
 	 */
-	thumbnails(id: string, options?: ThumbnailOptions): Promise<Thumbnail[]>;
+	thumbnails(
+		id: string,
+		options?: ThumbnailOptions,
+		requestOptions?: DocumentsRequestOptions,
+	): Promise<Thumbnail[]>;
 
 	/**
 	 * Soft-delete a stored document. The PDF is purged from storage;
@@ -290,5 +308,5 @@ export interface DocumentsNamespace {
 	 * await client.documents.delete('doc_abc123');
 	 * ```
 	 */
-	delete(id: string): Promise<void>;
+	delete(id: string, options?: DocumentsRequestOptions): Promise<void>;
 }

@@ -5,6 +5,12 @@ description: Upgrade guides for moving between breaking versions of the Node.js 
 
 This page tracks breaking changes between versions of `@poli-page/sdk`. For the full per-release diff, see the [changelog](../changelog/).
 
+## From 0.10.0 to the next release (unreleased)
+
+1. **`isRetryable()` and the three never-retried codes.** `QUOTA_EXCEEDED` and `OVERAGE_CAP_EXCEEDED` (429) and `STORAGE_ACCESS_DENIED` (502) are no longer retried by the SDK, and `isRetryable()` returns `false` for them. A queue that requeues on `isRetryable()` now drops these errors at once: handle them by code instead, for example hold quota errors until the monthly reset and alert on `STORAGE_ACCESS_DENIED` until the bucket role is restored. `isRateLimitError()` is still `true` for the two 429s.
+2. **Messages.** If you match error messages, use the codes instead; the messages changed to the specification's exact texts (`Network request failed`, `Failed to download PDF: HTTP <status>`, `Failed to download PDF: network error`, `HTTP <status>` for a non-JSON error body, `project is required`). The underlying `fetch` error of a network, timeout or download failure is now `err.cause`.
+3. **Download cancellation.** Aborting the signal during the PDF download now throws `aborted`, not `DOWNLOAD_FAILED`.
+
 ## From 0.9.x to 0.10.0
 
 The API moved from versions to environments, and this release follows it with no deprecation window. A key carries its environment, `pp_{env}_{32 lowercase hex}` (`pp_sandbox_…`, `pp_live_…`, `pp_staging_…`), and a render uses the project's copy published in that environment.

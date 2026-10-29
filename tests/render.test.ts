@@ -7,7 +7,7 @@ import {
 	createRenderNamespace,
 	type SdkContext,
 } from '../src/render.js';
-import { PoliPage } from '../src/index.js';
+import { PoliPage, PoliPageError } from '../src/index.js';
 
 let server: Server;
 let baseUrl: string;
@@ -235,7 +235,138 @@ describe('renderPdf', () => {
 			name: 'PoliPageError',
 			code: 'DOWNLOAD_FAILED',
 			status: 403,
+			message: 'Failed to download PDF: HTTP 403',
 		});
+	});
+
+	it('throws DOWNLOAD_FAILED without a status when the download connection drops', async () => {
+		setMockHandler((req, res) => {
+			if (req.url === '/v1/render') {
+				res.writeHead(200, { 'Content-Type': 'application/json' });
+				res.end(
+					JSON.stringify({
+						...sampleDescriptor,
+						presignedPdfUrl: `${baseUrl}/presigned/drop.pdf`,
+					}),
+				);
+				return;
+			}
+			req.socket.destroy();
+		});
+		const err: unknown = await renderPdf(buildCtx(), {
+			project: 'p',
+			template: 't',
+			data: {},
+		}).catch((e: unknown) => e);
+		expect(err).toMatchObject({
+			name: 'PoliPageError',
+			code: 'DOWNLOAD_FAILED',
+			message: 'Failed to download PDF: network error',
+		});
+		expect((err as { status?: number }).status).toBeUndefined();
+	});
+
+	it('throws aborted when the signal aborts the download', async () => {
+		const controller = new AbortController();
+		setMockHandler((req, res) => {
+			if (req.url === '/v1/render') {
+				res.writeHead(200, { 'Content-Type': 'application/json' });
+				res.end(
+					JSON.stringify({
+						...sampleDescriptor,
+						presignedPdfUrl: `${baseUrl}/presigned/slow.pdf`,
+					}),
+				);
+				return;
+			}
+			// Never answer the download; the caller cancels.
+			controller.abort();
+		});
+		await expect(
+			renderPdf(buildCtx(), {
+				project: 'p',
+				template: 't',
+				data: {},
+				signal: controller.signal,
+			}),
+		).rejects.toMatchObject({ name: 'PoliPageError', code: 'aborted' });
+	});
+});
+
+/**
+ * A render answered with a descriptor whose download sends the headers and the
+ * first bytes of the PDF, then calls `midBody` instead of finishing the body.
+ */
+function setPartialDownloadHandler(midBody: (req: IncomingMessage) => void) {
+	setMockHandler((req, res) => {
+		if (req.url === '/v1/render') {
+			res.writeHead(200, { 'Content-Type': 'application/json' });
+			res.end(
+				JSON.stringify({ ...sampleDescriptor, presignedPdfUrl: `${baseUrl}/presigned/partial.pdf` }),
+			);
+			return;
+		}
+		res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Length': '100000' });
+		res.write('%PDF-1.4 partial');
+		setTimeout(() => midBody(req), 50);
+	});
+}
+
+async function drain(stream: ReadableStream<Uint8Array>): Promise<void> {
+	const reader = stream.getReader();
+	while (!(await reader.read()).done) {
+		/* drain */
+	}
+}
+
+describe('download body failures', () => {
+	const input = { project: 'p', template: 't', data: {} };
+
+	it('render.pdf throws aborted when the signal aborts after the download headers', async () => {
+		const controller = new AbortController();
+		setPartialDownloadHandler(() => controller.abort());
+		const err: unknown = await renderPdf(buildCtx(), {
+			...input,
+			signal: controller.signal,
+		}).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(PoliPageError);
+		expect(err).toMatchObject({ code: 'aborted', message: 'Request was aborted' });
+		expect((err as PoliPageError).cause).toBeDefined();
+	});
+
+	it('render.pdf throws DOWNLOAD_FAILED when the connection drops mid-body', async () => {
+		setPartialDownloadHandler((req) => req.socket.destroy());
+		const err: unknown = await renderPdf(buildCtx(), input).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(PoliPageError);
+		expect(err).toMatchObject({
+			code: 'DOWNLOAD_FAILED',
+			message: 'Failed to download PDF: network error',
+		});
+		expect((err as PoliPageError).status).toBeUndefined();
+		expect((err as PoliPageError).cause).toBeDefined();
+	});
+
+	it('the render.pdfStream stream errors with aborted when the signal aborts mid-body', async () => {
+		const controller = new AbortController();
+		setPartialDownloadHandler(() => controller.abort());
+		const stream = await renderPdfStream(buildCtx(), { ...input, signal: controller.signal });
+		const err: unknown = await drain(stream).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(PoliPageError);
+		expect(err).toMatchObject({ code: 'aborted', message: 'Request was aborted' });
+		expect((err as PoliPageError).cause).toBeDefined();
+	});
+
+	it('the render.pdfStream stream errors with DOWNLOAD_FAILED when the connection drops', async () => {
+		setPartialDownloadHandler((req) => req.socket.destroy());
+		const stream = await renderPdfStream(buildCtx(), input);
+		const err: unknown = await drain(stream).catch((e: unknown) => e);
+		expect(err).toBeInstanceOf(PoliPageError);
+		expect(err).toMatchObject({
+			code: 'DOWNLOAD_FAILED',
+			message: 'Failed to download PDF: network error',
+		});
+		expect((err as PoliPageError).status).toBeUndefined();
+		expect((err as PoliPageError).cause).toBeDefined();
 	});
 });
 
@@ -280,6 +411,7 @@ describe('renderPdfStream', () => {
 			name: 'PoliPageError',
 			code: 'DOWNLOAD_FAILED',
 			status: 410,
+			message: 'Failed to download PDF: HTTP 410',
 		});
 	});
 
@@ -410,6 +542,7 @@ describe('renderDocument', () => {
 			name: 'PoliPageError',
 			code: 'DOWNLOAD_FAILED',
 			status: 403,
+			message: 'Failed to download PDF: HTTP 403',
 		});
 	});
 
@@ -481,6 +614,7 @@ describe('renderDocument', () => {
 		).rejects.toMatchObject({
 			name: 'PoliPageError',
 			code: 'PROJECT_REQUIRED_FOR_DOCUMENT',
+			message: 'project is required',
 			status: undefined,
 		});
 		expect(postSpy).not.toHaveBeenCalled();

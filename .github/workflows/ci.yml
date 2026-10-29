@@ -54,11 +54,20 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: API contract
+        id: contract
+        uses: poli-page/api-contract@c1dcf6904b927a044384dd5b8eb0bc2b16a38a6e # v1.0.0
+
       - name: Test (with coverage)
         run: npm run test:coverage
+        env:
+          POLI_CONTRACT: ${{ steps.contract.outputs.path }}
 
       - name: Type tests
+        # `vitest run --typecheck` runs the runtime tests too, contract included.
         run: npm run test:types
+        env:
+          POLI_CONTRACT: ${{ steps.contract.outputs.path }}
 
       - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && matrix.node-version == 22
@@ -122,8 +131,8 @@ jobs:
           node smoke.mjs
           node smoke.cjs
 
-  # One check that sums up the matrix: the name the `main` ruleset requires for merges
-  # (the poli-page auto loop's gate waits for a check named `ci`).
+  # One check that sums up the matrix: the `main` ruleset requires a check named `ci`
+  # for merges, whatever the matrix legs are.
   ci:
     if: always()
     needs: [test]

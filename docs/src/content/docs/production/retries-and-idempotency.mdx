@@ -7,11 +7,12 @@ The Poli Page SDK retries transient failures automatically. Render operations ca
 
 ## Default retry policy
 
-- `network_error`, `timeout`, 5xx responses, and 429 (`QUOTA_EXCEEDED`) are retried.
-- Up to `maxRetries` attempts (default 2 — three total attempts).
-- Exponential backoff starting at `retryDelay` ms (default 500), doubling each attempt.
-- Honors the `Retry-After` response header when present.
-- `aborted` (caller-cancelled) is never retried.
+- `network_error`, `timeout`, 5xx responses (such as `503 PUBLISH_IN_PROGRESS`) and 429 responses (such as `RATE_LIMIT_EXCEEDED`) are retried.
+- `QUOTA_EXCEEDED` and `OVERAGE_CAP_EXCEEDED` (429) and `STORAGE_ACCESS_DENIED` (502) are **not** retried: they last until the monthly reset or until the bucket access is restored, so the SDK surfaces them at once and `isRetryable()` is `false`.
+- Up to `maxRetries` retries (default 2 — three total attempts); after the last one, the last error is thrown.
+- Exponential backoff starting at `retryDelay` ms (default 500), doubling each attempt, with a random factor in `[0.5, 1.5)`.
+- Honors the `Retry-After` response header when present (integer seconds or an HTTP-date), clamped to 0–30 s, without jitter. `Retry-After-Ms` is ignored.
+- `aborted` (caller-cancelled) is never retried. The presigned-URL download is never retried.
 
 ## Disabling retries
 

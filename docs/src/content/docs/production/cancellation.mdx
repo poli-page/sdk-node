@@ -3,7 +3,11 @@ title: Cancellation
 description: How to cancel in-flight requests with AbortSignal.
 ---
 
-Every render and document method accepts an `AbortSignal` via the input's `signal` field. Aborting cancels the underlying `fetch` call; the SDK throws a `PoliPageError` with `code: 'aborted'`.
+Every render and document method accepts an `AbortSignal`: the render methods through the input's `signal` field, the `documents` methods through a last `{ signal }` argument (`documents.get(id, { signal })`, `documents.thumbnails(id, options, { signal })`), and `downloadPdf({ signal })`. Aborting cancels the underlying `fetch` call, or the wait before a retry; the SDK throws a `PoliPageError` with `code: 'aborted'` and the message `Request was aborted`.
+
+```ts
+const doc = await client.documents.get('doc_abc123', { signal: AbortSignal.timeout(5_000) });
+```
 
 ## Pass a signal
 

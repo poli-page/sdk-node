@@ -136,7 +136,7 @@ describe('parseErrorBody', () => {
 		const result = parseErrorBody('not json', 502);
 		expect(result).toEqual({
 			code: 'INTERNAL_ERROR',
-			message: 'HTTP 502: response body was not valid JSON',
+			message: 'HTTP 502',
 		});
 	});
 

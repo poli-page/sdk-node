@@ -8,6 +8,29 @@ Upgrade steps for breaking changes are on the docs site's [migration page](https
 
 ## [Unreleased]
 
+Conformance with the Poli Page API contract v1.0.0 ([poli-page/api-contract](https://github.com/poli-page/api-contract)).
+
+### Changed
+
+- **Breaking:** `QUOTA_EXCEEDED` and `OVERAGE_CAP_EXCEEDED` (429) and `STORAGE_ACCESS_DENIED` (502) are no longer retried, even with a `Retry-After` header, and `isRetryable()` now returns `false` for them (it returned `true` for any 429 or 5xx). They last until the monthly reset or until the bucket access is restored, so the SDK used to wait up to 30 s per retry for nothing. `RATE_LIMIT_EXCEEDED` and every other 429 and 5xx are still retried. Code that requeues on `isRetryable()` stops requeueing these three; see the [migration page](https://poli-page.github.io/sdk-node/support/migration/).
+- SDK error messages are the exact texts of the SDK specification:
+  - `network_error`: `Network request failed` (was the `fetch` error text, e.g. `fetch failed`); the `fetch` error is kept as the error's `cause`.
+  - `DOWNLOAD_FAILED`: `Failed to download PDF: HTTP <status>` (was `Failed to download PDF: <status> <status text>`), and `Failed to download PDF: network error` when the download gets no answer (was the `fetch` error text).
+  - A non-JSON error body: `HTTP <status>` (was `HTTP <status>: response body was not valid JSON`); the code is still `INTERNAL_ERROR` with the real status.
+  - `PROJECT_REQUIRED_FOR_DOCUMENT` raised before any request: `project is required`.
+- SDK errors with no HTTP status keep the underlying error as `cause`: `network_error` and `timeout` (the `fetch` error, an `AbortError` for a timeout), and the download's `DOWNLOAD_FAILED` network error and `aborted` error. Code that serializes `err.cause` now sees it.
+- Cancelling `render.pdf`, `render.pdfStream` or `downloadPdf()` during the download throws `aborted` instead of `DOWNLOAD_FAILED`, whether the signal fires before the storage answers or while the body is read.
+
+### Fixed
+
+- A failure while the PDF body is read no longer escapes as a raw `fetch` error: `render.pdf`, `downloadPdf()` and the stream of `render.pdfStream` raise `aborted` when the caller's signal aborts mid-body (was a `DOMException` `AbortError`) and `DOWNLOAD_FAILED` with `Failed to download PDF: network error` when the connection drops mid-body (was a `TypeError: terminated`). Every error the SDK raises is a `PoliPageError`.
+
+### Added
+
+- `documents.get`, `documents.preview` and `documents.delete` take a last `{ signal }` argument, and `documents.thumbnails` a third one, to cancel the call (`code: 'aborted'`, never retried). New type `DocumentsRequestOptions`.
+- `PoliPageError` takes an optional fifth constructor argument `{ cause }`.
+- `tests/contract.test.ts` runs every SDK case of the API contract against a local mock server; CI pins the contract by commit (`poli-page/api-contract` action) and Dependabot proposes each new version. Run it locally with `POLI_CONTRACT=<path to contract.json> npm test`.
+
 ## [0.10.0] - 2026-10-27
 
 Environments contract: a key is `pp_{env}_{32 hex}` and carries its environment (`pp_sandbox_…`, `pp_live_…`, `pp_staging_…`); the API resolves the environment from the key and renders the project's copy published there. There are no versions, no draft rendering and no authenticated preview. Breaking, with no deprecation window.
