@@ -464,7 +464,9 @@ function describeRequests(
 		}
 		if (want?.minGapMsBefore !== undefined) {
 			const previous = recorded[i - 1];
-			const gap = previous === undefined ? 0 : req.at - previous.at;
+			// N-DURATION-MS: the measured gap is compared in integer milliseconds, so a
+			// timer firing a fraction of a millisecond early is not a short wait.
+			const gap = previous === undefined ? 0 : Math.round(req.at - previous.at);
 			out.minGapMsBefore =
 				gap >= want.minGapMsBefore ? want.minGapMsBefore : `only ${gap.toFixed(1)} ms`;
 		}
