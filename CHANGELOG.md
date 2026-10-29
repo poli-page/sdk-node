@@ -33,6 +33,7 @@ Conformance with the Poli Page API contract v1.0.0 ([poli-page/api-contract](htt
 
 ### Added
 
+- Known error code `TEMPLATE_UNSAFE` (400): the template, a partial or an SVG asset holds an injection attempt; `detail` names it. Not retried.
 - `documents.get`, `documents.preview` and `documents.delete` take a last `{ signal }` argument, and `documents.thumbnails` a third one, to cancel the call (`code: 'aborted'`, never retried). New type `DocumentsRequestOptions`.
 - `PoliPageError` takes an optional fifth constructor argument `{ cause }`.
 - `tests/contract.test.ts` runs every SDK case of the API contract against a local mock server; CI pins the contract by commit (`poli-page/api-contract` action) and Dependabot proposes each new version. Run it locally with `POLI_CONTRACT=<path to contract.json> npm test`.
