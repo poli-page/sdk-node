@@ -36,6 +36,13 @@ describe('PoliPageError', () => {
 		expect(new PoliPageError('m', 'aborted').isRetryable()).toBe(false);
 	});
 
+	it('isRetryable() is false for DOWNLOAD_FAILED whatever the storage status, true for a 503 API code', () => {
+		expect(new PoliPageError('m', 'DOWNLOAD_FAILED', 503).isRetryable()).toBe(false);
+		expect(new PoliPageError('m', 'DOWNLOAD_FAILED', 429).isRetryable()).toBe(false);
+		expect(new PoliPageError('m', 'DOWNLOAD_FAILED').isRetryable()).toBe(false);
+		expect(new PoliPageError('m', 'PUBLISH_IN_PROGRESS', 503).isRetryable()).toBe(true);
+	});
+
 	it('isRetryable() is false for QUOTA_EXCEEDED, OVERAGE_CAP_EXCEEDED and STORAGE_ACCESS_DENIED', () => {
 		expect(new PoliPageError('m', 'QUOTA_EXCEEDED', 429).isRetryable()).toBe(false);
 		expect(new PoliPageError('m', 'OVERAGE_CAP_EXCEEDED', 429).isRetryable()).toBe(false);

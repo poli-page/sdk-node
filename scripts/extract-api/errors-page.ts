@@ -6,7 +6,7 @@ const SDK_INTERNAL = [
   { code: 'network_error',   when: 'TCP/TLS-level failure reaching the API (`Network request failed`; the `fetch` error is the `cause`). Retryable.' },
   { code: 'timeout',         when: 'The request did not complete within `timeout`. Retryable.' },
   { code: 'aborted',         when: 'Caller-supplied `signal` aborted the request. Not retryable.' },
-  { code: 'DOWNLOAD_FAILED', when: 'Fetching the PDF bytes from the presigned URL failed (`downloadPdf()`, `render.pdf`, `render.pdfStream`). Not retried; refresh with `documents.get(id)`.' },
+  { code: 'DOWNLOAD_FAILED', when: 'Fetching the PDF bytes from the presigned URL failed (`downloadPdf()`, `render.pdf`, `render.pdfStream`). Never retryable, whatever the storage status; refresh with `documents.get(id)`.' },
 ];
 
 const API_AUTH = [
