@@ -235,7 +235,61 @@ describe('renderPdf', () => {
 			name: 'PoliPageError',
 			code: 'DOWNLOAD_FAILED',
 			status: 403,
+			message: 'Failed to download PDF: HTTP 403',
 		});
+	});
+
+	it('throws DOWNLOAD_FAILED without a status when the download connection drops', async () => {
+		setMockHandler((req, res) => {
+			if (req.url === '/v1/render') {
+				res.writeHead(200, { 'Content-Type': 'application/json' });
+				res.end(
+					JSON.stringify({
+						...sampleDescriptor,
+						presignedPdfUrl: `${baseUrl}/presigned/drop.pdf`,
+					}),
+				);
+				return;
+			}
+			req.socket.destroy();
+		});
+		const err: unknown = await renderPdf(buildCtx(), {
+			project: 'p',
+			template: 't',
+			data: {},
+		}).catch((e: unknown) => e);
+		expect(err).toMatchObject({
+			name: 'PoliPageError',
+			code: 'DOWNLOAD_FAILED',
+			message: 'Failed to download PDF: network error',
+		});
+		expect((err as { status?: number }).status).toBeUndefined();
+	});
+
+	it('throws aborted when the signal aborts the download', async () => {
+		const controller = new AbortController();
+		setMockHandler((req, res) => {
+			if (req.url === '/v1/render') {
+				res.writeHead(200, { 'Content-Type': 'application/json' });
+				res.end(
+					JSON.stringify({
+						...sampleDescriptor,
+						presignedPdfUrl: `${baseUrl}/presigned/slow.pdf`,
+					}),
+				);
+				return;
+			}
+			// Never answer the download; the caller cancels.
+			controller.abort();
+		});
+		await expect(
+			renderPdf(buildCtx(), {
+				project: 'p',
+				template: 't',
+				data: {},
+				signal: controller.signal,
+			}),
+		).rejects.toMatchObject({ name: 'PoliPageError', code: 'aborted' });
 	});
 });
 
@@ -280,6 +334,7 @@ describe('renderPdfStream', () => {
 			name: 'PoliPageError',
 			code: 'DOWNLOAD_FAILED',
 			status: 410,
+			message: 'Failed to download PDF: HTTP 410',
 		});
 	});
 
@@ -410,6 +465,7 @@ describe('renderDocument', () => {
 			name: 'PoliPageError',
 			code: 'DOWNLOAD_FAILED',
 			status: 403,
+			message: 'Failed to download PDF: HTTP 403',
 		});
 	});
 
@@ -481,6 +537,7 @@ describe('renderDocument', () => {
 		).rejects.toMatchObject({
 			name: 'PoliPageError',
 			code: 'PROJECT_REQUIRED_FOR_DOCUMENT',
+			message: 'project is required',
 			status: undefined,
 		});
 		expect(postSpy).not.toHaveBeenCalled();

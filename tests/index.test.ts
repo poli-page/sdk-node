@@ -399,6 +399,24 @@ describe('PoliPage SDK', () => {
 			expect(delays[0]).toBeLessThan(31);
 		});
 
+		it('raises network_error "Network request failed" with the fetch error as cause', async () => {
+			const closed = createServer();
+			await new Promise<void>((resolve) => closed.listen(0, '127.0.0.1', resolve));
+			const addr = closed.address();
+			await new Promise<void>((resolve) => closed.close(() => resolve()));
+			if (typeof addr !== 'object' || addr === null) throw new Error('no port');
+			const client = new PoliPage({
+				apiKey: 'pp_sandbox_abc',
+				baseUrl: `http://127.0.0.1:${addr.port}`,
+				maxRetries: 0,
+			});
+			const err: unknown = await client.documents.get('doc_x').catch((e: unknown) => e);
+			expect(err).toBeInstanceOf(PoliPageError);
+			expect(err).toMatchObject({ code: 'network_error', message: 'Network request failed' });
+			expect((err as PoliPageError).status).toBeUndefined();
+			expect((err as PoliPageError).cause).toBeInstanceOf(Error);
+		});
+
 		it('honors Retry-After header in seconds (uses it instead of exponential backoff)', async () => {
 			let attempts = 0;
 			const startTimes: number[] = [];

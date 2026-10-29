@@ -207,10 +207,15 @@ export class PoliPage {
 				this.#fireHook(this.#onError, abortedError);
 				throw abortedError;
 			}
-			const aborted = err instanceof Error && err.name === 'AbortError';
+			// The messages are the exact texts of the SDK specification; the fetch
+			// failure itself stays available as `cause`.
+			const timedOut = timeoutController.signal.aborted;
 			const error = new PoliPageError(
-				aborted ? `Request timed out after ${this.#timeout}ms` : err instanceof Error ? err.message : String(err),
-				aborted ? 'timeout' : 'network_error',
+				timedOut ? `Request timed out after ${this.#timeout}ms` : 'Network request failed',
+				timedOut ? 'timeout' : 'network_error',
+				undefined,
+				undefined,
+				{ cause: err },
 			);
 			return { ok: false, error, retryAfterMs: undefined, retryable: true };
 		}

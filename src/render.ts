@@ -1,4 +1,5 @@
 import { PoliPageError } from './error.js';
+import { attachDownloadPdf, fetchPresignedPdf } from './internal/download.js';
 import type {
 	DocumentDescriptor,
 	RawDocumentDescriptor,
@@ -22,42 +23,6 @@ export interface SdkContext {
 	): Promise<Response>;
 	get(path: string, signal?: AbortSignal): Promise<Response>;
 	delete(path: string, signal?: AbortSignal): Promise<Response>;
-}
-
-/**
- * Attach the `downloadPdf` fluent helper to a raw wire descriptor. The
- * helper uses plain `fetch` against the presigned S3 URL — no SDK auth,
- * no retry, no idempotency. Errors are wrapped in `PoliPageError` for
- * consistency with the rest of the SDK.
- *
- * Duplicated identically in `src/documents.ts` to avoid a circular import
- * or a single-helper file.
- *
- * @internal
- */
-function attachDownloadPdf(raw: RawDocumentDescriptor): DocumentDescriptor {
-	return {
-		...raw,
-		async downloadPdf(options) {
-			let response: Response;
-			try {
-				response = await fetch(raw.presignedPdfUrl, { signal: options?.signal });
-			} catch (err) {
-				throw new PoliPageError(
-					err instanceof Error ? err.message : String(err),
-					'DOWNLOAD_FAILED',
-				);
-			}
-			if (!response.ok) {
-				throw new PoliPageError(
-					`Failed to download PDF: ${response.status} ${response.statusText}`,
-					'DOWNLOAD_FAILED',
-					response.status,
-				);
-			}
-			return new Uint8Array(await response.arrayBuffer());
-		},
-	};
 }
 
 /**
@@ -85,10 +50,7 @@ export async function renderDocument(
 	input: RenderInput,
 ): Promise<DocumentDescriptor> {
 	if (!input.project) {
-		throw new PoliPageError(
-			'project is required for render.document / render.pdf / render.pdfStream',
-			'PROJECT_REQUIRED_FOR_DOCUMENT',
-		);
+		throw new PoliPageError('project is required', 'PROJECT_REQUIRED_FOR_DOCUMENT');
 	}
 	const response = await ctx.post(
 		'/v1/render',
@@ -129,22 +91,7 @@ export async function renderPdfStream(
 	input: RenderInput,
 ): Promise<ReadableStream<Uint8Array>> {
 	const doc = await renderDocument(ctx, input);
-	let response: Response;
-	try {
-		response = await fetch(doc.presignedPdfUrl, { signal: input.signal });
-	} catch (err) {
-		throw new PoliPageError(
-			err instanceof Error ? err.message : String(err),
-			'DOWNLOAD_FAILED',
-		);
-	}
-	if (!response.ok) {
-		throw new PoliPageError(
-			`Failed to download PDF: ${response.status} ${response.statusText}`,
-			'DOWNLOAD_FAILED',
-			response.status,
-		);
-	}
+	const response = await fetchPresignedPdf(doc.presignedPdfUrl, input.signal);
 	if (!response.body) {
 		throw new PoliPageError('Response has no body', 'INTERNAL_ERROR', response.status);
 	}

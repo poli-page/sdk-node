@@ -37,8 +37,9 @@ export function computeBackoff(
 }
 
 /**
- * Parse a non-2xx response body into a `{ code, message }` pair. Falls back
- * to `INTERNAL_ERROR` when the body is not parseable JSON.
+ * Parse a non-2xx response body into a `{ code, message }` pair. A body that
+ * is not JSON (a gateway's HTML page, say) gives `INTERNAL_ERROR` and
+ * `HTTP <status>`.
  */
 export function parseErrorBody(
 	body: string,
@@ -59,10 +60,7 @@ export function parseErrorBody(
 		const message = json.detail ?? json.title ?? json.message ?? `HTTP ${status}`;
 		return { code, message };
 	} catch {
-		return {
-			code: 'INTERNAL_ERROR',
-			message: `HTTP ${status}: response body was not valid JSON`,
-		};
+		return { code: 'INTERNAL_ERROR', message: `HTTP ${status}` };
 	}
 }
 
