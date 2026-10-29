@@ -180,7 +180,7 @@ Standard and service keys share this one format. Every key hits the same endpoin
 | `retryDelay` | number (ms) | 500 | Base delay before the first retry |
 | `timeout` | number (ms) | 60000 | Per-request timeout |
 | `onRequest` | function | — | Called before each HTTP attempt |
-| `onResponse` | function | — | Called on each successful response |
+| `onResponse` | function | — | Called on each successful response, once its body is read |
 | `onRetry` | function | — | Called when a retry is scheduled |
 | `onError` | function | — | Called when a call terminates in error |
 

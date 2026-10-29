@@ -8,7 +8,7 @@ The SDK exposes four optional hooks on the constructor: `onRequest`, `onResponse
 ## The hooks
 
 - `onRequest(event)` — fires before each HTTP request leaves. `event.method`, `event.url`, `event.attempt`.
-- `onResponse(event)` — fires when a response arrives. `event.status`, `event.durationMs`, `event.requestId`.
+- `onResponse(event)` — fires once a 2xx answer has been read in full. `event.status`, `event.durationMs` (from the start of the attempt until the body was read), `event.requestId`. A 2xx whose body fails to arrive is a failed attempt: no `onResponse`, then a retry or the error.
 - `onRetry(event)` — fires when the SDK decides to retry. `event.reason` is the `PoliPageError`; `event.delayMs`, `event.attempt`.
 - `onError(err)` — fires when a request fails terminally (after retries are exhausted).
 

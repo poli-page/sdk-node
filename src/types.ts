@@ -169,9 +169,16 @@ export interface RequestEvent {
 	attempt: number;
 }
 
+/**
+ * Passed to `onResponse` once a 2xx API answer has been read in full. A 2xx
+ * whose body fails to arrive (dropped connection, timeout, cancellation) is a
+ * failed attempt and fires no `onResponse`.
+ */
 export interface ResponseEvent {
 	status: number;
+	/** The answer's `x-request-id` header, when present. */
 	requestId?: string;
+	/** From the start of the attempt until the whole body was read, in ms. */
 	durationMs: number;
 }
 
@@ -188,6 +195,10 @@ export interface PoliPageOptions {
 	retryDelay?: number;
 	timeout?: number;
 	onRequest?: (e: RequestEvent) => void;
+	/**
+	 * Called once per successful attempt, after the whole 2xx answer was read
+	 * (the presigned PDF download fires no hook).
+	 */
 	onResponse?: (e: ResponseEvent) => void;
 	onRetry?: (e: RetryEvent) => void;
 	onError?: (err: PoliPageError) => void;
