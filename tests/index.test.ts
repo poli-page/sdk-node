@@ -446,6 +446,36 @@ describe('PoliPage SDK', () => {
 			expect(elapsed).toBeLessThan(500); // Retry-After: 0 → immediate retry
 		});
 
+		it('waits the whole Retry-After even when a timer fires early', async () => {
+			const arrivals: number[] = [];
+			setMockHandler((req, res) => {
+				if (req.url?.startsWith('/presigned/')) {
+					respondPdf(res);
+					return;
+				}
+				arrivals.push(performance.now());
+				if (arrivals.length < 2) {
+					res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After': '1' });
+					res.end(JSON.stringify({ code: 'unavailable' }));
+				} else {
+					respondDescriptor(res);
+				}
+			});
+			// Every timer of 500 ms or more fires 50 ms early.
+			const realSetTimeout = globalThis.setTimeout;
+			const early = ((fn: () => void, ms?: number) =>
+				realSetTimeout(fn, ms !== undefined && ms >= 500 ? ms - 50 : ms)) as typeof setTimeout;
+			globalThis.setTimeout = early;
+			try {
+				const client = new PoliPage({ apiKey: 'pp_sandbox_x', baseUrl, maxRetries: 1 });
+				await client.render.pdf({ project: 'p', template: 't', data: {} });
+			} finally {
+				globalThis.setTimeout = realSetTimeout;
+			}
+			expect(arrivals).toHaveLength(2);
+			expect(arrivals[1] - arrivals[0]).toBeGreaterThanOrEqual(1000);
+		});
+
 		it('caps Retry-After at 30 seconds', async () => {
 			// parseRetryAfter is module-private; we verify the cap behaviorally via vi.spyOn.
 			// We spy on globalThis.setTimeout to observe the delay the SDK schedules,

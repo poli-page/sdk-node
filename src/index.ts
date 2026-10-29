@@ -248,7 +248,15 @@ export class PoliPage {
 
 	#sleep(ms: number, signal?: AbortSignal): Promise<void> {
 		return new Promise((resolve, reject) => {
-			const timer = setTimeout(resolve, ms);
+			// A timer can fire up to about 1 ms early: re-arm until the whole delay
+			// has passed, so a `Retry-After` wait is never shorter than asked.
+			const end = performance.now() + ms;
+			const wake = () => {
+				const left = end - performance.now();
+				if (left > 0) timer = setTimeout(wake, Math.ceil(left));
+				else resolve();
+			};
+			let timer = setTimeout(wake, ms);
 			if (signal) {
 				const onAbort = () => {
 					clearTimeout(timer);
