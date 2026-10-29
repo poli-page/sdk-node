@@ -1,5 +1,9 @@
 import { PoliPageError } from './error.js';
-import { attachDownloadPdf, fetchPresignedPdf } from './internal/download.js';
+import {
+	attachDownloadPdf,
+	fetchPresignedPdf,
+	streamPresignedPdf,
+} from './internal/download.js';
 import type {
 	DocumentDescriptor,
 	RawDocumentDescriptor,
@@ -84,7 +88,9 @@ export async function renderPdf(
  *
  * Like `renderPdf` but returns the response body as a `ReadableStream`
  * instead of buffering. Use when piping directly to a destination
- * (HTTP response, S3 upload, file) without buffering.
+ * (HTTP response, S3 upload, file) without buffering. A cancellation or a
+ * dropped connection while the stream is read errors it with `aborted` or
+ * `DOWNLOAD_FAILED`.
  */
 export async function renderPdfStream(
 	ctx: SdkContext,
@@ -95,7 +101,7 @@ export async function renderPdfStream(
 	if (!response.body) {
 		throw new PoliPageError('Response has no body', 'INTERNAL_ERROR', response.status);
 	}
-	return response.body as ReadableStream<Uint8Array>;
+	return streamPresignedPdf(response.body as ReadableStream<Uint8Array>, input.signal);
 }
 
 /**
