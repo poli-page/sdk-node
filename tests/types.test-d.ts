@@ -159,6 +159,17 @@ test('client.documents.delete returns Promise<void>', () => {
 	expectTypeOf(c.documents.delete).returns.resolves.toEqualTypeOf<void>();
 });
 
+test('every documents method takes a last { signal } argument', () => {
+	const c = new PoliPage({ apiKey: 'pp_sandbox_x' });
+	const signal = new AbortController().signal;
+	void c.documents.get('doc_id', { signal });
+	void c.documents.preview('doc_id', { signal });
+	void c.documents.thumbnails('doc_id', undefined, { signal });
+	void c.documents.thumbnails('doc_id', { width: 320 }, { signal });
+	void c.documents.delete('doc_id', { signal });
+	expectTypeOf<Sdk.DocumentsRequestOptions>().toEqualTypeOf<{ signal?: AbortSignal }>();
+});
+
 test('Thumbnail and ThumbnailOptions are re-exported', () => {
 	expectTypeOf<ThumbnailOptions>().toMatchTypeOf<{ width?: number }>();
 	expectTypeOf<Thumbnail>().toMatchTypeOf<{ page: number; data: string }>();

@@ -695,6 +695,34 @@ describe('PoliPage SDK', () => {
 			).rejects.toMatchObject({ name: 'PoliPageError', code: 'aborted' });
 		});
 
+		it('documents.get aborts an in-flight request through its signal', async () => {
+			setMockHandler(() => {
+				// Never answer.
+			});
+			const client = new PoliPage({ apiKey: 'pp_sandbox_x', baseUrl });
+			const controller = new AbortController();
+			const promise = client.documents.get('doc_x', { signal: controller.signal });
+			setTimeout(() => controller.abort(), 50);
+			await expect(promise).rejects.toMatchObject({ name: 'PoliPageError', code: 'aborted' });
+		});
+
+		it('every documents method takes a signal', async () => {
+			let requests = 0;
+			setMockHandler(() => {
+				requests++;
+			});
+			const client = new PoliPage({ apiKey: 'pp_sandbox_x', baseUrl });
+			const signal = AbortSignal.abort();
+			const aborted = { name: 'PoliPageError', code: 'aborted' };
+			await expect(client.documents.get('d', { signal })).rejects.toMatchObject(aborted);
+			await expect(client.documents.preview('d', { signal })).rejects.toMatchObject(aborted);
+			await expect(client.documents.thumbnails('d', undefined, { signal })).rejects.toMatchObject(
+				aborted,
+			);
+			await expect(client.documents.delete('d', { signal })).rejects.toMatchObject(aborted);
+			expect(requests).toBe(0);
+		});
+
 		it('aborted error has no status (transport-level)', async () => {
 			const client = new PoliPage({ apiKey: 'pp_sandbox_x', baseUrl, maxRetries: 0 });
 			const controller = new AbortController();

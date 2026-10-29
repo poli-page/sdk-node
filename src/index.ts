@@ -12,6 +12,7 @@ export type {
 	RenderMetadata,
 	RenderNamespace,
 	DocumentsNamespace,
+	DocumentsRequestOptions,
 	DocumentDescriptor,
 	DocumentPreviewResult,
 	Thumbnail,
