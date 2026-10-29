@@ -3,7 +3,7 @@
 // narrative explains the common ones.
 const SDK_INTERNAL = [
   { code: 'invalid_options', when: 'Constructor options are missing or malformed. Thrown before any HTTP call. Not retryable.' },
-  { code: 'network_error',   when: 'TCP/TLS-level failure reaching the API. Retryable.' },
+  { code: 'network_error',   when: 'TCP/TLS-level failure reaching the API (`Network request failed`; the `fetch` error is the `cause`). Retryable.' },
   { code: 'timeout',         when: 'The request did not complete within `timeout`. Retryable.' },
   { code: 'aborted',         when: 'Caller-supplied `signal` aborted the request. Not retryable.' },
   { code: 'DOWNLOAD_FAILED', when: 'Fetching the PDF bytes from the presigned URL failed (`downloadPdf()`, `render.pdf`, `render.pdfStream`). Not retried; refresh with `documents.get(id)`.' },
@@ -47,13 +47,13 @@ const API_VALIDATION = [
 
 const API_RATE = [
   { code: 'RATE_LIMIT_EXCEEDED',  when: '429: too many requests for this key. Retryable.' },
-  { code: 'QUOTA_EXCEEDED',       when: '429: monthly quota reached. Retryable.' },
-  { code: 'OVERAGE_CAP_EXCEEDED', when: '429: overage cap reached (paid tiers). Retryable.' },
+  { code: 'QUOTA_EXCEEDED',       when: '429: monthly quota reached. Not retryable: it lasts until the monthly reset.' },
+  { code: 'OVERAGE_CAP_EXCEEDED', when: '429: overage cap reached (paid tiers). Not retryable: it lasts until the monthly reset.' },
 ];
 
 const API_SERVER = [
   { code: 'INTERNAL_ERROR',        when: '500: unexpected server error, or a response body that is not JSON. Retryable.' },
-  { code: 'STORAGE_ACCESS_DENIED', when: '502: the organization`s own storage bucket refuses access. Retryable.' },
+  { code: 'STORAGE_ACCESS_DENIED', when: '502: the organization`s own storage bucket refuses access. Not retryable: restore the bucket role, then call again.' },
   { code: 'PUBLISH_IN_PROGRESS',   when: '503: the project is being published into this environment; honours `Retry-After`. Retryable.' },
   { code: 'RENDER_TIMEOUT',        when: '504: the engine`s time budget expired. Retryable.' },
 ];

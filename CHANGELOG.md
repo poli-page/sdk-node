@@ -12,13 +12,18 @@ Conformance with the Poli Page API contract v1.0.0 ([poli-page/api-contract](htt
 
 ### Changed
 
-- `QUOTA_EXCEEDED` and `OVERAGE_CAP_EXCEEDED` (429) and `STORAGE_ACCESS_DENIED` (502) are no longer retried, even with a `Retry-After` header, and `isRetryable()` is `false` for them. They last until the monthly reset or until the bucket access is restored, so the SDK used to wait up to 30 s per retry for nothing. `RATE_LIMIT_EXCEEDED` and every other 429 and 5xx are still retried.
+- **Breaking:** `QUOTA_EXCEEDED` and `OVERAGE_CAP_EXCEEDED` (429) and `STORAGE_ACCESS_DENIED` (502) are no longer retried, even with a `Retry-After` header, and `isRetryable()` now returns `false` for them (it returned `true` for any 429 or 5xx). They last until the monthly reset or until the bucket access is restored, so the SDK used to wait up to 30 s per retry for nothing. `RATE_LIMIT_EXCEEDED` and every other 429 and 5xx are still retried. Code that requeues on `isRetryable()` stops requeueing these three; see the [migration page](https://poli-page.github.io/sdk-node/support/migration/).
 - SDK error messages are the exact texts of the SDK specification:
   - `network_error`: `Network request failed` (was the `fetch` error text, e.g. `fetch failed`); the `fetch` error is kept as the error's `cause`.
   - `DOWNLOAD_FAILED`: `Failed to download PDF: HTTP <status>` (was `Failed to download PDF: <status> <status text>`), and `Failed to download PDF: network error` when the download gets no answer (was the `fetch` error text).
   - A non-JSON error body: `HTTP <status>` (was `HTTP <status>: response body was not valid JSON`); the code is still `INTERNAL_ERROR` with the real status.
   - `PROJECT_REQUIRED_FOR_DOCUMENT` raised before any request: `project is required`.
-- Cancelling `render.pdf`, `render.pdfStream` or `downloadPdf()` during the download throws `aborted` instead of `DOWNLOAD_FAILED`.
+- SDK errors with no HTTP status keep the underlying error as `cause`: `network_error` and `timeout` (the `fetch` error, an `AbortError` for a timeout), and the download's `DOWNLOAD_FAILED` network error and `aborted` error. Code that serializes `err.cause` now sees it.
+- Cancelling `render.pdf`, `render.pdfStream` or `downloadPdf()` during the download throws `aborted` instead of `DOWNLOAD_FAILED`, whether the signal fires before the storage answers or while the body is read.
+
+### Fixed
+
+- A failure while the PDF body is read no longer escapes as a raw `fetch` error: `render.pdf`, `downloadPdf()` and the stream of `render.pdfStream` raise `aborted` when the caller's signal aborts mid-body (was a `DOMException` `AbortError`) and `DOWNLOAD_FAILED` with `Failed to download PDF: network error` when the connection drops mid-body (was a `TypeError: terminated`). Every error the SDK raises is a `PoliPageError`.
 
 ### Added
 
