@@ -209,6 +209,7 @@ test('PoliPageErrorCode knows exactly the SDK codes and the 31 API codes', () =>
 		| 'ENVIRONMENT_MISMATCH'
 		| 'EMPTY_DOCUMENT'
 		| 'TEMPLATE_ERROR'
+		| 'TEMPLATE_UNSAFE'
 		| 'RENDER_BODY_TOO_LARGE'
 		| 'DOCUMENT_TOO_LARGE'
 		| 'QUOTA_EXCEEDED'

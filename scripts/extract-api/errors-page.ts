@@ -40,6 +40,7 @@ const API_VALIDATION = [
   { code: 'PROJECT_REQUIRED_FOR_DOCUMENT', when: '400: a render without `project`. Not retryable.' },
   { code: 'ENVIRONMENT_MISMATCH',          when: '400: the request named another environment than the key`s. The SDK never sends one. Not retryable.' },
   { code: 'TEMPLATE_ERROR',                when: '400: the engine rejected the template or its data. Not retryable.' },
+  { code: 'TEMPLATE_UNSAFE',               when: '400: the template, a partial or an SVG asset holds an injection attempt; `detail` names it. Not retryable.' },
   { code: 'EMPTY_DOCUMENT',                when: '400: the render produced zero pages. Not retryable.' },
   { code: 'RENDER_BODY_TOO_LARGE',         when: '413: the request body is too large. Not retryable.' },
   { code: 'DOCUMENT_TOO_LARGE',            when: '413: the document exceeds an engine cap. Not retryable.' },
