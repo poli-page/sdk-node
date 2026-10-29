@@ -49,6 +49,19 @@ type ApiCode =
 export type PoliPageErrorCode = SdkInternalCode | 'DOWNLOAD_FAILED' | ApiCode | (string & {});
 
 /**
+ * Codes that are never retried although their status is (a 429 or a 5xx): the quota codes
+ * last until the monthly reset, and `STORAGE_ACCESS_DENIED` until the customer restores its
+ * bucket role, so waiting and trying again cannot help.
+ *
+ * @internal
+ */
+const NON_RETRYABLE_CODES: readonly string[] = [
+	'QUOTA_EXCEEDED',
+	'OVERAGE_CAP_EXCEEDED',
+	'STORAGE_ACCESS_DENIED',
+];
+
+/**
  * Single error type for everything raised by the SDK: API errors,
  * network failures, timeouts, caller cancellation, and constructor
  * validation failures.
@@ -74,8 +87,18 @@ export class PoliPageError extends Error {
 	readonly status?: number;
 	readonly requestId?: string;
 
-	constructor(message: string, code: PoliPageErrorCode, status?: number, requestId?: string) {
-		super(message);
+	/**
+	 * @param options - `cause`: the underlying error (for example the `fetch` failure behind a
+	 *   `network_error`), kept for debugging; the message stays the documented one.
+	 */
+	constructor(
+		message: string,
+		code: PoliPageErrorCode,
+		status?: number,
+		requestId?: string,
+		options?: { cause?: unknown },
+	) {
+		super(message, options);
 		this.name = 'PoliPageError';
 		this.code = code;
 		this.status = status;
@@ -97,9 +120,10 @@ export class PoliPageError extends Error {
 	}
 
 	/**
-	 * `true` for HTTP 429 — too many requests. The SDK has already retried up
-	 * to `maxRetries` times before surfacing this; back off further at the
-	 * caller level if you see it.
+	 * `true` for HTTP 429 — too many requests. For `RATE_LIMIT_EXCEEDED` the
+	 * SDK has already retried up to `maxRetries` times before surfacing this;
+	 * back off further at the caller level if you see it. `QUOTA_EXCEEDED` and
+	 * `OVERAGE_CAP_EXCEEDED` are surfaced at once, without retries.
 	 *
 	 * @example
 	 * ```ts
@@ -145,7 +169,10 @@ export class PoliPageError extends Error {
 
 	/**
 	 * `true` if the SDK considers this error retryable (5xx, 429, network,
-	 * timeout). Caller-aborted requests (`code: 'aborted'`) are never retryable.
+	 * timeout). Caller-aborted requests (`code: 'aborted'`) are never retryable,
+	 * and neither are `QUOTA_EXCEEDED`, `OVERAGE_CAP_EXCEEDED` (429) and
+	 * `STORAGE_ACCESS_DENIED` (502): retrying cannot help until the quota resets
+	 * or the bucket access is restored.
 	 *
 	 * The SDK already retries internally up to `maxRetries`; this predicate is
 	 * mostly useful when an outer queue / scheduler decides whether to re-enqueue.
@@ -159,6 +186,7 @@ export class PoliPageError extends Error {
 	 */
 	isRetryable(): boolean {
 		if (this.code === 'aborted') return false;
+		if (NON_RETRYABLE_CODES.includes(this.code)) return false;
 		if (this.isNetworkError()) return true;
 		if (this.status !== undefined && this.status >= 500) return true;
 		if (this.status === 429) return true;

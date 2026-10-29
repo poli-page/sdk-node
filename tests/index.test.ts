@@ -348,6 +348,57 @@ describe('PoliPage SDK', () => {
 			expect(attempts).toBe(1);
 		});
 
+		it.each([
+			[429, 'QUOTA_EXCEEDED'],
+			[429, 'OVERAGE_CAP_EXCEEDED'],
+			[502, 'STORAGE_ACCESS_DENIED'],
+		])('does not retry %i %s, even with Retry-After', async (status, code) => {
+			let attempts = 0;
+			setMockHandler((_req, res) => {
+				attempts++;
+				res.writeHead(status, { 'Content-Type': 'application/json', 'Retry-After': '3600' });
+				res.end(JSON.stringify({ error: code, detail: 'no retry' }));
+			});
+			const retries: number[] = [];
+			const client = new PoliPage({
+				apiKey: 'pp_sandbox_abc',
+				baseUrl,
+				maxRetries: 2,
+				retryDelay: 10,
+				onRetry: (e) => retries.push(e.attempt),
+			});
+			await expect(
+				client.render.document({ project: 'p', template: 't', data: {} }),
+			).rejects.toMatchObject({ code, status });
+			expect(attempts).toBe(1);
+			expect(retries).toEqual([]);
+		});
+
+		it('ignores Retry-After-Ms: the backoff applies', async () => {
+			let attempts = 0;
+			setMockHandler((_req, res) => {
+				attempts++;
+				if (attempts === 1) {
+					res.writeHead(503, { 'Content-Type': 'application/json', 'Retry-After-Ms': '5000' });
+					res.end(JSON.stringify({ error: 'ORGANIZATION_MIGRATING' }));
+					return;
+				}
+				res.writeHead(200, { 'Content-Type': 'application/json' });
+				res.end(JSON.stringify({ ...sampleDescriptor, presignedPdfUrl: `${baseUrl}/presigned/ok.pdf` }));
+			});
+			const delays: number[] = [];
+			const client = new PoliPage({
+				apiKey: 'pp_sandbox_abc',
+				baseUrl,
+				retryDelay: 20,
+				onRetry: (e) => delays.push(e.delayMs),
+			});
+			await client.render.document({ project: 'p', template: 't', data: {} });
+			expect(delays).toHaveLength(1);
+			expect(delays[0]).toBeGreaterThanOrEqual(10);
+			expect(delays[0]).toBeLessThan(31);
+		});
+
 		it('honors Retry-After header in seconds (uses it instead of exponential backoff)', async () => {
 			let attempts = 0;
 			const startTimes: number[] = [];

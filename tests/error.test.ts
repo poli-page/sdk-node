@@ -36,6 +36,22 @@ describe('PoliPageError', () => {
 		expect(new PoliPageError('m', 'aborted').isRetryable()).toBe(false);
 	});
 
+	it('isRetryable() is false for QUOTA_EXCEEDED, OVERAGE_CAP_EXCEEDED and STORAGE_ACCESS_DENIED', () => {
+		expect(new PoliPageError('m', 'QUOTA_EXCEEDED', 429).isRetryable()).toBe(false);
+		expect(new PoliPageError('m', 'OVERAGE_CAP_EXCEEDED', 429).isRetryable()).toBe(false);
+		expect(new PoliPageError('m', 'STORAGE_ACCESS_DENIED', 502).isRetryable()).toBe(false);
+		expect(new PoliPageError('m', 'RATE_LIMIT_EXCEEDED', 429).isRetryable()).toBe(true);
+	});
+
+	it('keeps the underlying error as cause', () => {
+		const cause = new TypeError('fetch failed');
+		const err = new PoliPageError('Network request failed', 'network_error', undefined, undefined, {
+			cause,
+		});
+		expect(err.cause).toBe(cause);
+		expect(err.message).toBe('Network request failed');
+	});
+
 	it('preserves message, code, status, requestId fields', () => {
 		const err = new PoliPageError('boom', 'INTERNAL_ERROR', 500, 'req_abc');
 		expect(err.message).toBe('boom');
