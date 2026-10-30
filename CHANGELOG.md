@@ -8,6 +8,8 @@ Upgrade steps for breaking changes are on the docs site's [migration page](https
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-30
+
 Conformance with the Poli Page API contract v1.3.0 ([poli-page/api-contract](https://github.com/poli-page/api-contract)).
 
 ### Changed
