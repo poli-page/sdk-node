@@ -43,11 +43,17 @@ Thumbs.db
 /sdk-engineering-guide.md
 /sdk-specification.md
 /sdk-roadmap.md
+/implementation-plan-*.md
 /templates-design.md
+/docs/superpowers/
 /CONTRIBUTING.md
 /MIGRATION.md
 /SECURITY.md
 
+# Claude Code local state
+.claude/
+.superpowers/
+CLAUDE.md
 docs/plan/
 docs/spec/
 sdk-*-plan.md
