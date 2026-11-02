@@ -8,6 +8,28 @@ Upgrade steps for breaking changes are on the docs site's [migration page](https
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-02
+
+Conformance with the Poli Page API contract v0.13.0 ([poli-page/api-contract](https://github.com/poli-page/api-contract)). The SDK now shares its major.minor with the Poli Page API, so it moves from 0.11 to 0.13 (see [RELEASING.md](https://github.com/poli-page/sdk-node/blob/main/RELEASING.md#versions)). Upgrade steps are on the docs site's [migration page](https://poli-page.github.io/sdk-node/support/migration/).
+
+### Added
+
+- `invalid_response`: a 2xx answer whose body is not JSON, from a method that expects JSON (the API call of `render.document`, `render.pdf` and `render.pdfStream`, `documents.get`, `documents.thumbnails`), throws `PoliPageError` with the code `invalid_response`, the message `Invalid response: HTTP <status> body is not JSON`, the real 2xx as `status`, the answer's `x-request-id` as `requestId`, and the JSON parse error as `cause`. It is never retried, `isRetryable()` is `false`, and `onError` fires with it. Such a body usually comes from a proxy or a captive portal between the SDK and the API. An empty 2xx body on these methods is `invalid_response` too.
+- `io_error`: `renderToFile` throws it when it cannot write the file (creating a parent directory, opening, writing or moving it into place). No status, the message `Failed to write PDF: <reason>` with Node's own error text, that error as `cause`, never retried.
+- `toPayload()` answers `status` 502 for `invalid_response`; the error's own `status` keeps the real 2xx. `toPayload()` has exactly the keys `code`, `message`, `status` and `requestId`.
+- `scripts/check-contract-version.sh`: `scripts/publish.sh` and the Release workflow refuse a version whose major.minor differs from the pinned API contract's, or a Release workflow whose contract pin differs from CI's.
+
+### Changed
+
+- **Breaking:** a 2xx whose body is not JSON escaped as a raw `SyntaxError` (not a `PoliPageError`) from the render methods, `documents.get` and `documents.thumbnails`; it is now `invalid_response` (above).
+- **Breaking:** `renderToFile` failures to write the file were raw Node errors (`EACCES`, `ENOENT`, … in `err.code`); they are now `PoliPageError` with code `io_error`, the Node error as `cause` (its `code` is on `err.cause.code`).
+- **Breaking:** the presigned-URL download is bounded by the client's `timeout` (default 60 s). Before, only the caller's `signal` bounded it. For `render.pdf` and `downloadPdf()`, the timeout bounds the whole download, so a PDF that takes longer than `timeout` to download now fails: raise `timeout` if you download large PDFs over a slow link. For `render.pdfStream` (and `renderToFile`, which uses it), it is an idle timeout: the wait for the first byte and each wait for the next chunk, so a large PDF read at the caller's pace is not cut off.
+- A download that outlasts its timeout throws `DOWNLOAD_FAILED` with the message `Failed to download PDF: timeout`, no status, not retryable. A caller abort is still `aborted`, and a dropped connection (including a body cut short of its `Content-Length`) still `Failed to download PDF: network error`.
+- `render.pdfStream` reads the first chunk of the PDF before it resolves, so a download that never starts throws from the call (under the idle timeout) instead of erroring the stream.
+- `renderToFile` writes to a temporary file in the target's directory and renames it over the target only once the PDF is complete. When anything fails (the render, the download or the write), the target is left as it was: an existing file keeps its content and a missing one is not created (before, the target was emptied as soon as the download started, and a failure mid-download left it partial). The directory and the temporary file are prepared before the render, so a path that cannot be written costs no render.
+- The CommonJS build shares its common code between `@poli-page/sdk` and `@poli-page/sdk/node` in a chunk file, as the ESM build already did, so the `io_error` of `renderToFile` is an instance of the `PoliPageError` exported by the main entry in both formats.
+- CI pins the API contract `v0.13.0`.
+
 ## [0.11.0] - 2026-10-30
 
 Conformance with the Poli Page API contract v1.3.0 ([poli-page/api-contract](https://github.com/poli-page/api-contract)).
