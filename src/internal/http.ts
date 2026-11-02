@@ -1,3 +1,5 @@
+import { PoliPageError } from '../error.js';
+
 const RETRY_AFTER_CAP_MS = 30_000;
 
 /**
@@ -61,6 +63,28 @@ export function parseErrorBody(
 		return { code, message };
 	} catch {
 		return { code: 'INTERNAL_ERROR', message: `HTTP ${status}` };
+	}
+}
+
+/**
+ * Parse the body of a 2xx API answer from a method that expects JSON. A body
+ * that is not JSON (an HTML page from a proxy or a captive portal, an empty
+ * body) raises `invalid_response` with the answer's real status and
+ * `x-request-id`, and the parse error as `cause`. It is never retried: the
+ * same request gets the same answer.
+ */
+export async function parseJsonAnswer(response: Response): Promise<unknown> {
+	const text = await response.text();
+	try {
+		return JSON.parse(text) as unknown;
+	} catch (err) {
+		throw new PoliPageError(
+			`Invalid response: HTTP ${response.status} body is not JSON`,
+			'invalid_response',
+			response.status,
+			response.headers.get('x-request-id') ?? undefined,
+			{ cause: err },
+		);
 	}
 }
 

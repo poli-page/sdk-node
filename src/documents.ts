@@ -23,8 +23,8 @@ export async function documentsGet(
 	options?: DocumentsRequestOptions,
 ): Promise<DocumentDescriptor> {
 	const response = await ctx.get(`/v1/documents/${encodeURIComponent(id)}`, options?.signal);
-	const raw = (await response.json()) as RawDocumentDescriptor;
-	return attachDownloadPdf(raw);
+	const raw = (await ctx.json(response)) as RawDocumentDescriptor;
+	return attachDownloadPdf(raw, ctx.timeout);
 }
 
 /**
@@ -75,7 +75,7 @@ export async function documentsThumbnails(
 		anySet ? { thumbnails: options } : {},
 		requestOptions?.signal,
 	);
-	const result = (await response.json()) as { thumbnails: Thumbnail[] };
+	const result = (await ctx.json(response)) as { thumbnails: Thumbnail[] };
 	return result.thumbnails;
 }
 

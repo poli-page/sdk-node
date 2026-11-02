@@ -8,6 +8,7 @@ import {
 	createDocumentsNamespace,
 } from '../src/documents.js';
 import type { SdkContext } from '../src/render.js';
+import { parseJsonAnswer } from '../src/internal/http.js';
 
 let server: Server;
 let baseUrl: string;
@@ -53,6 +54,8 @@ afterAll(async () => {
 
 function buildCtx(): SdkContext {
 	return {
+		timeout: 5_000,
+		json: parseJsonAnswer,
 		async post(path, body, signal, idempotencyKey) {
 			return fetch(`${baseUrl}${path}`, {
 				method: 'POST',

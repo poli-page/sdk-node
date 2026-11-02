@@ -1,9 +1,5 @@
 import { PoliPageError } from './error.js';
-import {
-	attachDownloadPdf,
-	fetchPresignedPdf,
-	streamPresignedPdf,
-} from './internal/download.js';
+import { attachDownloadPdf, streamPresignedPdf } from './internal/download.js';
 import type {
 	DocumentDescriptor,
 	RawDocumentDescriptor,
@@ -14,11 +10,15 @@ import type {
 /**
  * The transport seam used by all namespace factories. Three named callables,
  * one per verb. Each delegates to PoliPage's `#request` method, which owns
- * auth, retry, idempotency, hooks, abort, and timeout.
+ * auth, retry, idempotency, hooks, abort, and timeout. `json` reads a 2xx
+ * answer that must be JSON (else `invalid_response`, reported to `onError`),
+ * and `timeout` is the client's, which also bounds the presigned download.
  *
  * @internal
  */
 export interface SdkContext {
+	readonly timeout: number;
+	json(response: Response): Promise<unknown>;
 	post(
 		path: string,
 		body: object,
@@ -62,8 +62,8 @@ export async function renderDocument(
 		input.signal,
 		input.idempotencyKey,
 	);
-	const raw = (await response.json()) as RawDocumentDescriptor;
-	return attachDownloadPdf(raw);
+	const raw = (await ctx.json(response)) as RawDocumentDescriptor;
+	return attachDownloadPdf(raw, ctx.timeout);
 }
 
 /**
@@ -72,7 +72,7 @@ export async function renderDocument(
  *
  * Performs `renderDocument` then fetches the resulting `presignedPdfUrl`
  * to return the bytes. Two HTTP calls under the hood; one call from the
- * caller's perspective.
+ * caller's perspective. The client's `timeout` bounds the whole download.
  */
 export async function renderPdf(
 	ctx: SdkContext,
@@ -88,20 +88,18 @@ export async function renderPdf(
  *
  * Like `renderPdf` but returns the response body as a `ReadableStream`
  * instead of buffering. Use when piping directly to a destination
- * (HTTP response, S3 upload, file) without buffering. A cancellation or a
- * dropped connection while the stream is read errors it with `aborted` or
- * `DOWNLOAD_FAILED`.
+ * (HTTP response, S3 upload, file) without buffering. The client's
+ * `timeout` is an idle timeout on the download: the wait for the first byte
+ * (read before this resolves) and each wait for the next chunk. A
+ * cancellation, a dropped connection or an idle timeout while the stream is
+ * read errors it with `aborted` or `DOWNLOAD_FAILED`.
  */
 export async function renderPdfStream(
 	ctx: SdkContext,
 	input: RenderInput,
 ): Promise<ReadableStream<Uint8Array>> {
 	const doc = await renderDocument(ctx, input);
-	const response = await fetchPresignedPdf(doc.presignedPdfUrl, input.signal);
-	if (!response.body) {
-		throw new PoliPageError('Response has no body', 'INTERNAL_ERROR', response.status);
-	}
-	return streamPresignedPdf(response.body as ReadableStream<Uint8Array>, input.signal);
+	return streamPresignedPdf(doc.presignedPdfUrl, ctx.timeout, input.signal);
 }
 
 /**

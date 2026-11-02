@@ -185,6 +185,8 @@ test('PoliPageErrorCode knows exactly the SDK codes and the 32 API codes', () =>
 		| 'network_error'
 		| 'timeout'
 		| 'aborted'
+		| 'invalid_response'
+		| 'io_error'
 		| 'DOWNLOAD_FAILED'
 		// API
 		| 'MISSING_API_KEY'
