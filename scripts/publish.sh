@@ -9,7 +9,8 @@
 # unavailable. It requires a local `npm login` and does NOT emit provenance.
 #
 # What it does, in order:
-#   1. Pre-flight: on main, clean tree, tag doesn't already exist.
+#   1. Pre-flight: on main, clean tree, tag doesn't already exist, and the
+#      pinned API contract has the version's major.minor.
 #   2. Verify: lint, typecheck, unit tests with the pinned API contract
 #      (integration if API key is set).
 #   3. Build: npm run build.
@@ -84,6 +85,11 @@ if git rev-parse "v$VERSION" >/dev/null 2>&1; then
 	fail "tag v$VERSION already exists. Bump the version in package.json first."
 fi
 ok "tag v$VERSION does not exist yet"
+
+# The SDK shares its major.minor with the Poli Page API: the pinned API
+# contract must carry a stable tag of the release's major.minor.
+contract_check="$(./scripts/check-contract-version.sh "$VERSION" 2>&1)" || fail "$contract_check"
+ok "$contract_check"
 
 # ─── 3. verify ──────────────────────────────────────────────────────────────
 step "Lint, typecheck, unit tests"
