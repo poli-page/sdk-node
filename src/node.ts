@@ -44,8 +44,8 @@ async function writeAll(file: FileHandle, chunk: Uint8Array): Promise<void> {
  *
  * A file that cannot be written (creating a parent directory, opening,
  * writing or moving it into place) raises a `PoliPageError` with code
- * `io_error`, no `status`, the message `Failed to write PDF: <reason>` (the
- * runtime's own error text) and the file system error as `cause`. It is never
+ * `io_error`, no `status`, the message `Failed to write PDF: ` followed by the
+ * runtime's own error text, and the file system error as `cause`. It is never
  * retryable. Errors of the render and of the download are thrown unchanged.
  *
  * Node-only — uses `node:fs/promises`. Import from `@poli-page/sdk/node`
