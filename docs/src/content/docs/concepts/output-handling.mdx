@@ -35,6 +35,8 @@ const stream = await client.render.pdfStream({
 
 The `/node` subexport adds a helper that streams bytes directly to disk with bounded memory. Parent directories are created automatically.
 
+The PDF goes to a temporary file in the target's directory, renamed over the target only once complete: when the render, the download or the write fails, an existing file keeps its content and a missing one is not created. A file that cannot be written throws `PoliPageError` with code `io_error` (`Failed to write PDF: <reason>`, the runtime error as `cause`), never retried.
+
 ```ts
 import { renderToFile } from '@poli-page/sdk/node';
 

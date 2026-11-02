@@ -9,7 +9,7 @@ The `PoliPage` constructor accepts an options object. Every field is optional ex
 
 - `apiKey` (required) — an API key; it belongs to one environment (see [Authentication](../authentication/)).
 - `baseUrl` — override the API endpoint. Defaults to `https://api.poli.page`.
-- `timeout` — per-request timeout in milliseconds. Defaults to `60_000`.
+- `timeout` — per-request timeout in milliseconds. Defaults to `60_000`. It bounds each API attempt, and the presigned-URL PDF download: the whole download for `render.pdf` and `downloadPdf()`, the wait for the first byte and each gap between chunks for `render.pdfStream`. A download past it fails with `DOWNLOAD_FAILED` (`Failed to download PDF: timeout`), not retried.
 - `maxRetries` — maximum retry attempts for retryable errors. Defaults to `2` (three total attempts).
 - `retryDelay` — initial retry backoff in milliseconds. Defaults to `500`. Doubles each attempt.
 - `onRequest` / `onResponse` / `onRetry` / `onError` — observability hooks. Never block, never mutate requests.

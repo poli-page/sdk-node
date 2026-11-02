@@ -12,7 +12,8 @@ The Poli Page SDK retries transient failures automatically. Every POST carries a
 - Up to `maxRetries` retries (default 2 — three total attempts); after the last one, the last error is thrown.
 - Exponential backoff starting at `retryDelay` ms (default 500), doubling each attempt, with a random factor in `[0.5, 1.5)`.
 - Honors the `Retry-After` response header when present (integer seconds or an HTTP-date), clamped to 0–30 s, without jitter. `Retry-After-Ms` is ignored.
-- `aborted` (caller-cancelled) is never retried. The presigned-URL download is never retried.
+- `aborted` (caller-cancelled) is never retried. The presigned-URL download is never retried, a download timeout included.
+- `invalid_response` (a 2xx answer whose body is not JSON) and `io_error` (`renderToFile` could not write the file) are never retried: the same request gets the same answer, and the file stays unwritable.
 - `DOWNLOAD_FAILED` is never retried and `isRetryable()` is `false` for it, whatever the storage status.
 
 ## Disabling retries

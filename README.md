@@ -81,7 +81,7 @@ await renderToFile(
 );
 ```
 
-`renderToFile` streams response bytes directly to disk (bounded memory).
+`renderToFile` streams response bytes directly to disk (bounded memory). It writes a temporary file next to the target and renames it into place once the PDF is complete, so a failure leaves the target untouched; a file it cannot write throws `PoliPageError` with code `io_error`.
 
 ### Try it locally — runnable demos
 
@@ -178,7 +178,7 @@ Standard and service keys share this one format. Every key hits the same endpoin
 | `baseUrl` | string | `https://api.poli.page` | API base URL |
 | `maxRetries` | number | 2 | Max retry attempts on retryable errors |
 | `retryDelay` | number (ms) | 500 | Base delay before the first retry |
-| `timeout` | number (ms) | 60000 | Per-request timeout |
+| `timeout` | number (ms) | 60000 | Per-request timeout; also bounds the PDF download (whole download, or idle time for `render.pdfStream`) |
 | `onRequest` | function | — | Called before each HTTP attempt |
 | `onResponse` | function | — | Called on each successful response, once its body is read |
 | `onRetry` | function | — | Called when a retry is scheduled |
@@ -186,7 +186,7 @@ Standard and service keys share this one format. Every key hits the same endpoin
 
 ## Error handling
 
-The SDK throws a single error type, `PoliPageError`, for every failure (API errors, network failures, timeouts, caller cancellation):
+The SDK throws a single error type, `PoliPageError`, for every failure (API errors, network failures, timeouts, caller cancellation, download failures, a 2xx answer that is not JSON (`invalid_response`), a file `renderToFile` cannot write (`io_error`)):
 
 ```ts
 import { PoliPage, PoliPageError } from '@poli-page/sdk';
