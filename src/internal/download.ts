@@ -137,7 +137,7 @@ export async function streamPresignedPdf(
 ): Promise<ReadableStream<Uint8Array>> {
 	const timer = new DownloadTimer(timeoutMs, signal);
 	let reader: ReadableStreamDefaultReader<Uint8Array>;
-	let first: Awaited<ReturnType<ReadableStreamDefaultReader<Uint8Array>["read"]>>;
+	let first: Awaited<ReturnType<ReadableStreamDefaultReader<Uint8Array>['read']>>;
 	timer.arm();
 	try {
 		const response = await fetchPresignedPdf(url, signal, timer);

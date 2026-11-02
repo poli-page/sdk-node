@@ -1,6 +1,18 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
-import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import {
+	chmod,
+	lstat,
+	mkdir,
+	mkdtemp,
+	readFile,
+	readdir,
+	readlink,
+	rm,
+	stat,
+	symlink,
+	writeFile,
+} from 'node:fs/promises';
 import type * as FsPromises from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -143,6 +155,89 @@ describe('renderToFile (sub-export)', () => {
 		const dir = join(tempDir, 'clean');
 		await renderToFile(client, { project: 'p', template: 't', data: {} }, join(dir, 'd.pdf'));
 		expect(await readdir(dir)).toEqual(['d.pdf']);
+	});
+});
+
+describe('renderToFile with an existing target', () => {
+	const input = { project: 'p', template: 't', data: {} };
+	const pdf = '%PDF-1.4 stream test';
+	// Symbolic links need privileges on Windows, and its file modes are not POSIX bits.
+	const posixOnly = process.platform === 'win32';
+
+	function client(): PoliPage {
+		return new PoliPage({ apiKey: 'pp_sandbox_x', baseUrl, maxRetries: 0 });
+	}
+
+	it.skipIf(posixOnly)('writes through a symbolic link, which stays a link', async () => {
+		const dir = join(tempDir, 'symlink');
+		await mkdir(join(dir, 'archive'), { recursive: true });
+		await mkdir(join(dir, 'public'), { recursive: true });
+		await writeFile(join(dir, 'archive', 'real.pdf'), 'old content');
+		await symlink(join('..', 'archive', 'real.pdf'), join(dir, 'public', 'latest.pdf'));
+
+		await renderToFile(client(), input, join(dir, 'public', 'latest.pdf'));
+
+		expect((await lstat(join(dir, 'public', 'latest.pdf'))).isSymbolicLink()).toBe(true);
+		expect(await readlink(join(dir, 'public', 'latest.pdf'))).toBe(join('..', 'archive', 'real.pdf'));
+		expect(await readFile(join(dir, 'archive', 'real.pdf'), 'utf8')).toBe(pdf);
+		expect(await readdir(join(dir, 'archive'))).toEqual(['real.pdf']);
+		expect(await readdir(join(dir, 'public'))).toEqual(['latest.pdf']);
+	});
+
+	it.skipIf(posixOnly)('creates the missing file a dangling link points to', async () => {
+		const dir = join(tempDir, 'dangling');
+		await mkdir(dir, { recursive: true });
+		await symlink('real.pdf', join(dir, 'link.pdf'));
+
+		await renderToFile(client(), input, join(dir, 'link.pdf'));
+
+		expect((await lstat(join(dir, 'link.pdf'))).isSymbolicLink()).toBe(true);
+		expect(await readFile(join(dir, 'real.pdf'), 'utf8')).toBe(pdf);
+	});
+
+	it.skipIf(posixOnly)('a failure through a link leaves the linked file untouched', async () => {
+		handler = (req, res) => {
+			if (req.url?.startsWith('/presigned/')) {
+				res.writeHead(403);
+				res.end();
+				return;
+			}
+			defaultHandler(req, res);
+		};
+		const dir = join(tempDir, 'symlink-fail');
+		await mkdir(dir, { recursive: true });
+		await writeFile(join(dir, 'real.pdf'), 'old content');
+		await symlink('real.pdf', join(dir, 'link.pdf'));
+
+		await expect(renderToFile(client(), input, join(dir, 'link.pdf'))).rejects.toMatchObject({
+			code: 'DOWNLOAD_FAILED',
+		});
+		expect(await readFile(join(dir, 'real.pdf'), 'utf8')).toBe('old content');
+		expect((await readdir(dir)).sort()).toEqual(['link.pdf', 'real.pdf']);
+	});
+
+	it.skipIf(posixOnly)('a symbolic link loop is io_error', async () => {
+		const dir = join(tempDir, 'loop');
+		await mkdir(dir, { recursive: true });
+		await symlink('b.pdf', join(dir, 'a.pdf'));
+		await symlink('a.pdf', join(dir, 'b.pdf'));
+		await expect(renderToFile(client(), input, join(dir, 'a.pdf'))).rejects.toMatchObject({
+			code: 'io_error',
+		});
+		expect(requests).toEqual([]);
+	});
+
+	it.skipIf(posixOnly)('an existing file keeps its permission bits', async () => {
+		const dir = join(tempDir, 'mode');
+		await mkdir(dir, { recursive: true });
+		for (const mode of [0o640, 0o600, 0o664]) {
+			const out = join(dir, `mode-${mode.toString(8)}.pdf`);
+			await writeFile(out, 'old content');
+			await chmod(out, mode);
+			await renderToFile(client(), input, out);
+			expect(await readFile(out, 'utf8')).toBe(pdf);
+			expect((await stat(out)).mode & 0o777).toBe(mode);
+		}
 	});
 });
 
