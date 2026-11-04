@@ -8,6 +8,19 @@ Upgrade steps for breaking changes are on the docs site's [migration page](https
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-11-04
+
+### Changed
+
+- **Breaking:** `renderToFile` refuses a target that exists but is not a regular file (a FIFO, a socket, or a device such as `/dev/stdout`) with `io_error` and the message `Failed to write PDF: <path>: not a regular file`, before any API call. 0.13.0 rendered the PDF and replaced the FIFO, socket or device with a regular file. To write a PDF to a pipe or to stdout, read `render.pdfStream` into it. The check reads the file's attributes and never opens it, so a FIFO cannot block the call.
+- The `io_error` message of `renderToFile` is `Failed to write PDF: <path>: <reason>`: the path as passed, then Node's own error text without the paths Node appends (for example `Failed to write PDF: ./out/a.pdf: EACCES: permission denied`). In 0.13.0 it was Node's whole error text, which for a failed rename or temporary file named the temporary file instead of the target. The Node error is still the `cause`.
+
+### Fixed
+
+- `renderToFile` to a directory (or a link to one) failed only when the PDF was moved into place, after a full render; it now fails with `Failed to write PDF: <path>: not a regular file` before any API call.
+- `renderToFile` checks that the parent directory of the target is a directory it can write, after creating the missing ones, before any API call.
+- `renderToFile` no longer copies the setuid, setgid and sticky bits of an existing target onto the new file; it keeps the permission bits only. As before, the owner, the group and hard links of the old file are not kept.
+
 ## [0.13.0] - 2026-11-02
 
 Conformance with the Poli Page API contract v0.13.0 ([poli-page/api-contract](https://github.com/poli-page/api-contract)). The SDK now shares its major.minor with the Poli Page API, so it moves from 0.11 to 0.13 (see [RELEASING.md](https://github.com/poli-page/sdk-node/blob/main/RELEASING.md#versions)). Upgrade steps are on the docs site's [migration page](https://poli-page.github.io/sdk-node/support/migration/).

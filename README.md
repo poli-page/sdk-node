@@ -81,7 +81,7 @@ await renderToFile(
 );
 ```
 
-`renderToFile` streams response bytes directly to disk (bounded memory). It writes a temporary file next to the target and renames it into place once the PDF is complete, so a failure leaves the target untouched; a file it cannot write throws `PoliPageError` with code `io_error`.
+`renderToFile` streams response bytes directly to disk (bounded memory). It writes a temporary file next to the target and renames it into place once the PDF is complete, so a failure leaves the target untouched. A target that cannot be written (a parent that is not a writable directory, a read-only file, or one that is not a regular file, such as a directory, FIFO or `/dev/stdout`) is refused before any API call. A file it cannot write throws `PoliPageError` with code `io_error` and the message `Failed to write PDF: <path>: <reason>`.
 
 ### Try it locally — runnable demos
 

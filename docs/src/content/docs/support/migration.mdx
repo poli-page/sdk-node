@@ -5,6 +5,11 @@ description: Upgrade guides for moving between breaking versions of the Node.js 
 
 This page tracks breaking changes between versions of `@poli-page/sdk`. For the full per-release diff, see the [changelog](../changelog/).
 
+## From 0.13.0 to 0.13.1
+
+1. **`renderToFile` targets that are not regular files.** A FIFO, a socket or a device such as `/dev/stdout` was replaced by a regular file holding the PDF; it is now refused with `io_error` (`Failed to write PDF: <path>: not a regular file`) before any API call. To write a PDF to a pipe or to stdout, read `render.pdfStream` into it. A directory target, which failed only after the render, now fails the same way before it.
+2. **`io_error` messages.** The message is now `Failed to write PDF: <path>: <reason>`, with the path you passed, instead of Node's whole error text, which could name the temporary file. Match on `err.code` and `err.cause.code`, not on the message.
+
 ## From 0.11.0 to 0.13.0
 
 The SDK now shares its major.minor with the Poli Page API, so it moves from 0.11 to 0.13; there is no 0.12.
