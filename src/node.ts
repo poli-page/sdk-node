@@ -158,13 +158,12 @@ async function writeAll(file: FileHandle, chunk: Uint8Array): Promise<void> {
  * content.
  *
  * A file that cannot be written raises a `PoliPageError` with code
- * `io_error`, no `status`, the message
- * `Failed to write PDF: <outputPath>: <reason>` (for example
- * `Failed to write PDF: ./out/a.pdf: EACCES: permission denied`), where
- * `<outputPath>` is the path as passed, never the temporary file, and
- * `<reason>` is Node's own error text without its paths. The file system
- * error is the `cause`. It is never retryable. Errors of the render and of
- * the download are thrown unchanged.
+ * `io_error`, no `status`, and a message made of `Failed to write PDF: `,
+ * `outputPath` as passed (never the temporary file), `: ` and Node's own
+ * error text without its paths, for example
+ * `Failed to write PDF: ./out/a.pdf: EACCES: permission denied`. The file
+ * system error is the `cause`. It is never retryable. Errors of the render
+ * and of the download are thrown unchanged.
  *
  * Node-only — uses `node:fs/promises`. Import from `@poli-page/sdk/node`
  * rather than the main entry.
