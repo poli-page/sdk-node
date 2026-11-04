@@ -1,5 +1,11 @@
 /** @internal */
-type SdkInternalCode = 'invalid_options' | 'network_error' | 'timeout' | 'aborted';
+type SdkInternalCode =
+	| 'invalid_options'
+	| 'network_error'
+	| 'timeout'
+	| 'aborted'
+	| 'invalid_response'
+	| 'io_error';
 
 /** @internal */
 type ApiCode =
@@ -63,9 +69,19 @@ const NON_RETRYABLE_CODES: readonly string[] = [
 ];
 
 /**
+ * SDK codes that are never retried: a 2xx answer whose body is not JSON comes from something
+ * between the SDK and the API (a proxy, a captive portal) and answers the same way again, and
+ * a file that cannot be written stays so.
+ *
+ * @internal
+ */
+const NON_RETRYABLE_SDK_CODES: readonly string[] = ['aborted', 'invalid_response', 'io_error'];
+
+/**
  * Single error type for everything raised by the SDK: API errors,
- * network failures, timeouts, caller cancellation, and constructor
- * validation failures.
+ * network failures, timeouts, caller cancellation, download failures,
+ * invalid responses (`invalid_response`), file write failures
+ * (`io_error`) and constructor validation failures.
  *
  * @example
  * ```ts
@@ -170,8 +186,8 @@ export class PoliPageError extends Error {
 
 	/**
 	 * `true` if the SDK considers this error retryable (5xx, 429, network,
-	 * timeout). Caller-aborted requests (`code: 'aborted'`) are never retryable,
-	 * and neither are `QUOTA_EXCEEDED`, `OVERAGE_CAP_EXCEEDED` (429) and
+	 * timeout). Caller-aborted requests (`code: 'aborted'`), `invalid_response` and
+	 * `io_error` are never retryable, and neither are `QUOTA_EXCEEDED`, `OVERAGE_CAP_EXCEEDED` (429) and
 	 * `STORAGE_ACCESS_DENIED` (502): retrying cannot help until the quota resets
 	 * or the bucket access is restored. `DOWNLOAD_FAILED` is never retryable either,
 	 * whatever the storage status.
@@ -187,7 +203,7 @@ export class PoliPageError extends Error {
 	 * ```
 	 */
 	isRetryable(): boolean {
-		if (this.code === 'aborted') return false;
+		if (NON_RETRYABLE_SDK_CODES.includes(this.code)) return false;
 		if (NON_RETRYABLE_CODES.includes(this.code)) return false;
 		// A failed download is never retried, whatever the storage status.
 		if (this.code === 'DOWNLOAD_FAILED') return false;
@@ -198,16 +214,24 @@ export class PoliPageError extends Error {
 	}
 
 	/**
-	 * Canonical wire payload for framework integrations:
-	 * `{ code, message, status, requestId }`. `status` surfaces 503 for
-	 * connection failures (`code: 'network_error'`), 504 for timeouts, and
-	 * the API status otherwise. The `status` property on the exception
-	 * itself stays unchanged — only the payload surfaces 503/504, so
-	 * existing callers reading `err.status` are unaffected.
+	 * Canonical wire payload for framework integrations: exactly the keys
+	 * `{ code, message, status, requestId }`, the HTTP body an integration
+	 * answers with. `status` is 503 for connection failures
+	 * (`code: 'network_error'`), 504 for timeouts, 502 for `invalid_response`
+	 * (whose own status is the API's 2xx, which an integration must not answer
+	 * an error with), and the API status otherwise; `status` and `requestId`
+	 * are `null` when unknown. The `status` property on the error itself stays
+	 * unchanged, so callers reading `err.status` still see the real status.
 	 */
-	toPayload(): { code: PoliPageErrorCode; message: string; status: number | null; requestId: string | null } {
+	toPayload(): {
+		code: PoliPageErrorCode;
+		message: string;
+		status: number | null;
+		requestId: string | null;
+	} {
 		let status: number | null = this.status ?? null;
-		if (status === null) {
+		if (this.code === 'invalid_response') status = 502;
+		else if (status === null) {
 			if (this.code === 'timeout') status = 504;
 			else if (this.code === 'network_error') status = 503;
 		}

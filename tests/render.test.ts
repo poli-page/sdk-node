@@ -8,6 +8,7 @@ import {
 	type SdkContext,
 } from '../src/render.js';
 import { PoliPage, PoliPageError } from '../src/index.js';
+import { parseJsonAnswer } from '../src/internal/http.js';
 
 let server: Server;
 let baseUrl: string;
@@ -67,6 +68,8 @@ afterAll(async () => {
  */
 function buildCtx(): SdkContext {
 	return {
+		timeout: 5_000,
+		json: parseJsonAnswer,
 		async post(path, body, signal, idempotencyKey) {
 			return fetch(`${baseUrl}${path}`, {
 				method: 'POST',
@@ -605,6 +608,8 @@ describe('renderDocument', () => {
 	it('throws PROJECT_REQUIRED_FOR_DOCUMENT and never calls ctx.post when project is empty', async () => {
 		const postSpy = vi.fn<SdkContext['post']>();
 		const ctx: SdkContext = {
+			timeout: 5_000,
+			json: vi.fn(),
 			post: postSpy,
 			get: vi.fn(),
 			delete: vi.fn(),

@@ -10,6 +10,11 @@ export default defineConfig({
 	// declaration maps — tsup's rollup-based DTS bundler does not emit them.
 	dts: false,
 	clean: true,
+	// Share the modules both entries use (PoliPageError among them) as a chunk in
+	// CommonJS too, as tsup already does for ESM: `renderToFile` from
+	// `@poli-page/sdk/node` must throw the same `PoliPageError` class as the main
+	// entry, or `instanceof PoliPageError` fails on its `io_error`.
+	splitting: true,
 	sourcemap: true,
 	target: 'node20.18',
 	platform: 'node',

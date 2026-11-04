@@ -36,7 +36,13 @@ export { PoliPageError, type PoliPageErrorCode } from './error.js';
 import { PoliPageError } from './error.js';
 import { createRenderNamespace, type SdkContext } from './render.js';
 import { createDocumentsNamespace } from './documents.js';
-import { parseRetryAfter, computeBackoff, parseErrorBody, buildHeaders } from './internal/http.js';
+import {
+	parseRetryAfter,
+	computeBackoff,
+	parseErrorBody,
+	parseJsonAnswer,
+	buildHeaders,
+} from './internal/http.js';
 
 type SendOnceResult =
 	| { ok: true; response: Response }
@@ -92,6 +98,8 @@ export class PoliPage {
 		this.#onError = options.onError;
 
 		const ctx: SdkContext = {
+			timeout: this.#timeout,
+			json: (response) => this.#readJson(response),
 			post: (path, body, signal, key) => this.#request('POST', path, body, signal, key),
 			get: (path, signal) => this.#request('GET', path, undefined, signal),
 			delete: (path, signal) => this.#request('DELETE', path, undefined, signal),
@@ -106,6 +114,20 @@ export class PoliPage {
 			hook(event);
 		} catch {
 			// Hooks must not break the request.
+		}
+	}
+
+	/**
+	 * The body of a 2xx answer from a method that expects JSON. A body that is
+	 * not JSON is `invalid_response`, never retried; `onError` sees it like
+	 * every other error the SDK throws.
+	 */
+	async #readJson(response: Response): Promise<unknown> {
+		try {
+			return await parseJsonAnswer(response);
+		} catch (err) {
+			if (err instanceof PoliPageError) this.#fireHook(this.#onError, err);
+			throw err;
 		}
 	}
 

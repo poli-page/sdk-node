@@ -50,6 +50,12 @@ describe('PoliPageError', () => {
 		expect(new PoliPageError('m', 'RATE_LIMIT_EXCEEDED', 429).isRetryable()).toBe(true);
 	});
 
+	it('isRetryable() is false for invalid_response and io_error', () => {
+		expect(new PoliPageError('m', 'invalid_response', 200).isRetryable()).toBe(false);
+		expect(new PoliPageError('m', 'io_error').isRetryable()).toBe(false);
+		expect(new PoliPageError('m', 'aborted').isRetryable()).toBe(false);
+	});
+
 	it('keeps the underlying error as cause', () => {
 		const cause = new TypeError('fetch failed');
 		const err = new PoliPageError('Network request failed', 'network_error', undefined, undefined, {
@@ -91,6 +97,40 @@ describe('PoliPageError', () => {
 			const err = new PoliPageError('slow', 'timeout');
 			expect(err.toPayload().status).toBe(504);
 			expect(err.status).toBeUndefined();
+		});
+
+		it('uses 502 for invalid_response and keeps the real 2xx on the error', () => {
+			const err = new PoliPageError(
+				'Invalid response: HTTP 200 body is not JSON',
+				'invalid_response',
+				200,
+				'req_html',
+			);
+			expect(err.toPayload()).toEqual({
+				code: 'invalid_response',
+				message: 'Invalid response: HTTP 200 body is not JSON',
+				status: 502,
+				requestId: 'req_html',
+			});
+			expect(err.status).toBe(200);
+		});
+
+		it('has exactly the keys code, message, status and requestId, in that order', () => {
+			const payloads = [
+				new PoliPageError('m', 'TEMPLATE_NOT_FOUND', 404, 'req_1'),
+				new PoliPageError('m', 'invalid_response', 200),
+				new PoliPageError('m', 'io_error', undefined, undefined, { cause: new Error('x') }),
+				new PoliPageError('m', 'network_error'),
+			].map((err) => err.toPayload());
+			for (const payload of payloads) {
+				expect(Object.keys(payload)).toEqual(['code', 'message', 'status', 'requestId']);
+			}
+			expect(JSON.parse(JSON.stringify(payloads[2]))).toEqual({
+				code: 'io_error',
+				message: 'm',
+				status: null,
+				requestId: null,
+			});
 		});
 
 		it('requestId is null when absent', () => {

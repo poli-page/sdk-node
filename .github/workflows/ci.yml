@@ -56,7 +56,7 @@ jobs:
 
       - name: API contract
         id: contract
-        uses: poli-page/api-contract@0eba96c1ecf9a28b7e259f444f3ca5b7c059d5fd # v1.3.0
+        uses: poli-page/api-contract@1f705b3ce3e15ff56e2f7b8249c1a2983af2312c # v0.13.0
 
       - name: Test (with coverage)
         run: npm run test:coverage
@@ -104,6 +104,11 @@ jobs:
         run: npm audit signatures
 
       - name: Install smoke (ESM + CJS from packed tarball)
+        # Each format also checks that `renderToFile` from `@poli-page/sdk/node`
+        # throws the main entry's `PoliPageError` class: the build shares it
+        # between the two entries (tsup `splitting`), and a duplicated class
+        # would break `instanceof` for `io_error`. The output path sits under a
+        # file, so the call fails before any request.
         run: |
           set -euo pipefail
           TARBALL="$(npm pack | tail -n 1)"
@@ -112,21 +117,50 @@ jobs:
           cd "$SMOKE_DIR"
           npm init -y >/dev/null
           npm install "$ABS_TARBALL" >/dev/null
+          echo 'not a directory' > blocker
           cat > smoke.mjs <<'EOF'
-          import { PoliPage } from '@poli-page/sdk';
+          import { PoliPage, PoliPageError } from '@poli-page/sdk';
+          import { renderToFile } from '@poli-page/sdk/node';
           if (typeof PoliPage !== 'function') {
             console.error('ESM smoke FAILED: typeof PoliPage =', typeof PoliPage);
             process.exit(1);
           }
           console.log('ESM smoke OK: typeof PoliPage =', typeof PoliPage);
+          const client = new PoliPage({ apiKey: 'pp_sandbox_smoke', baseUrl: 'http://127.0.0.1:9' });
+          try {
+            await renderToFile(client, { project: 'p', template: 't', data: {} }, 'blocker/out.pdf');
+            console.error('ESM smoke FAILED: renderToFile under a file did not throw');
+            process.exit(1);
+          } catch (err) {
+            if (!(err instanceof PoliPageError) || err.code !== 'io_error') {
+              console.error('ESM smoke FAILED: renderToFile error is not an io_error PoliPageError:', err);
+              process.exit(1);
+            }
+            console.log('ESM smoke OK: renderToFile io_error instanceof PoliPageError');
+          }
           EOF
           cat > smoke.cjs <<'EOF'
-          const { PoliPage } = require('@poli-page/sdk');
+          const { PoliPage, PoliPageError } = require('@poli-page/sdk');
+          const { renderToFile } = require('@poli-page/sdk/node');
           if (typeof PoliPage !== 'function') {
             console.error('CJS smoke FAILED: typeof PoliPage =', typeof PoliPage);
             process.exit(1);
           }
           console.log('CJS smoke OK: typeof PoliPage =', typeof PoliPage);
+          const client = new PoliPage({ apiKey: 'pp_sandbox_smoke', baseUrl: 'http://127.0.0.1:9' });
+          renderToFile(client, { project: 'p', template: 't', data: {} }, 'blocker/out.pdf').then(
+            () => {
+              console.error('CJS smoke FAILED: renderToFile under a file did not throw');
+              process.exit(1);
+            },
+            (err) => {
+              if (!(err instanceof PoliPageError) || err.code !== 'io_error') {
+                console.error('CJS smoke FAILED: renderToFile error is not an io_error PoliPageError:', err);
+                process.exit(1);
+              }
+              console.log('CJS smoke OK: renderToFile io_error instanceof PoliPageError');
+            },
+          );
           EOF
           node smoke.mjs
           node smoke.cjs
