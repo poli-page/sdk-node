@@ -14,16 +14,28 @@ import {
 	writeFile,
 } from 'node:fs/promises';
 import type * as FsPromises from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { createServer as createNetServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PoliPage, PoliPageError } from '../src/index.js';
 import { renderToFile } from '../src/node.js';
 
+/** A Node system error, with the message format Node gives one. */
+function systemError(code: string, description: string, syscall: string, paths = ''): Error {
+	return Object.assign(new Error(`${code}: ${description}, ${syscall}${paths}`), {
+		code,
+		syscall,
+	});
+}
+
 /**
- * A write failure the file system cannot be made to produce portably (a full
- * disk): when `failWrites` is set, every `FileHandle.write` rejects with it.
+ * Failures the file system cannot be made to produce portably: when
+ * `failWrites` is set, every `FileHandle.write` rejects as on a full disk;
+ * when `failRename` is set, `rename` rejects naming both of its paths, as
+ * Node's own rename errors do.
  */
-const writeFault = vi.hoisted(() => ({ failWrites: false }));
+const writeFault = vi.hoisted(() => ({ failWrites: false, failRename: false }));
 vi.mock('node:fs/promises', async (importOriginal) => {
 	const fs = await importOriginal<typeof FsPromises>();
 	return {
@@ -34,13 +46,22 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 			Object.defineProperty(file, 'write', {
 				value: (...writeArgs: unknown[]) =>
 					writeFault.failWrites
-						? Promise.reject(new Error('ENOSPC: no space left on device, write'))
+						? Promise.reject(systemError('ENOSPC', 'no space left on device', 'write'))
 						: (write as (...a: unknown[]) => unknown)(...writeArgs),
 			});
 			return file;
 		},
+		rename: (from: string, to: string) =>
+			writeFault.failRename
+				? Promise.reject(systemError('EBUSY', 'resource busy or locked', 'rename', ` '${from}' -> '${to}'`))
+				: fs.rename(from, to),
 	};
 });
+
+/** `text` with the characters a regular expression gives a meaning escaped. */
+function escapeRegExp(text: string): string {
+	return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 let server: Server;
 let baseUrl: string;
@@ -114,6 +135,7 @@ afterEach(() => {
 	handler = defaultHandler;
 	requests = [];
 	writeFault.failWrites = false;
+	writeFault.failRename = false;
 });
 
 afterAll(async () => {
@@ -275,7 +297,8 @@ describe('renderToFile with an existing target', () => {
 			expect(error.code).toBe('io_error');
 			expect(error.status).toBeUndefined();
 			expect(error.cause).toBeInstanceOf(Error);
-			expect(error.message).toBe(`Failed to write PDF: ${(error.cause as Error).message}`);
+			expect(error.message).toMatch(new RegExp(`^Failed to write PDF: ${escapeRegExp(out)}: E[A-Z]+: `));
+			expect((error.cause as NodeJS.ErrnoException).syscall).toBe('access');
 			expect(requests).toEqual([]);
 			expect(await readFile(out, 'utf8')).toBe('old content');
 			expect(await readdir(dir)).toEqual(['locked.pdf']);
@@ -295,6 +318,16 @@ describe('renderToFile with an existing target', () => {
 			expect(await readFile(out, 'utf8')).toBe(pdf);
 			expect((await stat(out)).mode & 0o777).toBe(mode);
 		}
+	});
+
+	it.skipIf(isWindows)('an existing file does not keep its setuid bit', async () => {
+		const dir = join(tempDir, 'setuid');
+		await mkdir(dir, { recursive: true });
+		const out = join(dir, 'setuid.pdf');
+		await writeFile(out, 'old content');
+		await chmod(out, 0o4750);
+		await renderToFile(client(), input, out);
+		expect((await stat(out)).mode & 0o7777).toBe(0o750);
 	});
 });
 
@@ -370,12 +403,16 @@ describe('renderToFile leaves the target untouched on failure', () => {
 
 describe('renderToFile io_error', () => {
 	const input = { project: 'p', template: 't', data: {} };
+	const isWindows = process.platform === 'win32';
+	// root can write a directory whatever its mode.
+	const isRoot = process.getuid?.() === 0;
 
 	function client(): PoliPage {
 		return new PoliPage({ apiKey: 'pp_sandbox_x', baseUrl, maxRetries: 0 });
 	}
 
-	function expectIoError(err: unknown): PoliPageError {
+	/** An `io_error` whose message names `outputPath`, never the temporary file. */
+	function expectIoError(err: unknown, outputPath: string): PoliPageError {
 		expect(err).toBeInstanceOf(PoliPageError);
 		const error = err as PoliPageError;
 		expect(error.code).toBe('io_error');
@@ -383,7 +420,8 @@ describe('renderToFile io_error', () => {
 		expect(error.requestId).toBeUndefined();
 		expect(error.isRetryable()).toBe(false);
 		expect(error.cause).toBeInstanceOf(Error);
-		expect(error.message).toBe(`Failed to write PDF: ${(error.cause as Error).message}`);
+		expect(error.message.startsWith(`Failed to write PDF: ${outputPath}: `)).toBe(true);
+		expect(error.message).not.toContain('.tmp');
 		expect(error.toPayload()).toEqual({
 			code: 'io_error',
 			message: error.message,
@@ -396,22 +434,96 @@ describe('renderToFile io_error', () => {
 	it('a parent directory that cannot be created is io_error, before any render', async () => {
 		const blocker = join(tempDir, 'a-file');
 		await writeFile(blocker, 'not a directory');
-		const err: unknown = await renderToFile(client(), input, join(blocker, 'sub', 'x.pdf')).catch(
-			(e: unknown) => e,
-		);
-		expectIoError(err);
+		const out = join(blocker, 'sub', 'x.pdf');
+		const err: unknown = await renderToFile(client(), input, out).catch((e: unknown) => e);
+		expectIoError(err, out);
 		expect(requests).toEqual([]);
 	});
 
-	it('a target that cannot be replaced (a directory) is io_error, and the temporary file is removed', async () => {
+	it.skipIf(isWindows || isRoot)(
+		'a parent directory that cannot be written is io_error, before any render',
+		async () => {
+			const dir = join(tempDir, 'parent-read-only');
+			await mkdir(dir, { recursive: true });
+			await chmod(dir, 0o555);
+			try {
+				const out = join(dir, 'x.pdf');
+				const err: unknown = await renderToFile(client(), input, out).catch((e: unknown) => e);
+				const error = expectIoError(err, out);
+				expect(error.message).toBe(`Failed to write PDF: ${out}: EACCES: permission denied`);
+				expect(requests).toEqual([]);
+				expect(await readdir(dir)).toEqual([]);
+			} finally {
+				await chmod(dir, 0o755);
+			}
+		},
+	);
+
+	/** Asserts the refusal of a target that is not a regular file, made before any request. */
+	async function expectNotRegularFile(out: string): Promise<void> {
+		const err: unknown = await renderToFile(client(), input, out).catch((e: unknown) => e);
+		const error = expectIoError(err, out);
+		expect(error.message).toBe(`Failed to write PDF: ${out}: not a regular file`);
+		expect(requests).toEqual([]);
+	}
+
+	it('a target that is a directory is io_error, before any render', async () => {
 		const dir = join(tempDir, 'target-is-dir');
 		await mkdir(join(dir, 'out.pdf'), { recursive: true });
-		const err: unknown = await renderToFile(client(), input, join(dir, 'out.pdf')).catch(
-			(e: unknown) => e,
-		);
-		expectIoError(err);
+		await expectNotRegularFile(join(dir, 'out.pdf'));
 		expect(await readdir(dir)).toEqual(['out.pdf']);
 		expect((await stat(join(dir, 'out.pdf'))).isDirectory()).toBe(true);
+	});
+
+	it.skipIf(isWindows)('a target that is a FIFO is io_error, before any render, and is not opened', async () => {
+		// Opening a FIFO for writing blocks until a reader comes: a check that opened it would hang.
+		const dir = join(tempDir, 'target-is-fifo');
+		await mkdir(dir, { recursive: true });
+		const out = join(dir, 'out.pdf');
+		execFileSync('mkfifo', [out]);
+		await expectNotRegularFile(out);
+		expect((await lstat(out)).isFIFO()).toBe(true);
+		expect(await readdir(dir)).toEqual(['out.pdf']);
+	});
+
+	it.skipIf(isWindows)('a target that is a socket is io_error, before any render', async () => {
+		const dir = await mkdtemp(join(tmpdir(), 'pp-sock-'));
+		const out = join(dir, 's.pdf');
+		const socketServer = createNetServer();
+		await new Promise<void>((resolve) => socketServer.listen(out, resolve));
+		try {
+			await expectNotRegularFile(out);
+			expect((await lstat(out)).isSocket()).toBe(true);
+		} finally {
+			await new Promise<void>((resolve) => socketServer.close(() => resolve()));
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it.skipIf(isWindows)('a target that is a device is io_error, before any render', async () => {
+		await expectNotRegularFile('/dev/null');
+	});
+
+	it.skipIf(isWindows)('a link to a directory is io_error, before any render', async () => {
+		const dir = join(tempDir, 'link-to-dir');
+		await mkdir(join(dir, 'real'), { recursive: true });
+		await symlink('real', join(dir, 'out.pdf'));
+		await expectNotRegularFile(join(dir, 'out.pdf'));
+		expect((await lstat(join(dir, 'out.pdf'))).isSymbolicLink()).toBe(true);
+	});
+
+	it('a failed rename names the target, not the temporary file, and removes the temporary file', async () => {
+		const dir = join(tempDir, 'rename-fails');
+		await mkdir(dir, { recursive: true });
+		await writeFile(join(dir, 'existing.pdf'), 'old content');
+		writeFault.failRename = true;
+		const out = join(dir, 'existing.pdf');
+		const err: unknown = await renderToFile(client(), input, out).catch((e: unknown) => e);
+		const error = expectIoError(err, out);
+		expect(error.message).toBe(`Failed to write PDF: ${out}: EBUSY: resource busy or locked`);
+		expect((error.cause as Error).message).toContain('.tmp');
+		expect(await readFile(out, 'utf8')).toBe('old content');
+		expect(await readdir(dir)).toEqual(['existing.pdf']);
 	});
 
 	it('a failed write is io_error with the runtime error chained, and the target is untouched', async () => {
@@ -419,11 +531,10 @@ describe('renderToFile io_error', () => {
 		await mkdir(dir, { recursive: true });
 		await writeFile(join(dir, 'existing.pdf'), 'old content');
 		writeFault.failWrites = true;
-		const err: unknown = await renderToFile(client(), input, join(dir, 'existing.pdf')).catch(
-			(e: unknown) => e,
-		);
-		const error = expectIoError(err);
-		expect(error.message).toBe('Failed to write PDF: ENOSPC: no space left on device, write');
+		const out = join(dir, 'existing.pdf');
+		const err: unknown = await renderToFile(client(), input, out).catch((e: unknown) => e);
+		const error = expectIoError(err, out);
+		expect(error.message).toBe(`Failed to write PDF: ${out}: ENOSPC: no space left on device`);
 		expect(await readFile(join(dir, 'existing.pdf'), 'utf8')).toBe('old content');
 		expect(await readdir(dir)).toEqual(['existing.pdf']);
 	});

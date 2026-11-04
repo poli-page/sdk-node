@@ -207,6 +207,22 @@ describe('render.pdfStream: timeout is an idle timeout', () => {
 		expectDownloadTimeout(await client().render.pdfStream(input).catch((e: unknown) => e));
 	});
 
+	it('the wait for the headers and the wait for the first byte share one timeout', async () => {
+		// Each wait is two thirds of the timeout; together they outlast it, so a
+		// budget restarted at the headers would let this download through.
+		download = (res) => {
+			setTimeout(() => {
+				if (res.destroyed) return;
+				res.writeHead(200, { 'Content-Type': 'application/pdf' });
+				res.flushHeaders();
+				setTimeout(() => {
+					if (!res.destroyed) res.end(CHUNK);
+				}, (TIMEOUT_MS * 2) / 3);
+			}, (TIMEOUT_MS * 2) / 3);
+		};
+		expectDownloadTimeout(await client().render.pdfStream(input).catch((e: unknown) => e));
+	});
+
 	it('the stream errors when a gap between chunks outlasts the timeout', async () => {
 		download = stallAfterFirstChunk();
 		const stream = await client().render.pdfStream(input);

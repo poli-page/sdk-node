@@ -35,9 +35,11 @@ const stream = await client.render.pdfStream({
 
 The `/node` subexport adds a helper that streams bytes directly to disk with bounded memory. Parent directories are created automatically.
 
-The PDF goes to a temporary file in the target's directory, renamed over the target only once complete: when the render, the download or the write fails, an existing file keeps its content and a missing one is not created. A file that cannot be written throws `PoliPageError` with code `io_error` (`Failed to write PDF: <reason>`, the runtime error as `cause`), never retried.
+The PDF goes to a temporary file in the target's directory, renamed over the target only once complete: when the render, the download or the write fails, an existing file keeps its content and a missing one is not created. A file that cannot be written throws `PoliPageError` with code `io_error` and the message `Failed to write PDF: <path>: <reason>`, for example `Failed to write PDF: ./invoices/INV-001.pdf: EACCES: permission denied`. `<path>` is the path you passed, never the temporary file, and `<reason>` is Node's own error text; the Node error is the `cause`. It is never retried.
 
-When the path is a symbolic link, the PDF replaces the file the link points to, and the link stays as it is. An existing file keeps its permission bits, and a read-only one is refused with `io_error` before the render. Because the rename puts a new file in place of the old one, two things are not kept: the file's owner (the new file belongs to the user running your process) and hard links (another name for the old file keeps the old content).
+Before the render, so that a path that cannot be written costs no render, `renderToFile` creates the missing parent directories and checks that the parent is a directory your process can write, and that an existing target is a regular file you can write. A read-only file is refused, and so is a target that is not a regular file (a directory, FIFO, socket or device such as `/dev/stdout`), with the reason `not a regular file`. These checks read the file's attributes and never open it. To write a PDF to a pipe or to stdout, read `render.pdfStream` into it instead.
+
+When the path is a symbolic link, the PDF replaces the file the link points to, and the link stays as it is. An existing file keeps its permission bits, without setuid, setgid or sticky. Because the rename puts a new file in place of the old one, two things are not kept: the file's owner and group (the new file belongs to the user running your process) and hard links (another name for the old file keeps the old content).
 
 ```ts
 import { renderToFile } from '@poli-page/sdk/node';
