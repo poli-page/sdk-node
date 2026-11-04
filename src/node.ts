@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import { constants } from 'node:fs';
 import {
+	access,
 	lstat,
 	mkdir,
 	open,
 	readlink,
+	realpath,
 	rename,
 	rm,
 	stat,
@@ -41,10 +44,18 @@ const MAX_SYMLINK_HOPS = 40;
 
 /**
  * The file a write to `path` must replace: `path` itself, or, when it is a
- * symbolic link, the file the link points to (followed link by link, even
- * when that file does not exist yet), so the link stays a link.
+ * symbolic link, the file the link points to (even when that file does not
+ * exist yet), so the link stays a link. An existing file is its real path.
+ * For a missing one, the links are followed one by one, each resolved from
+ * the link's real directory as the OS does, so a `..` in a link reached
+ * through a symlinked directory names the right place.
  */
 async function resolveTarget(path: string): Promise<string> {
+	try {
+		return await realpath(path);
+	} catch (err) {
+		if (!hasCode(err, 'ENOENT')) throw err;
+	}
 	let current = resolve(path);
 	for (let hops = 0; hops < MAX_SYMLINK_HOPS; hops++) {
 		try {
@@ -53,7 +64,8 @@ async function resolveTarget(path: string): Promise<string> {
 			if (hasCode(err, 'ENOENT')) return current;
 			throw err;
 		}
-		current = resolve(dirname(current), await readlink(current));
+		// The link exists, so its directory does too.
+		current = resolve(await realpath(dirname(current)), await readlink(current));
 	}
 	throw Object.assign(new Error(`ELOOP: too many symbolic links encountered, '${path}'`), {
 		code: 'ELOOP',
@@ -68,6 +80,19 @@ async function fileMode(path: string): Promise<number | undefined> {
 	} catch (err) {
 		if (hasCode(err, 'ENOENT')) return undefined;
 		throw err;
+	}
+}
+
+/**
+ * Fails when the file at `path` exists but cannot be written, as opening it
+ * for writing would: a rename could replace a read-only file, which a write
+ * must not.
+ */
+async function assertWritable(path: string): Promise<void> {
+	try {
+		await access(path, constants.W_OK);
+	} catch (err) {
+		if (!hasCode(err, 'ENOENT')) throw err;
 	}
 }
 
@@ -89,10 +114,12 @@ async function writeAll(file: FileHandle, chunk: Uint8Array): Promise<void> {
  * leaves the target untouched: an existing file keeps its content and a
  * missing one is not created. The directory and the temporary file are
  * prepared before the render, so a path that cannot be written costs no
- * render. When `outputPath` is a symbolic link, the target is the file it
- * points to and the link stays as it is. An existing target keeps its
- * permission bits; since it is replaced by a new file, its owner is the
- * caller's and hard links to the old file keep the old content.
+ * render. An existing target that cannot be written (read-only) raises
+ * `io_error` before the render, as a direct write would. When `outputPath`
+ * is a symbolic link, the target is the file it points to and the link stays
+ * as it is. An existing target keeps its permission bits; since it is
+ * replaced by a new file, its owner is the caller's and hard links to the old
+ * file keep the old content.
  *
  * A file that cannot be written (creating a parent directory, opening,
  * writing or moving it into place) raises a `PoliPageError` with code
@@ -125,6 +152,7 @@ export async function renderToFile(
 	const target = await io(() => resolveTarget(outputPath));
 	const directory = dirname(target);
 	await io(() => mkdir(directory, { recursive: true }));
+	await io(() => assertWritable(target));
 	const mode = await io(() => fileMode(target));
 	const tempPath = join(directory, `.${basename(target)}.${randomUUID()}.tmp`);
 	const file = await io(() => open(tempPath, 'wx'));
