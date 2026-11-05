@@ -34,6 +34,7 @@ import type {
 
 export { PoliPageError, type PoliPageErrorCode } from './error.js';
 import { PoliPageError } from './error.js';
+import { startTimer } from './internal/timer.js';
 import { createRenderNamespace, type SdkContext } from './render.js';
 import { createDocumentsNamespace } from './documents.js';
 import {
@@ -203,7 +204,7 @@ export class PoliPage {
 		signal: AbortSignal | undefined,
 	): Promise<SendOnceResult> {
 		const timeoutController = new AbortController();
-		const timeoutId = setTimeout(() => timeoutController.abort(), this.#timeout);
+		const cancelTimeout = startTimer(this.#timeout, () => timeoutController.abort());
 		const composed = signal
 			? AbortSignal.any([signal, timeoutController.signal])
 			: timeoutController.signal;
@@ -251,7 +252,7 @@ export class PoliPage {
 				return this.#apiFailure(response, '', err);
 			}
 		} finally {
-			clearTimeout(timeoutId);
+			cancelTimeout();
 		}
 
 		if (response.ok) {

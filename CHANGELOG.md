@@ -8,6 +8,10 @@ Upgrade steps for breaking changes are on the docs site's [migration page](https
 
 ## [Unreleased]
 
+### Fixed
+
+- A `timeout` never fires early: the attempt timeout and the presigned-download timeout were plain `setTimeout`s, which can wake up to about 1 ms before their delay (19.1 ms measured for 20). They now wait again for the rest, as the retry delay already did.
+
 ## [0.13.1] - 2026-11-04
 
 ### Changed
