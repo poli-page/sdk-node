@@ -22,10 +22,10 @@ import { performance } from 'node:perf_hooks';
 import { PoliPage, PoliPageError, type RenderInput } from '../src/index.js';
 
 // ---------------------------------------------------------------------------
-// Contract format 1 (README of poli-page/api-contract)
+// Contract format 2 (README of poli-page/api-contract)
 // ---------------------------------------------------------------------------
 
-const KNOWN_FORMAT_VERSION = 1;
+const KNOWN_FORMAT_VERSION = 2;
 
 /** The client's key when a case sets no `apiKey` (the contract's `{{apiKey}}`). */
 const TEST_API_KEY = 'pp_sandbox_00000000000000000000000000000000';
@@ -101,6 +101,8 @@ interface SdkCase {
 		requests: readonly ExpectedRequest[];
 		events: readonly ExpectedEvent[];
 		result: NormalizedResult;
+		/** Lower bound on the whole call, on the harness's monotonic clock (format 2). */
+		minCallMs?: number;
 	};
 	stopAfterRetryEvents?: number;
 }
@@ -526,6 +528,8 @@ async function runCase(c: SdkCase): Promise<void> {
 	let cancelTimer: ReturnType<typeof setTimeout> | undefined;
 	let retries = 0;
 	let result: NormalizedResult;
+	let callStart = performance.now();
+	let callMs: number;
 	try {
 		const client = new PoliPage({
 			apiKey,
@@ -544,8 +548,12 @@ async function runCase(c: SdkCase): Promise<void> {
 		if (c.call.cancelAfterMs !== undefined) {
 			cancelTimer = setTimeout(() => controller?.abort(), c.call.cancelAfterMs);
 		}
+		callStart = performance.now();
 		result = { ok: true, value: await invoke(client, c.call, controller?.signal) };
+		callMs = performance.now() - callStart;
 	} catch (err) {
+		// Stop the clock before anything else: the call has thrown.
+		callMs = performance.now() - callStart;
 		result = { ok: false, error: normalizeError(err) };
 	} finally {
 		clearTimeout(cancelTimer);
@@ -558,6 +566,14 @@ async function runCase(c: SdkCase): Promise<void> {
 		substitute(want.requests, mock),
 	);
 	expect(describeEvents(events, want.events), 'onRequest / onRetry events').toEqual(want.events);
+	if (c.expect.minCallMs !== undefined) {
+		// N-DURATION-MS: compared in integer milliseconds, on a monotonic clock.
+		const took = Math.round(callMs);
+		expect(
+			took >= c.expect.minCallMs ? c.expect.minCallMs : `only ${took} ms`,
+			'minCallMs',
+		).toBe(c.expect.minCallMs);
+	}
 	if (want.checkResult) {
 		expect(result, 'result').toEqual(substitute(c.expect.result, mock));
 	}
