@@ -8,8 +8,6 @@ on:
 
 permissions:
   contents: read
-  # Allow codecov-action's tokenless (OIDC) upload on public repo.
-  id-token: write
 
 defaults:
   run:
@@ -19,6 +17,12 @@ defaults:
 
 jobs:
   test:
+    # id-token: write is for the Codecov OIDC upload in this job only.
+    # contents: read is restated because a job-level block replaces the
+    # workflow-level one.
+    permissions:
+      contents: read
+      id-token: write
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -75,7 +79,7 @@ jobs:
         with:
           files: ./coverage/lcov.info
           # OIDC auth — no CODECOV_TOKEN secret needed; requires id-token: write
-          # (set at the workflow level) and the repo to be enrolled at codecov.io.
+          # (granted to this job) and the repo to be enrolled at codecov.io.
           use_oidc: true
           fail_ci_if_error: false
 
