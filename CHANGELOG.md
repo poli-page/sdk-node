@@ -8,6 +8,10 @@ Upgrade steps for breaking changes are on the docs site's [migration page](https
 
 ## [Unreleased]
 
+### Changed
+
+- CI pins the API contract `v0.15.0-dev.1` (format 2: a case can set `expect.minCallMs`, the least time the whole call must take, which the conformance suite checks on a monotonic clock).
+
 ### Fixed
 
 - A `timeout` never fires early: the attempt timeout and the presigned-download timeout were plain `setTimeout`s, which can wake up to about 1 ms before their delay (19.1 ms measured for 20). They now wait again for the rest, as the retry delay already did.
