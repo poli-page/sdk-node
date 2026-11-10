@@ -54,6 +54,7 @@ Returned by the Poli Page API. Uppercase, snake-case. The SDK forwards the code 
   { code: 'DOCUMENT_GONE', when: '410: the stored document was deleted or has expired.', recovery: 'Render it again.' },
   { code: 'VALIDATION_ERROR', when: '400: the request body failed validation (an unknown field, a bad option value).', recovery: 'Read `message` for the failing field.' },
   { code: 'MISSING_DATA', when: '400: the request body lacks a required `data` field.', recovery: 'Pass `data: {}` (or with values) on every render call.' },
+  { code: 'TEMPLATE_UNSAFE', when: '400: the template, a partial or an SVG asset holds script or another injection attempt. The error `message` (the API `detail`) names the first construct found (a `<script>` element, an `onerror` attribute, a `javascript:` URL) and, for a project file, its path.', recovery: 'Not retried: fix the template, then call again.' },
   { code: 'QUOTA_EXCEEDED', when: '429: the organization`s monthly quota is exhausted.', recovery: 'Not retried: it lasts until the monthly reset. Upgrade the tier for more renders.' },
   { code: 'OVERAGE_CAP_EXCEEDED', when: '429: the organization reached its overage cap.', recovery: 'Not retried: it lasts until the monthly reset. Raise the cap in the dashboard.' },
   { code: 'STORAGE_ACCESS_DENIED', when: '502: the organization`s own storage bucket refuses access.', recovery: 'Not retried: restore the bucket role, then call again.' },
