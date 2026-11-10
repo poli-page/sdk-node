@@ -528,6 +528,8 @@ async function runCase(c: SdkCase): Promise<void> {
 	let cancelTimer: ReturnType<typeof setTimeout> | undefined;
 	let retries = 0;
 	let result: NormalizedResult;
+	// A placeholder: the clock starts right before `invoke` below. The `catch`
+	// also reads it when the client constructor throws, before that line.
 	let callStart = performance.now();
 	let callMs: number;
 	try {
