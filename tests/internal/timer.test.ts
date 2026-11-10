@@ -108,22 +108,30 @@ describe('startTimer (R-WAIT-FULL)', () => {
 		expect(onFire).not.toHaveBeenCalled();
 	});
 
-	it('does not fire once cancelled after it re-armed', async () => {
-		// Wake 5 ms early, and tell the test when the timer re-arms for the rest.
-		const real = globalThis.setTimeout;
-		let calls = 0;
-		let reArmed!: () => void;
-		const reArm = new Promise<void>((resolve) => (reArmed = resolve));
-		vi.stubGlobal('setTimeout', (fn: () => void, ms?: number) => {
-			calls += 1;
-			if (calls === 2) reArmed();
-			return real(fn, Math.max(0, (ms ?? 0) - 5));
+	it('does not fire once cancelled after it re-armed', () => {
+		// A clock and timers the test drives, so the re-arm happens whatever the
+		// machine's timer resolution (a real early wake can come late on Windows).
+		const clock = { now: 0 };
+		const pending = new Map<number, () => void>();
+		let nextId = 0;
+		vi.spyOn(performance, 'now').mockImplementation(() => clock.now);
+		vi.stubGlobal('setTimeout', (fn: () => void) => {
+			nextId += 1;
+			pending.set(nextId, fn);
+			return nextId;
 		});
+		vi.stubGlobal('clearTimeout', (id: number) => pending.delete(id));
 		const onFire = vi.fn();
 		const cancel = startTimer(40, onFire);
-		await reArm;
+
+		clock.now = 35; // the first timer wakes 5 ms early: it re-arms for the rest
+		pending.get(1)?.();
+		pending.delete(1);
+		expect(pending.size).toBe(1);
+
 		cancel();
-		await new Promise((r) => real(r, 60));
+		clock.now = 100;
+		for (const fn of pending.values()) fn();
 		expect(onFire).not.toHaveBeenCalled();
 	});
 
