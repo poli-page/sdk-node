@@ -11,6 +11,7 @@ Upgrade steps for breaking changes are on the docs site's [migration page](https
 ### Fixed
 
 - A `timeout` never fires early: the attempt timeout and the presigned-download timeout were plain `setTimeout`s, which can wake up to about 1 ms before their delay (19.1 ms measured for 20). They now wait again for the rest, as the retry delay already did.
+- A `timeout` above 2^31 − 1 ms (about 24.8 days), `Infinity` included, no longer ends every attempt and download after 1 ms: Node replaced such a delay with 1 ms and warned `TimeoutOverflowWarning`. The SDK now waits it out in chunks of 2^31 − 1 ms, so `Infinity` never times out. A retry delay that long no longer wakes every millisecond.
 
 ## [0.13.1] - 2026-11-04
 

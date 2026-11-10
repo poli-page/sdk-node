@@ -21,6 +21,30 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
+const MAX_TIMER_DELAY_MS = 2 ** 31 - 1;
+
+/**
+ * Replaces `setTimeout` with one that only records each delay and keeps the
+ * last callback, and `performance.now` with a clock the test sets: the test
+ * wakes the timer itself, at the time it chooses.
+ */
+function manualTimers() {
+	const clock = { now: 0 };
+	const delays: number[] = [];
+	let callback: (() => void) | undefined;
+	vi.spyOn(performance, 'now').mockImplementation(() => clock.now);
+	vi.stubGlobal('setTimeout', (fn: () => void, ms?: number) => {
+		delays.push(ms ?? 0);
+		callback = fn;
+		return delays.length;
+	});
+	return {
+		clock,
+		delays,
+		wake: () => callback?.(),
+	};
+}
+
 const client = (timeout: number) =>
 	new PoliPage({
 		apiKey: 'pp_sandbox_00000000000000000000000000000000',
@@ -100,6 +124,32 @@ describe('startTimer (R-WAIT-FULL)', () => {
 		await reArm;
 		cancel();
 		await new Promise((r) => real(r, 60));
+		expect(onFire).not.toHaveBeenCalled();
+	});
+
+	it('waits a delay above the setTimeout maximum in chunks of the maximum', () => {
+		const timers = manualTimers();
+		const onFire = vi.fn();
+		startTimer(3e9, onFire);
+		expect(timers.delays).toEqual([MAX_TIMER_DELAY_MS]);
+		timers.clock.now = MAX_TIMER_DELAY_MS;
+		timers.wake();
+		expect(timers.delays).toEqual([MAX_TIMER_DELAY_MS, 3e9 - MAX_TIMER_DELAY_MS]);
+		expect(onFire).not.toHaveBeenCalled();
+		timers.clock.now = 3e9;
+		timers.wake();
+		expect(onFire).toHaveBeenCalledOnce();
+	});
+
+	it('re-arms an infinite delay with the maximum, never fires it', () => {
+		const timers = manualTimers();
+		const onFire = vi.fn();
+		startTimer(Infinity, onFire);
+		for (let i = 1; i <= 3; i++) {
+			timers.clock.now = i * MAX_TIMER_DELAY_MS;
+			timers.wake();
+		}
+		expect(timers.delays).toEqual(Array(4).fill(MAX_TIMER_DELAY_MS));
 		expect(onFire).not.toHaveBeenCalled();
 	});
 });
