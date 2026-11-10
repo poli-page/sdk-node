@@ -336,30 +336,23 @@ export class PoliPage {
 
 	#sleep(ms: number, signal?: AbortSignal): Promise<void> {
 		return new Promise((resolve, reject) => {
-			// A timer can fire up to about 1 ms early: re-arm until the whole delay
-			// has passed, so a `Retry-After` wait is never shorter than asked.
-			const end = performance.now() + ms;
+			if (signal?.aborted) {
+				reject(new PoliPageError('Request was aborted', 'aborted'));
+				return;
+			}
+			// `startTimer` never wakes early, so a `Retry-After` wait is never
+			// shorter than asked.
+			const cancel = startTimer(ms, () => {
+				// The wait ended normally: drop the listener, so a long-lived
+				// signal shared by many calls does not collect one per retry.
+				signal?.removeEventListener('abort', onAbort);
+				resolve();
+			});
 			const onAbort = () => {
-				clearTimeout(timer);
+				cancel();
 				reject(new PoliPageError('Request was aborted', 'aborted'));
 			};
-			const wake = () => {
-				const left = end - performance.now();
-				if (left > 0) {
-					timer = setTimeout(wake, Math.ceil(left));
-				} else {
-					// The wait ended normally: drop the listener, so a long-lived
-					// signal shared by many calls does not collect one per retry.
-					signal?.removeEventListener('abort', onAbort);
-					resolve();
-				}
-			};
-			let timer = setTimeout(wake, ms);
-			if (signal?.aborted) {
-				onAbort();
-			} else {
-				signal?.addEventListener('abort', onAbort, { once: true });
-			}
+			signal?.addEventListener('abort', onAbort, { once: true });
 		});
 	}
 }
