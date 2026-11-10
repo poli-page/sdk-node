@@ -1,4 +1,5 @@
 import { PoliPageError } from '../error.js';
+import { startTimer } from './timer.js';
 import type { DocumentDescriptor, RawDocumentDescriptor } from '../types.js';
 
 /**
@@ -11,7 +12,7 @@ class DownloadTimer {
 	readonly signal: AbortSignal;
 	readonly #controller = new AbortController();
 	readonly #timeoutMs: number;
-	#timer: ReturnType<typeof setTimeout> | undefined;
+	#cancel: (() => void) | undefined;
 
 	constructor(timeoutMs: number, callerSignal: AbortSignal | undefined) {
 		this.#timeoutMs = timeoutMs;
@@ -27,12 +28,12 @@ class DownloadTimer {
 
 	arm(): void {
 		this.disarm();
-		this.#timer = setTimeout(() => this.#controller.abort(), this.#timeoutMs);
+		this.#cancel = startTimer(this.#timeoutMs, () => this.#controller.abort());
 	}
 
 	disarm(): void {
-		clearTimeout(this.#timer);
-		this.#timer = undefined;
+		this.#cancel?.();
+		this.#cancel = undefined;
 	}
 }
 
