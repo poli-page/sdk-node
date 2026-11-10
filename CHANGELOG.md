@@ -8,6 +8,10 @@ Upgrade steps for breaking changes are on the docs site's [migration page](https
 
 ## [Unreleased]
 
+### Fixed
+
+- Docs: the README and the errors page name `TEMPLATE_UNSAFE` (400): the template, a partial or an SVG asset holds script or another injection attempt; the error's `message` (the API's `detail`) names the first construct found. Not retried: fix the template.
+
 ## [0.13.1] - 2026-11-04
 
 ### Changed

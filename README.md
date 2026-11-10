@@ -206,6 +206,8 @@ try {
 }
 ```
 
+`TEMPLATE_UNSAFE` (400) means the template, a partial or an SVG asset holds script or another injection attempt: `err.message` (the API's `detail`) names the first construct found (a `<script>` element, an `onerror` attribute, a `javascript:` URL) and, for a project file, its path. The SDK does not retry it: fix the template, then call again.
+
 For lifecycle and billing failures, route the user to actionable messages rather than treating them as opaque errors:
 
 ```ts
