@@ -8,9 +8,13 @@ Upgrade steps for breaking changes are on the docs site's [migration page](https
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-16
+
+Conformance with the Poli Page API contract v0.15.0 ([poli-page/api-contract](https://github.com/poli-page/api-contract)). The SDK shares its major.minor with the Poli Page API, so it moves from 0.13 to 0.15; there is no 0.14 (see [RELEASING.md](https://github.com/poli-page/sdk-node/blob/main/RELEASING.md#versions)). No breaking change.
+
 ### Changed
 
-- CI pins the API contract `v0.15.0-dev.1` (format 2: a case can set `expect.minCallMs`, the least time the whole call must take, which the conformance suite checks on a monotonic clock).
+- CI pins the API contract `v0.15.0` (format 2: a case can set `expect.minCallMs`, the least time the whole call must take, which the conformance suite checks on a monotonic clock; the `timeout.hang` and `download.timeout` cases use it). The contract adds the retry rule R-WAIT-FULL: no wait ends early, so a retry delay lasts at least its delay and an attempt or download timeout fires no sooner than `timeout` after it started (see Fixed).
 
 ### Fixed
 
