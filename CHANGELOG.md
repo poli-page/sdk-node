@@ -8,7 +8,7 @@ Upgrade steps for breaking changes are on the docs site's [migration page](https
 
 ## [Unreleased]
 
-## [0.15.0] - 2026-11-16
+## [0.15.0] - 2026-11-17
 
 Conformance with the Poli Page API contract v0.15.0 ([poli-page/api-contract](https://github.com/poli-page/api-contract)). The SDK shares its major.minor with the Poli Page API, so it moves from 0.13 to 0.15; there is no 0.14 (see [RELEASING.md](https://github.com/poli-page/sdk-node/blob/main/RELEASING.md#versions)). No breaking change.
 
